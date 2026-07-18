@@ -5,8 +5,11 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
+	"gaia/internal/agent"
 	"gaia/internal/core/domain"
+
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
@@ -31,6 +34,15 @@ var (
 	aiStyle = lipgloss.NewStyle().
 			Bold(true).
 			Foreground(lipgloss.Color("#FF00D7"))
+
+	taskRunningStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("#00D700"))
+
+	taskDoneStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#ADADAD"))
+
+	taskFailedStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#FF5F00"))
 )
 
 // MessageProcessor is the interface the TUI uses to send user input
@@ -43,6 +55,22 @@ type MessageProcessor interface {
 // processDoneMsg signals that an async ProcessMessage call finished.
 type processDoneMsg struct {
 	err error
+}
+
+// taskUpdateMsg signals that a task state has changed.
+type taskUpdateMsg struct {
+	state agent.TaskState
+}
+
+// waitForTaskUpdate returns a tea.Cmd that waits for the next task state.
+func waitForTaskUpdate(sub <-chan agent.TaskState) tea.Cmd {
+	return func() tea.Msg {
+		state, ok := <-sub
+		if !ok {
+			return nil
+		}
+		return taskUpdateMsg{state: state}
+	}
 }
 
 type Model struct {
@@ -58,7 +86,10 @@ type Model struct {
 	confirmCh  chan bool
 	streaming  string // current in-progress AI response text
 
-	brain MessageProcessor
+	brain       MessageProcessor
+	taskManager *agent.TaskManager
+	tasks       map[string]agent.TaskState // current task states by TaskID
+	taskSub     <-chan agent.TaskState     // SubscribeAll channel
 }
 
 func NewTUI() *Model {
@@ -71,6 +102,7 @@ func NewTUI() *Model {
 	return &Model{
 		textInput: ti,
 		history:   []domain.Message{},
+		tasks:     make(map[string]agent.TaskState),
 	}
 }
 
@@ -81,8 +113,22 @@ func (m *Model) SetBrain(b MessageProcessor) {
 	m.brain = b
 }
 
+// SetTaskManager wires the TaskManager for async task display and control.
+func (m *Model) SetTaskManager(tm *agent.TaskManager) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.taskManager = tm
+	if tm != nil {
+		m.taskSub = tm.SubscribeAll()
+	}
+}
+
 func (m *Model) Init() tea.Cmd {
-	return textinput.Blink
+	cmds := []tea.Cmd{textinput.Blink}
+	if m.taskSub != nil {
+		cmds = append(cmds, waitForTaskUpdate(m.taskSub))
+	}
+	return tea.Batch(cmds...)
 }
 
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -140,6 +186,63 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 
+			// Handle /tasks — list all async tasks
+			if input == "tasks" {
+				m.mu.Lock()
+				if m.taskManager != nil {
+					tasks := m.taskManager.ListTasks()
+					var sb strings.Builder
+					if len(tasks) == 0 {
+						sb.WriteString("No active tasks.")
+					} else {
+						sb.WriteString("Active tasks:\n")
+						for _, t := range tasks {
+							elapsed := time.Since(t.CreatedAt).Truncate(time.Second)
+							sb.WriteString(fmt.Sprintf("  [%s] %-8s @%-15s %s",
+								t.TaskID[:8], t.Status, t.SubagentName, elapsed))
+							if t.Error != "" {
+								sb.WriteString(fmt.Sprintf(" — %s", t.Error))
+							}
+							sb.WriteString("\n")
+						}
+					}
+					m.history = append(m.history, domain.Message{
+						Role:    domain.RoleSystem,
+						Content: sb.String(),
+					})
+					m.viewport.SetContent(m.renderHistory())
+					m.viewport.GotoBottom()
+				}
+				m.textInput.SetValue("")
+				m.mu.Unlock()
+				return m, nil
+			}
+
+			// Handle /cancel <taskid> — cancel an async task
+			if strings.HasPrefix(input, "cancel ") {
+				taskID := strings.TrimSpace(input[len("cancel "):])
+				m.mu.Lock()
+				var response string
+				if m.taskManager != nil {
+					if err := m.taskManager.CancelTask(taskID); err != nil {
+						response = fmt.Sprintf("Cancel failed: %v", err)
+					} else {
+						response = fmt.Sprintf("Task %s cancelled.", taskID[:min(8, len(taskID))])
+					}
+				} else {
+					response = "Task manager not available."
+				}
+				m.history = append(m.history, domain.Message{
+					Role:    domain.RoleSystem,
+					Content: response,
+				})
+				m.viewport.SetContent(m.renderHistory())
+				m.viewport.GotoBottom()
+				m.textInput.SetValue("")
+				m.mu.Unlock()
+				return m, nil
+			}
+
 			// Normal message — append user message and dispatch Brain call.
 			m.mu.Lock()
 			m.history = append(m.history, domain.Message{
@@ -165,13 +268,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case tea.WindowSizeMsg:
+		taskPaneHeight := m.taskPaneHeight()
 		if !m.ready {
-			m.viewport = viewport.New(msg.Width, msg.Height-6)
-			m.viewport.YPosition = 4
+			m.viewport = viewport.New(msg.Width, msg.Height-6-taskPaneHeight)
+			m.viewport.YPosition = 4 + taskPaneHeight
 			m.ready = true
 		} else {
 			m.viewport.Width = msg.Width
-			m.viewport.Height = msg.Height - 6
+			m.viewport.Height = msg.Height - 6 - taskPaneHeight
 		}
 
 	case processDoneMsg:
@@ -182,6 +286,18 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.viewport.SetContent(m.renderHistory())
 		m.viewport.GotoBottom()
 		m.mu.Unlock()
+
+	case taskUpdateMsg:
+		m.mu.Lock()
+		m.tasks[msg.state.TaskID] = msg.state
+		m.viewport.SetContent(m.renderHistory())
+		m.viewport.GotoBottom()
+		m.mu.Unlock()
+
+		// Re-subscribe for next task update
+		if m.taskSub != nil {
+			return m, tea.Batch(tiCmd, vpCmd, waitForTaskUpdate(m.taskSub))
+		}
 	}
 
 	return m, tea.Batch(tiCmd, vpCmd)
@@ -193,6 +309,10 @@ func (m *Model) View() string {
 	}
 
 	header := titleStyle.Render(" GAIA v0.1 ") + " " + infoStyle.Render("Go-powered Intelligence Automator")
+
+	// Task pane
+	taskPane := m.renderTaskPane()
+
 	footer := fmt.Sprintf("\n%s\n", m.textInput.View())
 
 	if m.confirming {
@@ -202,7 +322,7 @@ func (m *Model) View() string {
 			m.textInput.View())
 	}
 
-	return fmt.Sprintf("%s\n\n%s\n%s", header, m.viewport.View(), footer)
+	return fmt.Sprintf("%s\n%s\n%s\n%s", header, taskPane, m.viewport.View(), footer)
 }
 
 // AppendToken adds a streaming token to the current assistant message.
@@ -247,6 +367,68 @@ func (m *Model) PromptConfirmation(prompt string) (bool, error) {
 	m.textInput.Placeholder = "Talk to GAIA..."
 	m.mu.Unlock()
 	return confirmed, nil
+}
+
+// taskPaneHeight returns the number of lines the task pane occupies.
+func (m *Model) taskPaneHeight() int {
+	if len(m.tasks) == 0 {
+		return 0
+	}
+	return 1 + len(m.tasks) // header + one line per task
+}
+
+// renderTaskPane builds the async task status bar.
+func (m *Model) renderTaskPane() string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if len(m.tasks) == 0 {
+		return ""
+	}
+
+	var sb strings.Builder
+	sb.WriteString(lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#5F5F87")).
+		Render("── Tasks ──") + "\n")
+
+	// Show only active (non-terminal) tasks
+	activeCount := 0
+	for _, state := range m.tasks {
+		if state.Status == agent.TaskCompleted || state.Status == agent.TaskFailed || state.Status == agent.TaskCancelled {
+			// Show terminal tasks briefly, then drop
+			continue
+		}
+
+		elapsed := time.Since(state.CreatedAt).Truncate(time.Second)
+		var statusStyle lipgloss.Style
+		switch state.Status {
+		case agent.TaskRunning:
+			statusStyle = taskRunningStyle
+		case agent.TaskFailed:
+			statusStyle = taskFailedStyle
+		default:
+			statusStyle = taskDoneStyle
+		}
+
+		shortID := state.TaskID
+		if len(shortID) > 8 {
+			shortID = shortID[:8]
+		}
+
+		sb.WriteString(fmt.Sprintf(" %s %s %s %s\n",
+			statusStyle.Render(fmt.Sprintf("[%s]", state.Status)),
+			taskDoneStyle.Render(shortID),
+			statusStyle.Render(fmt.Sprintf("@%s", state.SubagentName)),
+			infoStyle.Render(elapsed.String()),
+		))
+		activeCount++
+	}
+
+	if activeCount == 0 {
+		return ""
+	}
+
+	return sb.String()
 }
 
 func (m *Model) renderHistory() string {

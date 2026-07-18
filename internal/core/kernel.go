@@ -8,6 +8,7 @@ import (
 	"io"
 	"regexp"
 	"strings"
+	"time"
 
 	"gaia/internal/core/domain"
 	"gaia/internal/core/ports"
@@ -84,9 +85,14 @@ func (b *Brain) Registry() *ToolRegistry {
 }
 
 // ProcessMessage handles a user input through the full agent loop.
-// Before the standard iteration loop, it checks for SDD trigger keywords
-// and routes through the SDD pipeline when appropriate.
+// Before the standard iteration loop, it checks for @name direct routing,
+// then SDD trigger keywords, and routes through the SDD pipeline when appropriate.
 func (b *Brain) ProcessMessage(ctx context.Context, content string) error {
+	// 0. @name direct routing
+	if strings.HasPrefix(content, "@") {
+		return b.handleDirectSubagent(ctx, content)
+	}
+
 	// 1. SDD trigger detection
 	trigger := DetectSDDTrigger(content)
 	if trigger.ShouldSDD {
@@ -219,6 +225,75 @@ func (b *Brain) handleToolCalls(ctx context.Context, msg *domain.Message) error 
 	// Save the assistant message that triggered these tool calls
 	b.repo.SaveMessage(ctx, *msg)
 	return nil
+}
+
+// handleDirectSubagent parses @name syntax and routes the message directly
+// to the named subagent. If the subagent is unknown, an error is returned with
+// the available subagent list. Uses SpawnAsync when available, falls back to
+// synchronous Spawn.
+func (b *Brain) handleDirectSubagent(ctx context.Context, content string) error {
+	// Parse: @name rests of message
+	trimmed := strings.TrimPrefix(content, "@")
+	parts := strings.SplitN(trimmed, " ", 2)
+	name := parts[0]
+	message := ""
+	if len(parts) > 1 {
+		message = parts[1]
+	}
+
+	// Validate subagent exists
+	available := b.AvailableSubagents()
+	found := false
+	for _, a := range available {
+		if a == name {
+			found = true
+			break
+		}
+	}
+	if !found {
+		errMsg := &domain.Message{
+			Role:    domain.RoleAssistant,
+			Content: fmt.Sprintf("Unknown subagent: @%s\nAvailable: %s", name, strings.Join(available, ", ")),
+		}
+		return b.ui.Display(*errMsg)
+	}
+
+	task := domain.SubagentTask{
+		ID:           fmt.Sprintf("direct-%s-%d", name, time.Now().UnixNano()),
+		Description:  message,
+		Mode:         "plan",
+		IsDirectChat: true,
+	}
+
+	// Try async spawn first
+	asyncPort, isAsync := b.subagentPort.(ports.AsyncSpawner)
+	if isAsync {
+		taskID, err := asyncPort.SpawnAsync(ctx, name, task)
+		if err != nil {
+			return b.ui.Display(domain.Message{
+				Role:    domain.RoleAssistant,
+				Content: fmt.Sprintf("Error spawning @%s: %v", name, err),
+			})
+		}
+		return b.ui.Display(domain.Message{
+			Role:    domain.RoleAssistant,
+			Content: fmt.Sprintf("Dispatched to @%s (task %s)", name, taskID[:8]),
+		})
+	}
+
+	// Fall back to synchronous spawn
+	result, err := b.Delegate(ctx, name, task)
+	if err != nil {
+		return b.ui.Display(domain.Message{
+			Role:    domain.RoleAssistant,
+			Content: fmt.Sprintf("Error running @%s: %v", name, err),
+		})
+	}
+
+	return b.ui.Display(domain.Message{
+		Role:    domain.RoleAssistant,
+		Content: fmt.Sprintf("[@%s] %s: %s", name, result.Status, result.Summary),
+	})
 }
 
 // handleSDDTrigger routes a detected SDD-triggering message through the

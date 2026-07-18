@@ -13,10 +13,11 @@ import (
 
 // SpawnerConfig holds the dependencies needed to spawn subagent executions.
 type SpawnerConfig struct {
-	Provider  ports.LLMProvider
-	Tools     *core.ToolRegistry // Full tool registry; filtered per subagent
-	Budget    domain.BudgetConfig
-	Namespace *memory.NamespaceManager // Engram namespace wrapper
+	Provider    ports.LLMProvider
+	Tools       *core.ToolRegistry // Full tool registry; filtered per subagent
+	Budget      domain.BudgetConfig
+	Namespace   *memory.NamespaceManager // Engram namespace wrapper
+	TaskManager *TaskManager             // Async task lifecycle tracking (nil = sync-only mode)
 }
 
 // Spawner implements ports.SubagentPort. It creates isolated execution
@@ -55,6 +56,48 @@ func (s *Spawner) LearningLoop() *learn.LearningLoop {
 // Namespace returns the Engram namespace manager (may be nil if not configured).
 func (s *Spawner) Namespace() *memory.NamespaceManager {
 	return s.cfg.Namespace
+}
+
+// TaskManager returns the async task manager (may be nil if not configured).
+func (s *Spawner) TaskManager() *TaskManager {
+	return s.cfg.TaskManager
+}
+
+// SpawnAsync launches a subagent execution in a goroutine and returns immediately.
+// The goroutine wraps the existing synchronous Spawn logic with panic recovery.
+// Returns the TaskID immediately. The caller can track completion via TaskManager.
+//
+// If SpawnerConfig.TaskManager is nil, returns an error — async mode is disabled.
+func (s *Spawner) SpawnAsync(ctx context.Context, name string, task domain.SubagentTask) (string, error) {
+	if s.cfg.TaskManager == nil {
+		return "", fmt.Errorf("async spawning is disabled: TaskManager not configured")
+	}
+
+	if _, ok := s.registry.Get(name); !ok {
+		return "", fmt.Errorf("unknown subagent: %s", name)
+	}
+
+	taskID, taskCtx := s.cfg.TaskManager.CreateTask(name, task)
+	s.cfg.TaskManager.UpdateStatus(taskID, TaskRunning, nil, nil)
+
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				err := fmt.Errorf("panic in subagent %q: %v", name, r)
+				s.cfg.TaskManager.UpdateStatus(taskID, TaskFailed, nil, err)
+			}
+		}()
+
+		result, err := s.Spawn(taskCtx, name, task)
+		if err != nil {
+			s.cfg.TaskManager.UpdateStatus(taskID, TaskFailed, nil, err)
+			return
+		}
+
+		s.cfg.TaskManager.UpdateStatus(taskID, TaskCompleted, result, nil)
+	}()
+
+	return taskID, nil
 }
 
 // Spawn executes a named subagent with the given task.
