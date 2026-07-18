@@ -182,10 +182,36 @@ func handleTrackerPort(args []string) {
 
 	fmt.Printf("Feature %q marked as ported.\n", featureName)
 
-	// Optionally create a GitHub issue for tracking.
-	fmt.Println("Tip: to create a tracking issue, run:")
-	fmt.Printf("  gh issue create --title \"Port upstream feature: %s\" --body \"Port %s from upstream Gentle AI.\"\n",
-		featureName, featureName)
+	// Auto-create a GitHub issue for tracking.
+	createTrackingIssue(featureName)
+}
+
+// createTrackingIssue attempts to create a GitHub issue via `gh issue create`.
+// Falls back to printing a tip if gh is not installed.
+func createTrackingIssue(featureName string) {
+	ghPath, err := exec.LookPath("gh")
+	if err != nil {
+		fmt.Println("Tip: to create a tracking issue, install gh CLI or run:")
+		fmt.Printf("  gh issue create --title \"Port upstream feature: %s\" --body \"Port %s from upstream Gentle AI.\"\n",
+			featureName, featureName)
+		return
+	}
+
+	title := fmt.Sprintf("Port upstream feature: %s", featureName)
+	body := fmt.Sprintf("Port %s from upstream Gentle AI.\n\nSee tracker/manifest.yaml for details.", featureName)
+	cmd := exec.Command(ghPath, "issue", "create",
+		"--title", title,
+		"--body", body,
+	)
+	output, err := cmd.Output()
+	if err != nil {
+		fmt.Printf("Warning: could not create GitHub issue: %v\nTip: run manually:\n", err)
+		fmt.Printf("  gh issue create --title %q --body %q\n", title, body)
+		return
+	}
+
+	url := strings.TrimSpace(string(output))
+	fmt.Printf("✅ Tracking issue created: %s\n", url)
 }
 
 // safeNameRe matches feature names composed of letters, digits, hyphens, and underscores.
@@ -195,6 +221,3 @@ func isSafeFeatureName(name string) bool {
 	return safeNameRe.MatchString(name)
 }
 
-// Ensure unused imports are handled.
-var _ = exec.Command
-var _ = strings.TrimSpace
