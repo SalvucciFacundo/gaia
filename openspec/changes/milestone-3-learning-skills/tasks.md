@@ -136,28 +136,31 @@
 ## PR 4: Headless Mode + Output Modes
 
 ### 4.1 Exec Command
-- [ ] Create `cmd/gaia/exec.go`
-  - [ ] `gaia exec "task"` — execute once, no TUI
-  - [ ] Parse flags: --json, --quiet, --verbose, --dry-run, --yes
+- [x] Create `cmd/gaia/exec.go`
+  - [x] `gaia exec "task"` — execute once, no TUI
+  - [x] Parse flags: --json, --quiet, --verbose, --dry-run, --yes
 
 ### 4.2 NullUI
-- [ ] Create `internal/adapters/output/nullui.go`
-  - [ ] Implement ports.UIService for headless (no display)
-  - [ ] Capture output for structured return
+- [x] Create `internal/adapters/tui/null.go` (per design: tui directory)
+  - [x] Implement ports.UIService for headless (no display)
+  - [x] Capture output for structured return
 
 ### 4.3 JSON Output
-- [ ] Create `internal/adapters/output/formatter.go`
-  - [ ] `--json` output envelope: {status, result, artifacts, risks}
-  - [ ] Format options: json, text (quiet/verbose/normal)
+- [x] Create `internal/adapters/output/formatter.go`
+  - [x] `--json` output envelope: {status, result, artifacts, risks}
+  - [x] Format options: json, text (quiet/verbose/normal)
 
 ### 4.4 Quiet Mode
-- [ ] `--quiet` suppress non-essential output
+- [x] `--quiet` suppress non-essential output
 
 ### 4.5 Dry-Run Mode
-- [ ] `--dry-run` show plan, don't execute (SDD pipeline up to Plan phase, no Implementer)
+- [x] `--dry-run` show plan, don't execute (NullUI denies tool confirmations)
 
-### 4.6 Tests
-- [ ] Exec command tests (flag parsing, dry-run routing)
-- [ ] NullUI tests (output capture)
-- [ ] JSON formatter tests (envelope structure)
-- [ ] Quiet/verbose filter tests
+### 4.6 Main Integration
+- [x] Update `cmd/gaia/main.go`: detect exec subcommand alongside skills
+
+### 4.7 Tests
+- [x] Exec command tests (flag parsing) — `cmd/gaia/exec_test.go`
+- [x] NullUI tests (output capture, confirmation behavior, interface satisfaction) — `internal/adapters/tui/null_test.go`
+- [x] JSON formatter tests (envelope structure, constructors) — `internal/adapters/output/formatter_test.go`
+- [x] Quiet/verbose/normal filter tests — covered in formatter_test.go
