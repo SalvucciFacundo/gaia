@@ -16,6 +16,7 @@ type SQLiteRepo struct {
 	db *sql.DB
 }
 
+// NewSQLiteRepo creates a new SQLite repository, running migrations automatically.
 func NewSQLiteRepo() (*SQLiteRepo, error) {
 	home, _ := os.UserHomeDir()
 	dbDir := filepath.Join(home, ".config/gaia")
@@ -32,6 +33,11 @@ func NewSQLiteRepo() (*SQLiteRepo, error) {
 	}
 
 	return repo, nil
+}
+
+// DB returns the underlying database connection for use by other repositories.
+func (r *SQLiteRepo) DB() *sql.DB {
+	return r.db
 }
 
 func (r *SQLiteRepo) migrate() error {
