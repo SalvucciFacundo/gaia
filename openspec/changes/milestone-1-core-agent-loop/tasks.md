@@ -53,8 +53,8 @@ Chain strategy: stacked-to-main
 
 ## Phase 3: Tests + CI
 
-- [ ] 3.1 Integration test: mock LLM + real ToolRegistry + iteration budget — verify tool_call loop halts at max iterations
-- [ ] 3.2 Integration test: TUI → Brain → mock LLM — scripted input/output with `teatest`
-- [ ] 3.3 Create `.golangci.yml` — baseline linters (govet, staticcheck, errcheck, ineffassign)
-- [ ] 3.4 Create `Makefile` — targets: `test`, `test-race`, `lint`, `build`, `clean`
-- [ ] 3.5 Integration test: secret redaction — tool output scanned for configured patterns, redacted before LLM feedback
+- [x] 3.1 Integration test: mock LLM + real ToolRegistry + iteration budget — verify tool_call loop halts at max iterations
+- [x] 3.2 Integration test: TUI → Brain → mock LLM — scripted input/output with `teatest`
+- [x] 3.3 Create `.golangci.yml` — baseline linters (govet, staticcheck, errcheck, ineffassign)
+- [x] 3.4 Create `Makefile` — targets: `test`, `test-race`, `lint`, `build`, `clean`
+- [x] 3.5 Integration test: secret redaction — tool output scanned for configured patterns, redacted before LLM feedback
