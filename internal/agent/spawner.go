@@ -150,6 +150,13 @@ func (s *Spawner) RunLoop(ctx context.Context, task domain.SubagentTask, systemP
 	}
 
 	for iter := 0; iter < s.cfg.Budget.MaxIterations; iter++ {
+		// Check for cancellation before each LLM call
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+		}
+
 		resp, err := s.cfg.Provider.Chat(ctx, messages)
 		if err != nil {
 			return nil, fmt.Errorf("llm chat: %w", err)
@@ -159,6 +166,13 @@ func (s *Spawner) RunLoop(ctx context.Context, task domain.SubagentTask, systemP
 		if len(resp.ToolCalls) > 0 {
 			messages = append(messages, *resp)
 			for _, tc := range resp.ToolCalls {
+				// Check cancellation between tool executions
+				select {
+				case <-ctx.Done():
+					return nil, ctx.Err()
+				default:
+				}
+
 				toolResult, execErr := filtered.Execute(ctx, tc.Name, tc.Arguments)
 				if execErr != nil {
 					toolResult = &domain.ToolResult{
