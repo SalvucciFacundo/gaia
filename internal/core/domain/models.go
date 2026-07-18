@@ -88,3 +88,32 @@ type Config struct {
 func DefaultBudget() BudgetConfig {
 	return BudgetConfig{MaxIterations: 25}
 }
+
+// SubagentStatus represents the outcome of a subagent execution.
+type SubagentStatus string
+
+const (
+	SubagentSuccess SubagentStatus = "success"
+	SubagentPartial SubagentStatus = "partial"
+	SubagentBlocked SubagentStatus = "blocked"
+)
+
+// SubagentTask is a self-contained work unit sent to a subagent.
+type SubagentTask struct {
+	ID           string   // Unique identifier for this task
+	Description  string   // Human-readable instruction for the subagent
+	KGContext    []string // Relevant knowledge graph facts
+	Skills       []string // Skill names to load before execution
+	AllowedTools []string // Tool names allowed for this subagent; empty = all
+	Mode         string   // Execution mode: "plan" or "build"
+}
+
+// SubagentResult is the structured envelope returned by a subagent.
+type SubagentResult struct {
+	Status          SubagentStatus // "success", "partial", or "blocked"
+	Summary         string         // Human-readable summary of what happened
+	Artifacts       []string       // Artifact keys or paths produced
+	NextRecommended string         // Next recommended phase, or "none"
+	Risks           []string       // Risks discovered during execution
+	SkillResolution string         // How skills were resolved (paths-injected, fallback-registry, none)
+}

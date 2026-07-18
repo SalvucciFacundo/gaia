@@ -64,3 +64,10 @@ type Module interface {
 	GetTools() []domain.ToolCall // Definitions
 	Execute(ctx context.Context, toolName string, args map[string]interface{}) (*domain.ToolResult, error)
 }
+
+// SubagentPort defines the contract for spawning and managing subagents.
+// Implemented by the agent.Spawner; consumed by the Brain for delegation.
+type SubagentPort interface {
+	Spawn(ctx context.Context, name string, task domain.SubagentTask) (*domain.SubagentResult, error)
+	Available() []string
+}

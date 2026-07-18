@@ -12,15 +12,16 @@ import (
 )
 
 // Brain orchestrates the agent loop: receive user input, call LLM,
-// execute tool calls, enforce budget, and return results.
+// execute tool calls, enforce budget, delegate to subagents, and return results.
 type Brain struct {
-	provider ports.LLMProvider
-	repo     ports.Repository
-	registry *ToolRegistry
-	guard    *ConfirmGuard
-	ui       ports.UIService
-	budget   domain.BudgetConfig
-	onToken  func(string) // streaming callback
+	provider     ports.LLMProvider
+	repo         ports.Repository
+	registry     *ToolRegistry
+	guard        *ConfirmGuard
+	ui           ports.UIService
+	budget       domain.BudgetConfig
+	onToken      func(string)           // streaming callback
+	subagentPort ports.SubagentPort      // subagent delegation (nil if not wired)
 }
 
 // BrainOption configures the Brain.
@@ -50,6 +51,34 @@ func NewBrain(provider ports.LLMProvider, repo ports.Repository, ui ports.UIServ
 // RegisterModule adds a module's tools to the registry.
 func (b *Brain) RegisterModule(mod ports.Module) {
 	b.registry.Register(mod)
+}
+
+// SetSubagentPort wires the subagent infrastructure into the Brain.
+// Pass nil to disable subagent delegation.
+func (b *Brain) SetSubagentPort(sp ports.SubagentPort) {
+	b.subagentPort = sp
+}
+
+// Delegate dispatches a task to a named subagent and returns the structured result.
+// Returns nil, error if no subagent port is wired or the subagent is unknown.
+func (b *Brain) Delegate(ctx context.Context, name string, task domain.SubagentTask) (*domain.SubagentResult, error) {
+	if b.subagentPort == nil {
+		return nil, fmt.Errorf("subagent port not wired")
+	}
+	return b.subagentPort.Spawn(ctx, name, task)
+}
+
+// AvailableSubagents returns the list of registered subagent names.
+func (b *Brain) AvailableSubagents() []string {
+	if b.subagentPort == nil {
+		return nil
+	}
+	return b.subagentPort.Available()
+}
+
+// Registry returns the brain's tool registry for use by subagent infrastructure.
+func (b *Brain) Registry() *ToolRegistry {
+	return b.registry
 }
 
 // ProcessMessage handles a user input through the full agent loop.

@@ -42,3 +42,30 @@ func (r *ToolRegistry) Execute(ctx context.Context, name string, args map[string
 	}
 	return entry.Module.Execute(ctx, name, args)
 }
+
+// Filtered returns a new ToolRegistry containing only the specified tool names.
+// If allowed is nil or empty, a copy with all tools is returned.
+func (r *ToolRegistry) Filtered(allowed []string) *ToolRegistry {
+	filtered := NewToolRegistry()
+	if len(allowed) == 0 {
+		for k, v := range r.tools {
+			filtered.tools[k] = v
+		}
+		return filtered
+	}
+	for _, name := range allowed {
+		if entry, ok := r.tools[name]; ok {
+			filtered.tools[name] = entry
+		}
+	}
+	return filtered
+}
+
+// Tools returns a copy of the current tool names.
+func (r *ToolRegistry) Tools() []string {
+	names := make([]string, 0, len(r.tools))
+	for name := range r.tools {
+		names = append(names, name)
+	}
+	return names
+}

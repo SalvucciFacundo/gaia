@@ -1,0 +1,154 @@
+package agent
+
+import (
+	"context"
+	"fmt"
+
+	"gaia/internal/core"
+	"gaia/internal/core/domain"
+	"gaia/internal/core/ports"
+)
+
+// SpawnerConfig holds the dependencies needed to spawn subagent executions.
+type SpawnerConfig struct {
+	Provider ports.LLMProvider
+	Tools    *core.ToolRegistry // Full tool registry; filtered per subagent
+	Budget   domain.BudgetConfig
+}
+
+// Spawner implements ports.SubagentPort. It creates isolated execution
+// contexts for subagents: filtered tools, scoped system prompts, and
+// fresh message history. Tool filtering is enforced at the Spawner level,
+// not self-reported by subagents.
+type Spawner struct {
+	cfg      SpawnerConfig
+	registry *Registry
+}
+
+// NewSpawner creates a Spawner with the given configuration and subagent registry.
+func NewSpawner(cfg SpawnerConfig, registry *Registry) *Spawner {
+	if cfg.Budget.MaxIterations <= 0 {
+		cfg.Budget = domain.DefaultBudget()
+	}
+	return &Spawner{
+		cfg:      cfg,
+		registry: registry,
+	}
+}
+
+// Spawn executes a named subagent with the given task.
+// It looks up the subagent factory, creates the subagent, calls Execute,
+// and returns the structured result.
+func (s *Spawner) Spawn(ctx context.Context, name string, task domain.SubagentTask) (*domain.SubagentResult, error) {
+	factory, ok := s.registry.Get(name)
+	if !ok {
+		return nil, fmt.Errorf("unknown subagent: %s", name)
+	}
+
+	sub := factory(s)
+	result := sub.Execute(ctx, task)
+	if result == nil {
+		return &domain.SubagentResult{
+			Status:  domain.SubagentBlocked,
+			Summary: fmt.Sprintf("subagent %q returned nil result", name),
+		}, nil
+	}
+	return result, nil
+}
+
+// Available returns the list of registered subagent names.
+func (s *Spawner) Available() []string {
+	return s.registry.Available()
+}
+
+// RunLoop is a helper that subagent implementations can use to run a
+// simplified agent loop with filtered tools. It handles LLM calls,
+// tool execution via the filtered registry, and budget enforcement.
+//
+// The caller provides a system prompt and the initial task message.
+// RunLoop returns the final assistant message (typically the subagent's summary).
+func (s *Spawner) RunLoop(ctx context.Context, task domain.SubagentTask, systemPrompt string) (*domain.Message, error) {
+	filtered := s.cfg.Tools.Filtered(task.AllowedTools)
+
+	messages := []domain.Message{
+		{Role: domain.RoleSystem, Content: systemPrompt},
+		{Role: domain.RoleUser, Content: task.Description},
+	}
+
+	for iter := 0; iter < s.cfg.Budget.MaxIterations; iter++ {
+		resp, err := s.cfg.Provider.Chat(ctx, messages)
+		if err != nil {
+			return nil, fmt.Errorf("llm chat: %w", err)
+		}
+
+		// If the model returns tool calls, execute them and feed results back
+		if len(resp.ToolCalls) > 0 {
+			messages = append(messages, *resp)
+			for _, tc := range resp.ToolCalls {
+				toolResult, execErr := filtered.Execute(ctx, tc.Name, tc.Arguments)
+				if execErr != nil {
+					toolResult = &domain.ToolResult{
+						Success: false,
+						Error:   execErr.Error(),
+					}
+				}
+				output := toolResult.Output
+				if !toolResult.Success {
+					output = fmt.Sprintf("Error: %s", toolResult.Error)
+				}
+				messages = append(messages, domain.Message{
+					Role:    domain.RoleTool,
+					Content: output,
+				})
+			}
+			continue
+		}
+
+		// No tool calls — this is the final response
+		return resp, nil
+	}
+
+	return &domain.Message{
+		Role:    domain.RoleAssistant,
+		Content: fmt.Sprintf("Subagent budget exhausted after %d iterations.", s.cfg.Budget.MaxIterations),
+	}, nil
+}
+
+// buildSystemPrompt constructs a system prompt for a subagent from the task context.
+// Exported for use by subagent implementations.
+func BuildSystemPrompt(role, description string, task domain.SubagentTask) string {
+	prompt := fmt.Sprintf("You are the %s subagent. %s\n\n", role, description)
+	prompt += fmt.Sprintf("Task ID: %s\n", task.ID)
+	prompt += fmt.Sprintf("Task: %s\n", task.Description)
+
+	if len(task.KGContext) > 0 {
+		prompt += "\nRelevant knowledge:\n"
+		for _, fact := range task.KGContext {
+			prompt += fmt.Sprintf("- %s\n", fact)
+		}
+	}
+
+	if len(task.Skills) > 0 {
+		prompt += "\nSkills to load: "
+		for i, s := range task.Skills {
+			if i > 0 {
+				prompt += ", "
+			}
+			prompt += s
+		}
+		prompt += "\n"
+	}
+
+	if task.Mode != "" {
+		prompt += fmt.Sprintf("\nExecution mode: %s\n", task.Mode)
+	}
+
+	prompt += "\nReturn your result as a structured summary with these sections:\n"
+	prompt += "- Status (success, partial, or blocked)\n"
+	prompt += "- Artifacts produced (list)\n"
+	prompt += "- Next recommended phase (or none)\n"
+	prompt += "- Risks discovered (list, or none)\n"
+	prompt += "- Skill resolution (how skills were loaded)\n"
+
+	return prompt
+}
