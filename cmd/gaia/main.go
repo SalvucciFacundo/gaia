@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"context"
+
 	"gaia/internal/adapters/db"
 	"gaia/internal/adapters/llm"
 	"gaia/internal/adapters/tui"
@@ -226,6 +228,40 @@ func main() {
 
 	// Wire TaskManager into the TUI for async task display and control.
 	ui.SetTaskManager(taskManager)
+
+	// Wire dynamic subagent loader for /create-agent command.
+	defRepo := db.NewDefRepo(repo.DB())
+	dynamicLoader := agent.NewDynamicLoader(defRepo, subagentRegistry, subagentSpawner, namespaceMgr)
+
+	// Configure tool validation against the brain's tool registry.
+	availableTools := brain.Registry().Tools()
+	dynamicLoader.SetValidator(func(allowed []string) error {
+		for _, t := range allowed {
+			found := false
+			for _, a := range availableTools {
+				if a == t {
+					found = true
+					break
+				}
+			}
+			if !found {
+				return fmt.Errorf("unknown tool: %q (available: %v)", t, availableTools)
+			}
+		}
+		return nil
+	})
+
+	// Load persisted dynamic subagents on startup.
+	ctx := context.Background()
+	if err := dynamicLoader.LoadAll(ctx); err != nil {
+		log.Printf("Warning: could not load dynamic subagents: %v", err)
+	}
+
+	// Wire the TUI for /create-agent interview and dynamic creation.
+	ui.SetDynamicCreator(func(def agent.SubagentDef) error {
+		return dynamicLoader.CreateFromDef(ctx, def)
+	})
+	ui.SetToolNames(availableTools)
 
 	// 9. Run main Chat UI
 	if err := ui.Run(); err != nil {

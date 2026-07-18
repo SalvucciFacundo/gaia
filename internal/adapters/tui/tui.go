@@ -90,6 +90,11 @@ type Model struct {
 	taskManager *agent.TaskManager
 	tasks       map[string]agent.TaskState // current task states by TaskID
 	taskSub     <-chan agent.TaskState     // SubscribeAll channel
+
+	// Dynamic subagent creation support
+	dynamicCreator func(def agent.SubagentDef) error // nil if not configured
+	toolNames      []string                          // available tool names for interview
+	interview      *InterviewModel                   // nil when not in interview mode
 }
 
 func NewTUI() *Model {
@@ -111,6 +116,21 @@ func (m *Model) SetBrain(b MessageProcessor) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.brain = b
+}
+
+// SetDynamicCreator configures the callback for creating dynamic subagents.
+// When nil, the /create-agent command is disabled.
+func (m *Model) SetDynamicCreator(creator func(def agent.SubagentDef) error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.dynamicCreator = creator
+}
+
+// SetToolNames sets the available tool names for the interview multi-select step.
+func (m *Model) SetToolNames(names []string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.toolNames = names
 }
 
 // SetTaskManager wires the TaskManager for async task display and control.
@@ -139,6 +159,30 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	m.textInput, tiCmd = m.textInput.Update(msg)
 	m.viewport, vpCmd = m.viewport.Update(msg)
+
+	// Route to interview when active
+	if m.interview != nil {
+		newModel, cmd := m.interview.Update(msg)
+		if updated, ok := newModel.(*InterviewModel); ok {
+			m.interview = updated
+		}
+		if m.interview.done {
+			msg := ""
+			if m.interview.err != nil {
+				msg = fmt.Sprintf("Error creating subagent: %v", m.interview.err)
+			}
+			m.interview = nil
+			if msg != "" {
+				m.history = append(m.history, domain.Message{
+					Role:    domain.RoleSystem,
+					Content: msg,
+				})
+				m.viewport.SetContent(m.renderHistory())
+				m.viewport.GotoBottom()
+			}
+		}
+		return m, cmd
+	}
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -243,7 +287,30 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 
-			// Normal message — append user message and dispatch Brain call.
+			// Handle /create-agent — start interview for dynamic subagent creation
+		if input == "/create-agent" {
+			m.mu.Lock()
+			creator := m.dynamicCreator
+			tools := make([]string, len(m.toolNames))
+			copy(tools, m.toolNames)
+			if creator == nil {
+				m.history = append(m.history, domain.Message{
+					Role:    domain.RoleSystem,
+					Content: "Dynamic subagent creation is not configured.",
+				})
+				m.viewport.SetContent(m.renderHistory())
+				m.viewport.GotoBottom()
+				m.textInput.SetValue("")
+				m.mu.Unlock()
+				return m, nil
+			}
+			m.interview = NewInterviewModel(tools, creator)
+			m.textInput.SetValue("")
+			m.mu.Unlock()
+			return m, m.interview.Init()
+		}
+
+		// Normal message — append user message and dispatch Brain call.
 			m.mu.Lock()
 			m.history = append(m.history, domain.Message{
 				Role:    domain.RoleUser,
@@ -304,6 +371,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *Model) View() string {
+	// Render interview when active
+	if m.interview != nil {
+		return m.interview.View()
+	}
+
 	if !m.ready {
 		return "\n  Inicializando GAIA..."
 	}
