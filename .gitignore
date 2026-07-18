@@ -1,0 +1,35 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+gaia
+gaia.exe
+
+# Test binary
+*.test
+
+# Output of go coverage
+*.out
+*.prof
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Config (user-specific, not template)
+config.yaml
+
+# Engram (local DB, recreated on demand)
+.engram/
+
+# SDD openspec (project-specific, not user templates)
+openspec/config.yaml
