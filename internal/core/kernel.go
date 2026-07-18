@@ -297,7 +297,7 @@ func (b *Brain) handleDirectSubagent(ctx context.Context, content string) error 
 }
 
 // handleSDDTrigger routes a detected SDD-triggering message through the
-// SDD pipeline: Explorer → Proposer → Specifier → Implementer → Verifier.
+// SDD pipeline asynchronously via PipelineRunner.
 func (b *Brain) handleSDDTrigger(ctx context.Context, content string, trigger TriggerResult) error {
 	// If /direct was used, process normally
 	if trigger.ForceDirect {
@@ -313,22 +313,45 @@ func (b *Brain) handleSDDTrigger(ctx context.Context, content string, trigger Tr
 		return b.ui.Display(*msg)
 	}
 
-	// Display trigger notification
-	notifyMsg := &domain.Message{
-		Role:    domain.RoleAssistant,
-		Content: fmt.Sprintf("SDD pipeline triggered (%s). Delegating to Explorer...", trigger.Reason),
-	}
-	if err := b.ui.Display(*notifyMsg); err != nil {
-		return err
-	}
-
 	// Strip command prefix if present
 	taskDesc := content
 	if trigger.ForceSDD {
 		taskDesc = content[len("+/sdd"):]
 	}
 
-	// Phase 1: Explore
+	// Build the SDD pipeline phases
+	phases := domain.SDDPhases(taskDesc)
+	baseTask := domain.SubagentTask{
+		ID:   "sdd-pipeline",
+		Mode: "plan",
+	}
+
+	// Try async pipeline via AsyncSpawner
+	if asyncPort, isAsync := b.subagentPort.(ports.AsyncSpawner); isAsync {
+		// Display trigger notification
+		b.ui.Display(domain.Message{
+			Role:    domain.RoleAssistant,
+			Content: fmt.Sprintf("SDD pipeline triggered (%s). Running 7 phases asynchronously...", trigger.Reason),
+		})
+
+		results, err := asyncPort.RunPipeline(ctx, phases, baseTask)
+		if err != nil {
+			return b.ui.Display(domain.Message{
+				Role:    domain.RoleAssistant,
+				Content: fmt.Sprintf("SDD pipeline failed: %v", err),
+			})
+		}
+
+		finalMsg := buildAsyncSDDPipelineSummary(trigger.Reason, results)
+		return b.ui.Display(finalMsg)
+	}
+
+	// Fall back to synchronous path
+	b.ui.Display(domain.Message{
+		Role:    domain.RoleAssistant,
+		Content: fmt.Sprintf("SDD pipeline triggered (%s). Delegating to Explorer...", trigger.Reason),
+	})
+
 	explorerTask := domain.SubagentTask{
 		ID:          "sdd-explore-001",
 		Description: taskDesc,
@@ -345,7 +368,6 @@ func (b *Brain) handleSDDTrigger(ctx context.Context, content string, trigger Tr
 		})
 	}
 
-	// Phase 2: Propose
 	proposerTask := domain.SubagentTask{
 		ID:          "sdd-propose-001",
 		Description: fmt.Sprintf("Create SDD proposal for: %s\nExplorer findings: %s", taskDesc, exploreResult.Summary),
@@ -363,7 +385,6 @@ func (b *Brain) handleSDDTrigger(ctx context.Context, content string, trigger Tr
 		})
 	}
 
-	// Phase 3: Spec
 	specifierTask := domain.SubagentTask{
 		ID:          "sdd-spec-001",
 		Description: fmt.Sprintf("Write delta specs based on proposal: %s", propResult.Summary),
@@ -381,7 +402,6 @@ func (b *Brain) handleSDDTrigger(ctx context.Context, content string, trigger Tr
 		})
 	}
 
-	// Phase 4: Implement
 	implementerTask := domain.SubagentTask{
 		ID:          "sdd-impl-001",
 		Description: fmt.Sprintf("Implement from specs: %s", specResult.Summary),
@@ -393,7 +413,6 @@ func (b *Brain) handleSDDTrigger(ctx context.Context, content string, trigger Tr
 		return fmt.Errorf("implementer phase: %w", err)
 	}
 
-	// Phase 5: Verify
 	verifierTask := domain.SubagentTask{
 		ID:          "sdd-verify-001",
 		Description: fmt.Sprintf("Verify implementation: %s", implResult.Summary),
@@ -405,9 +424,41 @@ func (b *Brain) handleSDDTrigger(ctx context.Context, content string, trigger Tr
 		return fmt.Errorf("verifier phase: %w", err)
 	}
 
-	// Synthesize final summary
 	finalMsg := buildSDDPipelineSummary(trigger.Reason, exploreResult, propResult, specResult, implResult, verResult)
 	return b.ui.Display(finalMsg)
+}
+
+// buildAsyncSDDPipelineSummary creates a final summary from the async pipeline results.
+func buildAsyncSDDPipelineSummary(reason string, results []*domain.SubagentResult) domain.Message {
+	content := fmt.Sprintf("## SDD Pipeline Complete\n\n**Trigger**: %s\n\n", reason)
+
+	content += "### Pipeline Results\n"
+	for i, r := range results {
+		phaseName := domain.SDDPhases("")[i].SubagentName
+		content += fmt.Sprintf("- **%s**: %s — %s\n", phaseName, r.Status, r.Summary)
+	}
+
+	content += "\n### Artifacts\n"
+	for _, r := range results {
+		for _, a := range r.Artifacts {
+			content += fmt.Sprintf("- %s\n", a)
+		}
+	}
+
+	content += "\n### Risks\n"
+	allRisks := collectRisks(results...)
+	if len(allRisks) == 0 {
+		content += "- None\n"
+	} else {
+		for _, r := range allRisks {
+			content += fmt.Sprintf("- %s\n", r)
+		}
+	}
+
+	return domain.Message{
+		Role:    domain.RoleAssistant,
+		Content: content,
+	}
 }
 
 // processDirect handles /direct messages by stripping the command prefix

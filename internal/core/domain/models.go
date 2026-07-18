@@ -1,6 +1,9 @@
 package domain
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 // Role defines the sender of a message.
 type Role string
@@ -59,6 +62,25 @@ const (
 	TrustPerAction  TrustMode = "per-action"
 	TrustNever      TrustMode = "never"
 )
+
+// PipelinePhase represents one step in an async SDD pipeline.
+type PipelinePhase struct {
+	SubagentName string // Name of the subagent to spawn
+	Description  string // Task description for this phase
+}
+
+// SDDPhases returns the standard 7-phase SDD pipeline definition.
+func SDDPhases(taskDesc string) []PipelinePhase {
+	return []PipelinePhase{
+		{SubagentName: "explorer", Description: taskDesc},
+		{SubagentName: "proposer", Description: fmt.Sprintf("Create SDD proposal for: %s", taskDesc)},
+		{SubagentName: "specifier", Description: fmt.Sprintf("Write delta specs based on proposal for: %s", taskDesc)},
+		{SubagentName: "designer", Description: fmt.Sprintf("Create technical design for: %s", taskDesc)},
+		{SubagentName: "planner", Description: fmt.Sprintf("Break into implementation tasks for: %s", taskDesc)},
+		{SubagentName: "implementer", Description: fmt.Sprintf("Implement from specs and tasks for: %s", taskDesc)},
+		{SubagentName: "verifier", Description: fmt.Sprintf("Verify implementation for: %s", taskDesc)},
+	}
+}
 
 // BudgetConfig defines iteration limits for the agent loop.
 type BudgetConfig struct {

@@ -80,6 +80,10 @@ type AsyncSpawner interface {
 	SubagentPort
 	SpawnAsync(ctx context.Context, name string, task domain.SubagentTask) (string, error)
 	TaskManager() interface{} // *agent.TaskManager (avoiding circular import)
+	// RunPipeline executes SDD phases sequentially via SpawnAsync.
+	// Each phase's result feeds into the next as KGContext.
+	// Returns collected results from all completed phases.
+	RunPipeline(ctx context.Context, phases []domain.PipelinePhase, baseTask domain.SubagentTask) ([]*domain.SubagentResult, error)
 }
 
 // CronRepository defines the contract for cron job persistence.
