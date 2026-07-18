@@ -231,7 +231,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 			// Handle /tasks — list all async tasks
-			if input == "tasks" {
+			if input == "/tasks" {
 				m.mu.Lock()
 				if m.taskManager != nil {
 					tasks := m.taskManager.ListTasks()
@@ -263,8 +263,20 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 			// Handle /cancel <taskid> — cancel an async task
-			if strings.HasPrefix(input, "cancel ") {
-				taskID := strings.TrimSpace(input[len("cancel "):])
+			if input == "/cancel" {
+				m.mu.Lock()
+				m.history = append(m.history, domain.Message{
+					Role:    domain.RoleSystem,
+					Content: "Usage: /cancel <taskid> — cancel an async task. Use /tasks to list active tasks.",
+				})
+				m.viewport.SetContent(m.renderHistory())
+				m.viewport.GotoBottom()
+				m.textInput.SetValue("")
+				m.mu.Unlock()
+				return m, nil
+			}
+			if strings.HasPrefix(input, "/cancel ") {
+				taskID := strings.TrimSpace(input[len("/cancel "):])
 				m.mu.Lock()
 				var response string
 				if m.taskManager != nil {
