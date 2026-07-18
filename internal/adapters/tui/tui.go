@@ -356,7 +356,59 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case taskUpdateMsg:
 		m.mu.Lock()
+
+		// Check if this is a terminal transition (was active, now done)
+		prev, hadPrev := m.tasks[msg.state.TaskID]
+		isTerminal := msg.state.Status == agent.TaskCompleted ||
+			msg.state.Status == agent.TaskFailed ||
+			msg.state.Status == agent.TaskCancelled
+
 		m.tasks[msg.state.TaskID] = msg.state
+
+		// Add notification to chat history on terminal transitions
+		if isTerminal && hadPrev && prev.Status != msg.state.Status {
+			var notification string
+			switch msg.state.Status {
+			case agent.TaskCompleted:
+				notification = fmt.Sprintf("✅ Task %s — @%s completado",
+					msg.state.TaskID[:min(8, len(msg.state.TaskID))],
+					msg.state.SubagentName)
+			case agent.TaskFailed:
+				notification = fmt.Sprintf("❌ Task %s — @%s falló: %s",
+					msg.state.TaskID[:min(8, len(msg.state.TaskID))],
+					msg.state.SubagentName, msg.state.Error)
+			case agent.TaskCancelled:
+				notification = fmt.Sprintf("⛔ Task %s — @%s cancelado",
+					msg.state.TaskID[:min(8, len(msg.state.TaskID))],
+					msg.state.SubagentName)
+			}
+			m.history = append(m.history, domain.Message{
+				Role:    domain.RoleAssistant,
+				Content: notification,
+			})
+		} else if isTerminal && !hadPrev {
+			// Task was created and completed before any update cycle
+			var notification string
+			switch msg.state.Status {
+			case agent.TaskCompleted:
+				notification = fmt.Sprintf("✅ Task %s — @%s completado",
+					msg.state.TaskID[:min(8, len(msg.state.TaskID))],
+					msg.state.SubagentName)
+			case agent.TaskFailed:
+				notification = fmt.Sprintf("❌ Task %s — @%s falló: %s",
+					msg.state.TaskID[:min(8, len(msg.state.TaskID))],
+					msg.state.SubagentName, msg.state.Error)
+			case agent.TaskCancelled:
+				notification = fmt.Sprintf("⛔ Task %s — @%s cancelado",
+					msg.state.TaskID[:min(8, len(msg.state.TaskID))],
+					msg.state.SubagentName)
+			}
+			m.history = append(m.history, domain.Message{
+				Role:    domain.RoleAssistant,
+				Content: notification,
+			})
+		}
+
 		m.viewport.SetContent(m.renderHistory())
 		m.viewport.GotoBottom()
 		m.mu.Unlock()
