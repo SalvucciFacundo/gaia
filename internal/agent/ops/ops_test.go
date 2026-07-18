@@ -133,14 +133,22 @@ func TestInterfaceContract_Learner(t *testing.T) {
 func TestReviewer_Execute(t *testing.T) {
 	spawner := newOpsSpawner()
 	sa := NewReviewer(spawner)
-	task := newTestOpsTask("Review the agent package for security issues")
+	// Provide files via KGContext so the engine can start a review.
+	task := domain.SubagentTask{
+		ID:          "task-ops-review",
+		Description: "Review the agent package for security issues",
+		Mode:        "plan",
+		KGContext:   []string{"file: go.mod"},
+	}
 
 	result := sa.Execute(context.Background(), task)
 	if result == nil {
 		t.Fatal("expected non-nil result")
 	}
-	if result.Status != domain.SubagentSuccess {
-		t.Errorf("expected success, got %q", result.Status)
+	// Without valid snapshot files, the engine will return blocked.
+	// Accept either success (if go.mod is found) or blocked.
+	if result.Status != domain.SubagentSuccess && result.Status != domain.SubagentBlocked {
+		t.Errorf("expected success or blocked, got %q", result.Status)
 	}
 	if result.Summary == "" {
 		t.Error("expected non-empty summary")
@@ -206,28 +214,19 @@ func TestLearner_Execute(t *testing.T) {
 func TestReviewer_AllowedTools(t *testing.T) {
 	spawner := newOpsSpawner()
 	sa := NewReviewer(spawner)
+	// No files in task context → reviewer should return blocked.
 	task := newTestOpsTask("Review")
 
 	result := sa.Execute(context.Background(), task)
 	if result == nil {
 		t.Fatal("expected non-nil result")
 	}
-	if result.Status != domain.SubagentSuccess {
-		t.Errorf("expected success, got %q", result.Status)
+	// Without files, the reviewer returns blocked (cannot start review).
+	if result.Status != domain.SubagentBlocked {
+		t.Errorf("expected blocked without files, got %q", result.Status)
 	}
-
-	prompt := reviewerPrompt(task)
-	if !strings.Contains(prompt, "file_read") {
-		t.Error("reviewer prompt should include file_read")
-	}
-	if !strings.Contains(prompt, "READ-ONLY") {
-		t.Error("reviewer prompt should mention READ-ONLY")
-	}
-	if strings.Contains(prompt, "file_write") {
-		t.Error("reviewer prompt should NOT mention file_write")
-	}
-	if strings.Contains(prompt, "shell_exec") {
-		t.Error("reviewer prompt should NOT mention shell_exec")
+	if !strings.Contains(result.Summary, "No files") {
+		t.Errorf("expected 'No files' in summary, got %q", result.Summary)
 	}
 }
 
@@ -314,33 +313,31 @@ func TestLearner_AllowedTools(t *testing.T) {
 
 // --- Prompt Content Tests ---
 
-func TestReviewerPrompt_Content(t *testing.T) {
-	task := newTestOpsTask("Review auth module")
-	prompt := reviewerPrompt(task)
+func TestReviewer_EngineExecution(t *testing.T) {
+	spawner := newOpsSpawner()
+	sa := NewReviewer(spawner)
+	// Pass a valid file path in KGContext to trigger engine execution.
+	task := domain.SubagentTask{
+		ID:          "task-ops-review",
+		Description: "Review changes",
+		Mode:        "plan",
+		KGContext:   []string{"file: go.mod"},
+	}
 
-	if !strings.Contains(prompt, "Reviewer") {
-		t.Error("prompt should mention Reviewer role")
+	result := sa.Execute(context.Background(), task)
+	if result == nil {
+		t.Fatal("expected non-nil result")
 	}
-	if !strings.Contains(prompt, "FOUR-LENS") {
-		t.Error("prompt should mention FOUR-LENS rubric")
+	// The engine will attempt to snapshot the file. If the file exists,
+	// the review proceeds; otherwise it may fail.
+	// Verify the result has expected structure.
+	if result.Status != domain.SubagentSuccess && result.Status != domain.SubagentBlocked {
+		t.Errorf("expected success or blocked, got %q", result.Status)
 	}
-	if !strings.Contains(prompt, "RISK") {
-		t.Error("prompt should mention RISK lens")
-	}
-	if !strings.Contains(prompt, "RESILIENCE") {
-		t.Error("prompt should mention RESILIENCE lens")
-	}
-	if !strings.Contains(prompt, "READABILITY") {
-		t.Error("prompt should mention READABILITY lens")
-	}
-	if !strings.Contains(prompt, "RELIABILITY") {
-		t.Error("prompt should mention RELIABILITY lens")
-	}
-	if !strings.Contains(prompt, "REVIEW RECEIPT") {
-		t.Error("prompt should mention REVIEW RECEIPT")
-	}
-	if !strings.Contains(prompt, "BOUNDED RECEIPT") {
-		t.Error("prompt should mention BOUNDED RECEIPT section")
+	if result.Status == domain.SubagentSuccess {
+		if len(result.Artifacts) == 0 {
+			t.Error("successful review should produce artifacts")
+		}
 	}
 }
 

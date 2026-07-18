@@ -2,9 +2,13 @@ package ops
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
 	"gaia/internal/agent"
 	"gaia/internal/core/domain"
+	"gaia/internal/review"
+	"gaia/internal/review/gates"
 )
 
 // reviewer analyzes code through GGA's 4 lenses — risk, resilience,
@@ -35,123 +39,191 @@ func (r *reviewer) Execute(ctx context.Context, task domain.SubagentTask) *domai
 		"git_diff",
 	}
 
-	prompt := reviewerPrompt(task)
-	resp, err := r.spawner.RunLoop(ctx, task, prompt)
-	if err != nil {
+	// Create the review engine.
+	// The SpawnerLLM bridges the review.LensLLM interface to the Spawner.
+	llm := &spawnerLLM{spawner: r.spawner, allowedTools: task.AllowedTools}
+	engine := review.NewEngine(".", llm)
+
+	// Extract files from task context or default to scanning.
+	files := extractFiles(task)
+	if len(files) == 0 {
 		return &domain.SubagentResult{
 			Status:          domain.SubagentBlocked,
-			Summary:         "Reviewer execution failed: " + err.Error(),
+			Summary:         "No files specified for review.",
 			NextRecommended: "none",
 			SkillResolution: "none",
 		}
 	}
 
-	result := parseOpsResult(resp)
-	if len(result.Artifacts) == 0 {
-		result.Artifacts = []string{"review-receipt"}
-	}
-	return result
-}
-
-func reviewerPrompt(task domain.SubagentTask) string {
-	p := `You are the Reviewer subagent. Your role is on-demand code review:
-when the user asks you to review code, you analyze it through four
-lenses — risk, resilience, readability, and reliability — and return
-a bounded receipt with your findings.
-
-AVAILABLE TOOLS:
-- file_read: read a file's contents
-- file_list: list directory contents
-- git_status: show working tree status
-- git_log: show commit history
-- git_diff: show unstaged or staged changes
-
-You have READ-ONLY access. You CANNOT write files or execute shell commands.
-
-FOUR-LENS RUBRIC — evaluate the code across these four dimensions:
-
-1. RISK — What can go wrong?
-   - Security vulnerabilities (injection, XSS, secrets in code)
-   - Data integrity risks (nil pointers, race conditions, unchecked errors)
-   - Deployment/rollback risks (breaking changes, missing migrations)
-   - Score: low / medium / high
-
-2. RESILIENCE — How well does it handle failure?
-   - Error handling completeness (every error path covered)
-   - Graceful degradation (no panics on unexpected input)
-   - Resource cleanup (deferred closes, context cancellation)
-   - Score: low / medium / high
-
-3. READABILITY — Can another developer understand this?
-   - Naming clarity (packages, functions, variables follow Go conventions)
-   - Documentation quality (doc comments, READMEs, inline explanations)
-   - Structure organization (single responsibility, reasonable file sizes)
-   - Score: low / medium / high
-
-4. RELIABILITY — Does it do what it claims?
-   - Test coverage (unit tests, integration tests, edge cases)
-   - Contract adherence (interfaces match expectations, spec compliance)
-   - Behavioral correctness (off-by-one, logic errors, stale assumptions)
-   - Score: low / medium / high
-
-BOUNDED RECEIPT — at the end of your review, produce a receipt section:
-
----
-REVIEW RECEIPT
-==============
-
-Reviewed: <files/paths reviewed>
-Date: <date>
-Reviewer: GAIA Reviewer subagent
-
-FINDINGS:
-- Risk: <score> — <1-2 sentence assessment>
-- Resilience: <score> — <1-2 sentence assessment>
-- Readability: <score> — <1-2 sentence assessment>
-- Reliability: <score> — <1-2 sentence assessment>
-
-ACTION ITEMS:
-- [ ] <concrete fix, if any>
-- [ ] <concrete fix, if any>
-
-APPROVAL: <approve | request changes | comment>
-
-Signature: GAIA-Reviewer/<task-id>
----
-
-RULES:
-1. Read the files under review BEFORE scoring — do not guess.
-2. Each lens MUST receive a score (low/medium/high) with evidence.
-3. Action items MUST be concrete: specific file, specific change.
-4. The receipt is the final section of your output — it is the
-   bounded deliverable the orchestrator expects.
-5. If you cannot access a file, note it in the receipt and adjust
-   findings accordingly.
-6. Do not make edits; this is a review, not a rewrite.
-
-OUTPUT FORMAT — return a structured summary with these sections:
-- Status: "success" (review complete) or "blocked" (could not access files)
-- ExecutiveSummary: 2-4 sentence overview of review findings
-- Artifacts:
-  - review-receipt
-- Observations: key patterns, tradeoffs, or architectural notes
-- NextRecommended: "none"
-- Risks: issues found, or "none"
-- SkillResolution: "none"
-`
-
-	if task.Description != "" {
-		p += "\nTASK:\n" + task.Description + "\n"
-	}
-
-	if len(task.KGContext) > 0 {
-		p += "\nRELEVANT CONTEXT:\n"
-		for _, fact := range task.KGContext {
-			p += "- " + fact + "\n"
+	// Phase 1: Start review — snapshot files.
+	tx, err := engine.Start(files)
+	if err != nil {
+		return &domain.SubagentResult{
+			Status:          domain.SubagentBlocked,
+			Summary:         fmt.Sprintf("Failed to start review: %s", err),
+			NextRecommended: "none",
+			SkillResolution: "none",
 		}
 	}
 
-	return p
+	// Phase 2: Classify risk.
+	diff := task.Description // Use task description as diff context
+	riskCodes, riskLevel := engine.ClassifyRisk(diff)
+
+	// Phase 3: Select and run lenses.
+	lensNames := engine.SelectLenses(riskLevel)
+
+	var findings []domain.ReviewFinding
+	if len(lensNames) > 0 {
+		findings, err = engine.RunLenses(ctx, tx, lensNames)
+		if err != nil {
+			return &domain.SubagentResult{
+				Status:          domain.SubagentPartial,
+				Summary:         fmt.Sprintf("Review lenses partially failed: %s", err),
+				NextRecommended: "none",
+				Risks:           riskCodeStrings(riskCodes),
+				SkillResolution: "none",
+			}
+		}
+	}
+
+	// Phase 4: Generate bounded receipt.
+	receipt, err := engine.GenerateReceipt(tx, findings, riskCodes, riskLevel)
+	if err != nil {
+		return &domain.SubagentResult{
+			Status:          domain.SubagentPartial,
+			Summary:         fmt.Sprintf("Receipt generation failed: %s", err),
+			NextRecommended: "none",
+			Risks:           riskCodeStrings(riskCodes),
+			SkillResolution: "none",
+		}
+	}
+
+	// Build summary.
+	summary := fmt.Sprintf(
+		"Review complete. Risk: %s. Lenses: %s. Findings: %d BLOCKER, %d WARNING, %d SUGGESTION.",
+		riskLevel,
+		strings.Join(lensNames, ", "),
+		countBySeverity(findings, "BLOCKER"),
+		countBySeverity(findings, "WARNING"),
+		countBySeverity(findings, "SUGGESTION"),
+	)
+
+	result := &domain.SubagentResult{
+		Status:          domain.SubagentSuccess,
+		Summary:         summary,
+		Artifacts:       []string{"review-receipt"},
+		NextRecommended: "none",
+		Risks:           riskCodeStrings(riskCodes),
+		SkillResolution: "none",
+	}
+
+	// Store receipt reference in Engram if namespace is available.
+	if ns := r.spawner.Namespace(); ns != nil {
+		// The receipt is serialized and stored by the caller.
+		_ = ns // placeholder — actual storage is done by the Engine caller
+	}
+
+	// Save receipt to filesystem for gate validation.
+	store := gates.NewFSReceiptStore(".")
+	if saveErr := store.SaveReceipt(receipt, tx.ChangeName); saveErr != nil {
+		// Non-fatal: gate validation won't work, but review still succeeded.
+		_ = saveErr
+	}
+
+	return result
+}
+
+// spawnerLLM adapts the agent.Spawner to the review.LensLLM interface.
+type spawnerLLM struct {
+	spawner      *agent.Spawner
+	allowedTools []string
+}
+
+func (s *spawnerLLM) Chat(ctx context.Context, systemPrompt, userMessage string) (string, error) {
+	task := domain.SubagentTask{
+		ID:           "lens-analysis",
+		Description:  userMessage,
+		AllowedTools: s.allowedTools,
+	}
+
+	resp, err := s.spawner.RunLoop(ctx, task, systemPrompt)
+	if err != nil {
+		return "", err
+	}
+	return resp.Content, nil
+}
+
+// extractFiles extracts file paths from the task context.
+func extractFiles(task domain.SubagentTask) []string {
+	var files []string
+	if task.KGContext != nil {
+		for _, ctx := range task.KGContext {
+			// KGContext entries are formatted as "file: path/to/file" or similar.
+			if strings.HasPrefix(ctx, "file:") {
+				f := strings.TrimPrefix(ctx, "file:")
+				files = append(files, strings.TrimSpace(f))
+			}
+		}
+	}
+	// If no files from context, scan the task description for paths.
+	if len(files) == 0 && task.Description != "" {
+		// Simple heuristic: extract quoted or space-separated paths.
+		files = extractPathsFromText(task.Description)
+	}
+	return files
+}
+
+// extractPathsFromText extracts file-like tokens from a description.
+func extractPathsFromText(text string) []string {
+	var paths []string
+	// Common file extensions to look for.
+	extensions := []string{".go", ".md", ".yaml", ".yml", ".json", ".toml", ".sh"}
+	for _, ext := range extensions {
+		textLower := strings.ToLower(text)
+		idx := 0
+		for {
+			pos := strings.Index(textLower[idx:], ext)
+			if pos < 0 {
+				break
+			}
+			pos += idx
+			// Extract the token containing this extension.
+			start := pos
+			for start > 0 && text[start-1] != ' ' && text[start-1] != '\n' && text[start-1] != '"' && text[start-1] != '\'' {
+				start--
+			}
+			end := pos + len(ext)
+			if end < len(text) && text[end] != ' ' && text[end] != '\n' && text[end] != '"' && text[end] != '\'' {
+				// Extension is part of a longer token; skip.
+				idx = pos + 1
+				continue
+			}
+			paths = append(paths, strings.TrimSpace(text[start:end]))
+			idx = pos + 1
+		}
+	}
+	return paths
+}
+
+// riskCodeStrings converts risk codes to their string representations.
+func riskCodeStrings(codes []review.RiskCode) []string {
+	strs := make([]string, len(codes))
+	for i, c := range codes {
+		strs[i] = string(c)
+	}
+	return strs
+}
+
+// countBySeverity counts findings at a given severity level.
+func countBySeverity(findings []domain.ReviewFinding, severity string) int {
+	count := 0
+	for _, f := range findings {
+		if f.Severity == severity {
+			count++
+		}
+	}
+	return count
 }
 
 var _ agent.Subagent = (*reviewer)(nil)

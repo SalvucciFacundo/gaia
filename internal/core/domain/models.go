@@ -109,6 +109,52 @@ type SubagentTask struct {
 	Mode         string   // Execution mode: "plan" or "build"
 }
 
+// ReviewState represents the state of a review transaction in the formal state machine.
+type ReviewState string
+
+const (
+	ReviewStateUnreviewed            ReviewState = "unreviewed"
+	ReviewStateReviewing             ReviewState = "reviewing"
+	ReviewStateJudgesConfirmed       ReviewState = "judges_confirmed"
+	ReviewStateFindingsFrozen        ReviewState = "findings_frozen"
+	ReviewStateEvidenceClassified    ReviewState = "evidence_classified"
+	ReviewStateFixRequired           ReviewState = "fix_required"
+	ReviewStateFixing                ReviewState = "fixing"
+	ReviewStateFixValidating         ReviewState = "fix_validating"
+	ReviewStateReadyFinalVerification ReviewState = "ready_final_verification"
+	ReviewStateFinalVerifying        ReviewState = "final_verifying"
+	ReviewStateApproved              ReviewState = "approved"
+	ReviewStateEscalated             ReviewState = "escalated"
+	ReviewStateInvalidated           ReviewState = "invalidated"
+)
+
+// ReviewFinding represents a classified finding from a review lens.
+type ReviewFinding struct {
+	Lens       string `json:"lens"`       // "review-risk", "review-resilience", etc.
+	Severity   string `json:"severity"`   // "BLOCKER", "WARNING", "SUGGESTION"
+	File       string `json:"file"`       // path to the file
+	Line       int    `json:"line"`       // line number (0 if file-level)
+	Message    string `json:"message"`    // human-readable finding
+	Suggestion string `json:"suggestion"` // concrete fix suggestion
+}
+
+// ReviewReceipt is the content-bound receipt produced by a review.
+type ReviewReceipt struct {
+	Schema                string         `json:"schema"`                  // "gentle-ai.review-receipt/v2"
+	LineageID             string         `json:"lineage_id"`              // SHA256 of review transaction chain
+	SnapshotHash          string         `json:"snapshot_hash"`           // "sha256:{hash of all reviewed files}"
+	SelectedLenses        []string       `json:"selected_lenses"`         // ["review-risk", "review-readability"]
+	RiskLevel             string         `json:"risk_level"`              // "low", "medium", "high"
+	RiskReasons           []string       `json:"risk_reasons"`            // ["hot_path", "large_change"]
+	CorrectionBudget      int            `json:"correction_budget"`       // max correction tokens (85 default)
+	CorrectionUsed        int            `json:"correction_used"`         // tokens used so far
+	State                 ReviewState    `json:"state"`                   // state machine state
+	FinalVerificationHash string         `json:"final_verification_hash"` // "sha256:{verification evidence}"
+	Findings              []ReviewFinding `json:"findings"`               // classified findings
+	CreatedAt             time.Time      `json:"created_at"`
+	UpdatedAt             time.Time      `json:"updated_at"`
+}
+
 // SubagentResult is the structured envelope returned by a subagent.
 type SubagentResult struct {
 	Status          SubagentStatus // "success", "partial", or "blocked"

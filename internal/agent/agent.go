@@ -5,8 +5,15 @@ package agent
 
 import (
 	"context"
+	"errors"
 
 	"gaia/internal/core/domain"
+)
+
+// Sentinel errors for review gate enforcement.
+var (
+	ErrNoReviewReceipt    = errors.New("archiver blocked: no review receipt found — run 'gaia review start' first")
+	ErrReceiptNotApproved = errors.New("archiver blocked: review receipt is not in approved state — complete the review first")
 )
 
 // Subagent defines the contract for a domain-specific subagent.

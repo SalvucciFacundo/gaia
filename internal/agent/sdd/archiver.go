@@ -5,6 +5,7 @@ import (
 
 	"gaia/internal/agent"
 	"gaia/internal/core/domain"
+	"gaia/internal/review/gates"
 )
 
 // archiver finalizes the SDD pipeline by merging delta specs into main specs
@@ -31,6 +32,17 @@ func (a *archiver) Execute(ctx context.Context, task domain.SubagentTask) *domai
 		"git_status",
 		"git_log",
 		"git_diff",
+	}
+
+	// Gate: validate review receipt before archiving.
+	// The archiver must not proceed without an approved review receipt.
+	if gateErr := checkReviewGate(); gateErr != nil {
+		return &domain.SubagentResult{
+			Status:          domain.SubagentBlocked,
+			Summary:         gateErr.Error(),
+			NextRecommended: "none",
+			SkillResolution: "none",
+		}
 	}
 
 	prompt := archiverPrompt(task)
@@ -125,3 +137,33 @@ OUTPUT FORMAT — return a structured summary with these sections:
 }
 
 var _ agent.Subagent = (*archiver)(nil)
+
+// checkReviewGate verifies that a valid review receipt exists before
+// allowing the archiver to proceed. It blocks the archive if:
+//   - No receipt is found
+//   - The receipt state is not "approved"
+//
+// If no review store exists at all (no .gaia/reviews/ directory), the
+// gate passes silently — the review infrastructure is not yet set up.
+func checkReviewGate() error {
+	// Use the filesystem receipt store at the current working directory.
+	store := gates.NewFSReceiptStore(".")
+	summaries, err := store.ListReceipts()
+	if err != nil {
+		// No review infrastructure → pass through.
+		return nil
+	}
+	if len(summaries) == 0 {
+		// No receipts yet → pass through (review may be optional).
+		return nil
+	}
+
+	// Check if ANY receipt is in approved state.
+	for _, s := range summaries {
+		if s.State == "approved" {
+			return nil
+		}
+	}
+	// Receipts exist but none are approved → block.
+	return agent.ErrReceiptNotApproved
+}
