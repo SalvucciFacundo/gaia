@@ -130,6 +130,39 @@ func TestInterfaceContract_Verifier(t *testing.T) {
 	}
 }
 
+func TestInterfaceContract_Designer(t *testing.T) {
+	var _ agent.Subagent = NewDesigner(nil)
+	sa := NewDesigner(nil)
+	if sa.Name() != "designer" {
+		t.Errorf("expected name 'designer', got %q", sa.Name())
+	}
+	if sa.Description() == "" {
+		t.Error("description should not be empty")
+	}
+}
+
+func TestInterfaceContract_Planner(t *testing.T) {
+	var _ agent.Subagent = NewPlanner(nil)
+	sa := NewPlanner(nil)
+	if sa.Name() != "planner" {
+		t.Errorf("expected name 'planner', got %q", sa.Name())
+	}
+	if sa.Description() == "" {
+		t.Error("description should not be empty")
+	}
+}
+
+func TestInterfaceContract_Archiver(t *testing.T) {
+	var _ agent.Subagent = NewArchiver(nil)
+	sa := NewArchiver(nil)
+	if sa.Name() != "archiver" {
+		t.Errorf("expected name 'archiver', got %q", sa.Name())
+	}
+	if sa.Description() == "" {
+		t.Error("description should not be empty")
+	}
+}
+
 // --- 2.7b: Execute with stub provider ---
 
 func TestExplorer_Execute(t *testing.T) {
@@ -199,6 +232,54 @@ func TestVerifier_Execute(t *testing.T) {
 	spawner := newSDDSpawner()
 	sa := NewVerifier(spawner)
 	task := newTestTask("Verify auth module implementation")
+
+	result := sa.Execute(context.Background(), task)
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	if result.Status != domain.SubagentSuccess {
+		t.Errorf("expected success, got %q", result.Status)
+	}
+}
+
+func TestDesigner_Execute(t *testing.T) {
+	spawner := newSDDSpawner()
+	sa := NewDesigner(spawner)
+	task := newTestTask("Create design for auth module")
+
+	result := sa.Execute(context.Background(), task)
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	if result.Status != domain.SubagentSuccess {
+		t.Errorf("expected success, got %q", result.Status)
+	}
+	if result.Summary == "" {
+		t.Error("expected non-empty summary")
+	}
+}
+
+func TestPlanner_Execute(t *testing.T) {
+	spawner := newSDDSpawner()
+	sa := NewPlanner(spawner)
+	task := newTestTask("Create task breakdown for auth PR")
+
+	result := sa.Execute(context.Background(), task)
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	if result.Status != domain.SubagentSuccess {
+		t.Errorf("expected success, got %q", result.Status)
+	}
+	if len(result.Artifacts) == 0 {
+		t.Error("expected at least one artifact")
+	}
+}
+
+func TestArchiver_Execute(t *testing.T) {
+	spawner := newSDDSpawner()
+	sa := NewArchiver(spawner)
+	task := newTestTask("Archive completed auth change")
 
 	result := sa.Execute(context.Background(), task)
 	if result == nil {
@@ -281,6 +362,75 @@ func TestVerifier_AllowedTools(t *testing.T) {
 	}
 	if !strings.Contains(prompt, "MUST NOT write") {
 		t.Error("verifier prompt should mention MUST NOT write")
+	}
+}
+
+func TestDesigner_AllowedTools(t *testing.T) {
+	spawner := newSDDSpawner()
+	sa := NewDesigner(spawner)
+	task := newTestTask("Design auth module")
+
+	result := sa.Execute(context.Background(), task)
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	if result.Status != domain.SubagentSuccess {
+		t.Errorf("expected success, got %q", result.Status)
+	}
+
+	prompt := designerPrompt(task)
+	if !strings.Contains(prompt, "file_read") {
+		t.Error("designer prompt should include file_read")
+	}
+	if !strings.Contains(prompt, "READ-ONLY") {
+		t.Error("designer prompt should mention READ-ONLY")
+	}
+	if strings.Contains(prompt, "file_write") {
+		t.Error("designer prompt should NOT mention file_write")
+	}
+}
+
+func TestPlanner_AllowedTools(t *testing.T) {
+	spawner := newSDDSpawner()
+	sa := NewPlanner(spawner)
+	task := newTestTask("Plan auth implementation")
+
+	result := sa.Execute(context.Background(), task)
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	if result.Status != domain.SubagentSuccess {
+		t.Errorf("expected success, got %q", result.Status)
+	}
+
+	prompt := plannerPrompt(task)
+	if !strings.Contains(prompt, "shell_exec") {
+		t.Error("planner prompt should include shell_exec")
+	}
+	if !strings.Contains(prompt, "CANNOT write") {
+		t.Error("planner prompt should mention CANNOT write")
+	}
+}
+
+func TestArchiver_AllowedTools(t *testing.T) {
+	spawner := newSDDSpawner()
+	sa := NewArchiver(spawner)
+	task := newTestTask("Archive auth change")
+
+	result := sa.Execute(context.Background(), task)
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	if result.Status != domain.SubagentSuccess {
+		t.Errorf("expected success, got %q", result.Status)
+	}
+
+	prompt := archiverPrompt(task)
+	if !strings.Contains(prompt, "file_write") {
+		t.Error("archiver prompt should include file_write")
+	}
+	if !strings.Contains(prompt, "READ and WRITE") {
+		t.Error("archiver prompt should mention READ and WRITE access")
 	}
 }
 
@@ -370,6 +520,66 @@ func TestVerifierPrompt_Content(t *testing.T) {
 	}
 	if !strings.Contains(prompt, "MUST NOT write") {
 		t.Error("prompt should mention that Verifier must not write")
+	}
+}
+
+func TestDesignerPrompt_Content(t *testing.T) {
+	task := newTestTask("Design auth module")
+	prompt := designerPrompt(task)
+
+	if !strings.Contains(prompt, "Designer") {
+		t.Error("prompt should mention Designer role")
+	}
+	if !strings.Contains(prompt, "ARCHITECTURE DECISIONS") {
+		t.Error("prompt should mention ARCHITECTURE DECISIONS")
+	}
+	if !strings.Contains(prompt, "DATA FLOW") {
+		t.Error("prompt should mention DATA FLOW")
+	}
+	if !strings.Contains(prompt, "FILE CHANGES") {
+		t.Error("prompt should mention FILE CHANGES")
+	}
+	if !strings.Contains(prompt, "FILE CHANGES") {
+		t.Error("prompt should mention FILE CHANGES table")
+	}
+}
+
+func TestPlannerPrompt_Content(t *testing.T) {
+	task := newTestTask("Create task plan")
+	prompt := plannerPrompt(task)
+
+	if !strings.Contains(prompt, "Planner") {
+		t.Error("prompt should mention Planner role")
+	}
+	if !strings.Contains(prompt, "WORKLOAD FORECAST") {
+		t.Error("prompt should mention REVIEW WORKLOAD FORECAST")
+	}
+	if !strings.Contains(prompt, "Decision needed") {
+		t.Error("prompt should mention Decision needed before apply")
+	}
+	if !strings.Contains(prompt, "400-line budget risk") {
+		t.Error("prompt should mention 400-line budget risk")
+	}
+}
+
+func TestArchiverPrompt_Content(t *testing.T) {
+	task := newTestTask("Archive completed change")
+	prompt := archiverPrompt(task)
+
+	if !strings.Contains(prompt, "Archiver") {
+		t.Error("prompt should mention Archiver role")
+	}
+	if !strings.Contains(prompt, "ADDED") {
+		t.Error("prompt should mention ADDED requirements")
+	}
+	if !strings.Contains(prompt, "REMOVED") {
+		t.Error("prompt should mention REMOVED requirements")
+	}
+	if !strings.Contains(prompt, "ARCHIVE WORKFLOW") {
+		t.Error("prompt should mention ARCHIVE WORKFLOW")
+	}
+	if !strings.Contains(prompt, "archive/YYYY-MM-DD") {
+		t.Error("prompt should mention archive date format")
 	}
 }
 
@@ -471,6 +681,69 @@ func TestExplorer_ExecuteProviderError(t *testing.T) {
 	spawner := agent.NewSpawner(cfg, agent.NewRegistry())
 	sa := NewExplorer(spawner)
 	task := newTestTask("Investigate after timeout")
+
+	result := sa.Execute(context.Background(), task)
+	if result == nil {
+		t.Fatal("expected non-nil result on error")
+	}
+	if result.Status != domain.SubagentBlocked {
+		t.Errorf("expected blocked status on error, got %q", result.Status)
+	}
+}
+
+func TestDesigner_ExecuteProviderError(t *testing.T) {
+	cfg := agent.SpawnerConfig{
+		Provider: &sddStubProvider{
+			chatErr: context.DeadlineExceeded,
+		},
+		Tools:  core.NewToolRegistry(),
+		Budget: domain.DefaultBudget(),
+	}
+	spawner := agent.NewSpawner(cfg, agent.NewRegistry())
+	sa := NewDesigner(spawner)
+	task := newTestTask("Design after timeout")
+
+	result := sa.Execute(context.Background(), task)
+	if result == nil {
+		t.Fatal("expected non-nil result on error")
+	}
+	if result.Status != domain.SubagentBlocked {
+		t.Errorf("expected blocked status on error, got %q", result.Status)
+	}
+}
+
+func TestPlanner_ExecuteProviderError(t *testing.T) {
+	cfg := agent.SpawnerConfig{
+		Provider: &sddStubProvider{
+			chatErr: context.DeadlineExceeded,
+		},
+		Tools:  core.NewToolRegistry(),
+		Budget: domain.DefaultBudget(),
+	}
+	spawner := agent.NewSpawner(cfg, agent.NewRegistry())
+	sa := NewPlanner(spawner)
+	task := newTestTask("Plan after timeout")
+
+	result := sa.Execute(context.Background(), task)
+	if result == nil {
+		t.Fatal("expected non-nil result on error")
+	}
+	if result.Status != domain.SubagentBlocked {
+		t.Errorf("expected blocked status on error, got %q", result.Status)
+	}
+}
+
+func TestArchiver_ExecuteProviderError(t *testing.T) {
+	cfg := agent.SpawnerConfig{
+		Provider: &sddStubProvider{
+			chatErr: context.DeadlineExceeded,
+		},
+		Tools:  core.NewToolRegistry(),
+		Budget: domain.DefaultBudget(),
+	}
+	spawner := agent.NewSpawner(cfg, agent.NewRegistry())
+	sa := NewArchiver(spawner)
+	task := newTestTask("Archive after timeout")
 
 	result := sa.Execute(context.Background(), task)
 	if result == nil {
