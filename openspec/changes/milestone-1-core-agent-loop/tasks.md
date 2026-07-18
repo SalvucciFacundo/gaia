@@ -44,12 +44,12 @@ Chain strategy: stacked-to-main
 
 ## Phase 2: Tool Engine
 
-- [ ] 2.1 Create `internal/modules/shell/shell.go` — Shell module: command allowlist, path validation, `ConfirmGuard` gate, secret redaction scan on output
-- [ ] 2.2 Create `internal/modules/file/file.go` — File module: read/write/list, `filepath.Abs` + prefix check against project root allowlist, reject traversal
-- [ ] 2.3 Create `internal/modules/git/git.go` — Git module: `status`/`log`/`diff` (read-only), cwd locked to project root, reject `..` escapes
-- [ ] 2.4 Create `internal/core/registry.go` — `ToolRegistry` with flat `map[string]Tool`, `Register(mod)` + `Execute(name, args)`
-- [ ] 2.5 **RED tests**: table-driven tests for shell command rejection (`rm -rf /`, `$(curl)`), file path traversal (`../../etc/passwd`), git `-C /etc` blocked
-- [ ] 2.6 Wire module registration in `main.go` + write unit tests for each module's `Execute` path
+- [x] 2.1 Create `internal/modules/shell/shell.go` — Shell module: command allowlist, path validation, `ConfirmGuard` gate, secret redaction scan on output
+- [x] 2.2 Create `internal/modules/fileops/fileops.go` — File module: read/write/list, `filepath.Abs` + prefix check against project root allowlist, reject traversal
+- [x] 2.3 Create `internal/modules/gitops/gitops.go` — Git module: `status`/`log`/`diff` (read-only), cwd locked to project root, reject `..` escapes
+- [x] 2.4 Create `internal/modules/security/security.go` — Security primitives: path validation (no traversal, symlink resolution), URL safety (block private IPs), secret redaction (auto-redact keys: `sk-*`, `ghp_*`, `Bearer *`, PEM keys). `internal/core/registry.go` already exists from Phase 1.
+- [x] 2.5 **Tests**: table-driven tests for shell command rejection (allowlist blocking for `shutdown`, `sh`), file path traversal (`../../etc/passwd`, `../outside.txt`), git `-C /etc` blocked, URL validation (localhost, loopback, private IP), secret redaction (OpenAI, GitHub, Bearer, PEM)
+- [x] 2.6 Wire module registration in `main.go` + write unit tests for each module's `Execute` path
 
 ## Phase 3: Tests + CI
 
