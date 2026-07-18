@@ -290,21 +290,47 @@ func TestBuildDynamicPrompt(t *testing.T) {
 		KGContext:   []string{"Go routines are lightweight threads"},
 	}
 
-	prompt := buildDynamicPrompt(def, task)
+	t.Run("no namespace instructions", func(t *testing.T) {
+		prompt := buildDynamicPrompt(def, task, "")
 
-	checks := []string{
-		def.SystemPrompt,
-		def.Personality,
-		def.Name,
-		task.Description,
-		task.KGContext[0],
-	}
-
-	for _, check := range checks {
-		if !containsString(prompt, check) {
-			t.Errorf("prompt missing %q\ngot: %s", check, prompt)
+		checks := []string{
+			def.SystemPrompt,
+			def.Personality,
+			def.Name,
+			task.Description,
+			task.KGContext[0],
 		}
-	}
+
+		if containsString(prompt, "ENGRAM") || containsString(prompt, "mem_save") {
+			t.Error("prompt should not contain Engram instructions when namespaceInstr is empty")
+		}
+
+		for _, check := range checks {
+			if !containsString(prompt, check) {
+				t.Errorf("prompt missing %q\ngot: %s", check, prompt)
+			}
+		}
+	})
+
+	t.Run("with namespace instructions", func(t *testing.T) {
+		ns := memory.NewNamespaceManager("testproj")
+		nsInstr := ns.SaveInstructions("my-dynamic-agent")
+
+		prompt := buildDynamicPrompt(def, task, nsInstr)
+
+		if !containsString(prompt, "ENGRAM") {
+			t.Error("prompt should contain ENGRAM instructions when namespaceInstr is provided")
+		}
+		if !containsString(prompt, "my-dynamic-agent") {
+			t.Error("prompt should contain the subagent's name in namespace instructions")
+		}
+		if !containsString(prompt, "mem_save") {
+			t.Error("prompt should mention mem_save in namespace instructions")
+		}
+		if !containsString(prompt, "gaia/my-dynamic-agent/testproj") {
+			t.Error("prompt should contain the namespace prefix")
+		}
+	})
 }
 
 func TestDynamicSubagent_FactoryClosure(t *testing.T) {

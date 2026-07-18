@@ -56,7 +56,12 @@ func (d *DynamicSubagent) Description() string { return d.def.Description }
 func (d *DynamicSubagent) Execute(ctx context.Context, task domain.SubagentTask) *domain.SubagentResult {
 	task.AllowedTools = d.def.AllowedTools
 
-	prompt := buildDynamicPrompt(d.def, task)
+	var nsInstr string
+	if ns := d.spawner.Namespace(); ns != nil {
+		nsInstr = ns.SaveInstructions(d.def.Name)
+	}
+
+	prompt := buildDynamicPrompt(d.def, task, nsInstr)
 	resp, err := d.spawner.RunLoop(ctx, task, prompt)
 	if err != nil {
 		return &domain.SubagentResult{
@@ -154,8 +159,8 @@ func (dl *DynamicLoader) RemoveDynamic(ctx context.Context, name string) error {
 }
 
 // buildDynamicPrompt constructs the system prompt for a dynamic subagent from
-// def.SystemPrompt, def.Personality, and task context.
-func buildDynamicPrompt(def SubagentDef, task domain.SubagentTask) string {
+// def.SystemPrompt, def.Personality, task context, and optional Engram namespace instructions.
+func buildDynamicPrompt(def SubagentDef, task domain.SubagentTask, namespaceInstr string) string {
 	var sb strings.Builder
 
 	// System prompt is the core identity and instructions.
@@ -197,6 +202,14 @@ func buildDynamicPrompt(def SubagentDef, task domain.SubagentTask) string {
 			sb.WriteString(s)
 			sb.WriteString("\n")
 		}
+	}
+
+	// Inject Engram namespace instructions so the dynamic subagent knows
+	// its isolated memory scope and can persist discoveries across sessions.
+	if namespaceInstr != "" {
+		sb.WriteString("\n")
+		sb.WriteString(namespaceInstr)
+		sb.WriteString("\n")
 	}
 
 	sb.WriteString("\nReturn your result as a structured summary with these sections:\n")
