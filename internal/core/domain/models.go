@@ -80,7 +80,8 @@ type Config struct {
 		AllowedUserIDs []int64 `yaml:"allowed_user_ids"`
 	} `yaml:"telegram"`
 	System struct {
-		RequiresConfirmation bool `yaml:"requires_confirmation"`
+		RequiresConfirmation bool   `yaml:"requires_confirmation"`
+		Language             string `yaml:"language"` // User's preferred language (en, es, pt)
 	} `yaml:"system"`
 }
 

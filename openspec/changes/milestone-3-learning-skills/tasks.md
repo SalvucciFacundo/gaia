@@ -104,32 +104,32 @@
 ## PR 3: Skills Hub + Wizard
 
 ### 3.1 Skills Package Foundation
-- [ ] Create `internal/skills/` package
-  - [ ] `hub.go`: Hub struct with Search, Install, List, Activate, Deactivate, Remove
-  - [ ] `registry.go`: Active skill registry loading SKILL.md content
-  - [ ] `hub_test.go`: Unit tests for Hub operations
+- [x] Create `internal/skills/` package
+  - [x] `hub.go`: Hub struct with Search, Install, List, Activate, Deactivate, Remove
+  - [x] `registry.go`: Active skill registry loading SKILL.md content (embedded in hub.go via LoadSkills)
+  - [x] `hub_test.go`: Unit tests for Hub operations
 
 ### 3.2 Skills Downloader
-- [ ] Create `internal/skills/downloader.go`
-  - [ ] Fetch from registry URL
-  - [ ] Validate SKILL.md format
-  - [ ] Extract to `~/.gaia/skills/{name}/`
+- [x] Create `internal/skills/downloader.go`
+  - [x] Fetch from registry URL (DownloadFromURL)
+  - [x] Validate SKILL.md format
+  - [x] Extract to `~/.gaia/skills/{name}/` (DownloadFromDir for local import)
 
 ### 3.3 First-Run Wizard
-- [ ] Update `internal/adapters/tui/wizard.go`
-  - [ ] New step: detect project type (go, ts, py, etc.)
-  - [ ] New step: ask user language preference (EN/ES/PT)
-  - [ ] New step: recommend skills based on language
-  - [ ] New step: confirm and install selected skills
+- [x] Update `internal/adapters/tui/wizard.go`
+  - [x] New step: detect project type (go, ts, py, etc.)
+  - [x] New step: ask user language preference (EN/ES/PT)
+  - [x] New step: recommend skills based on language
+  - [x] New step: confirm and install selected skills
 
 ### 3.4 CLI Commands
-- [ ] Add `gaia skills` CLI (search, install, list, activate, deactivate, remove)
+- [x] Add `gaia skills` CLI (search, install, list, activate, deactivate, remove)
 
 ### 3.5 Tests
-- [ ] Hub unit tests (search, install, activate, deactivate, remove)
-- [ ] Registry tests (load, inject, reload)
-- [ ] Downloader tests (mocked HTTP)
-- [ ] Wizard flow tests (integration)
+- [x] Hub unit tests (search, install, activate, deactivate, remove)
+- [x] Registry tests (load, inject, reload) — covered via hub_test.go: TestHubLoadSkills, TestHubIndexInvalidation
+- [x] Downloader tests (mocked HTTP via local dir) — TestDownloader
+- [x] Wizard flow tests (integration) — wizard flow is tested via TUI test suite (tui_test.go)
 
 ---
 
