@@ -4,8 +4,8 @@
 *.dll
 *.so
 *.dylib
-gaia
-gaia.exe
+/gaia
+/gaia.exe
 
 # Test binary
 *.test

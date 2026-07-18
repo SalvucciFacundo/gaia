@@ -144,6 +144,7 @@ type SubagentTask struct {
 	Skills       []string // Skill names to load before execution
 	AllowedTools []string // Tool names allowed for this subagent; empty = all
 	Mode         string   // Execution mode: "plan" or "build"
+	IsDirectChat bool     // True when routed via @name syntax; subagent responds directly to user
 }
 
 // ReviewState represents the state of a review transaction in the formal state machine.

@@ -55,3 +55,16 @@ func (r *Registry) Available() []string {
 	}
 	return names
 }
+
+// Unregister removes a subagent factory from the registry.
+// Returns an error if the subagent is not registered.
+// This is used for dynamic subagent removal.
+func (r *Registry) Unregister(name string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.agents[name]; !ok {
+		return fmt.Errorf("subagent %q is not registered", name)
+	}
+	delete(r.agents, name)
+	return nil
+}
