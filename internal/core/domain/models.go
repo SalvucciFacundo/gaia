@@ -208,10 +208,38 @@ type CronJob struct {
 	Name          string    `json:"name"`
 	Schedule      string    `json:"schedule"`       // cron expression (e.g. "0 2 * * *")
 	Task          string    `json:"task"`            // description sent to the Brain
-	DeliverTo     string    `json:"deliver_to"`      // "terminal", "telegram"
-	DeliverTarget string    `json:"deliver_target"`  // chat ID for telegram
+	DeliverTo     string    `json:"deliver_to"`      // "terminal", "telegram", "gateway"
+	DeliverTarget string    `json:"deliver_target"`  // chat ID for telegram, channel for gateway
 	Enabled       bool      `json:"enabled"`
 	LastRun       time.Time `json:"last_run"`
 	NextRun       time.Time `json:"next_run"`
 	CreatedAt     time.Time `json:"created_at"`
 }
+
+// GatewayConfig defines messaging gateway settings.
+type GatewayConfig struct {
+	Enabled   bool                   `yaml:"enabled"`
+	Telegram  TelegramGatewayConfig  `yaml:"telegram"`
+	Discord   DiscordGatewayConfig   `yaml:"discord"`
+	BrowserTools BrowserToolsConfig  `yaml:"browser_tools"`
+}
+
+// TelegramGatewayConfig holds Telegram gateway adapter settings.
+type TelegramGatewayConfig struct {
+	Enabled        bool    `yaml:"enabled"`
+	Token          string  `yaml:"token"`
+	AllowedUserIDs []int64 `yaml:"allowed_user_ids"`
+}
+
+// DiscordGatewayConfig holds Discord gateway adapter settings via MCP.
+type DiscordGatewayConfig struct {
+	Enabled bool   `yaml:"enabled"`
+	Command string `yaml:"command"` // path to discord-mcp binary
+}
+
+// BrowserToolsConfig holds optional browser automation MCP settings.
+type BrowserToolsConfig struct {
+	Enabled bool   `yaml:"enabled"`
+	Command string `yaml:"command"` // path to browser MCP server
+}
+

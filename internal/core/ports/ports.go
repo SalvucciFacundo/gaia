@@ -83,3 +83,24 @@ type CronRepository interface {
 	GetDueJobs(ctx context.Context) ([]domain.CronJob, error)
 	MarkRun(ctx context.Context, id string, lastRun time.Time, nextRun time.Time) error
 }
+
+// GatewayAdapter is the port for a messaging platform adapter.
+type GatewayAdapter interface {
+	Name() string
+	Start(ctx context.Context, handler MessageHandler) error
+	Stop() error
+	Send(ctx context.Context, target string, content string) error
+}
+
+// MessageHandler processes an incoming gateway message and returns a response.
+type MessageHandler func(ctx context.Context, msg IncomingMessage) (string, error)
+
+// IncomingMessage is a normalized message from any gateway adapter.
+type IncomingMessage struct {
+	Platform   string
+	SenderID   string
+	SenderName string
+	Content    string
+	ChatID     string
+	ThreadID   string // optional
+}

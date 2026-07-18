@@ -245,9 +245,9 @@ func (h *Hub) ensureIndex() {
 	h.buildIndex()
 }
 
-// buildIndex scans both bundled and installed directories and merges
-// skills into a single deduplicated index. User-installed skills
-// take precedence over bundled skills with the same name.
+// buildIndex scans both bundled, installed, and tap directories and merges
+// skills into a single deduplicated index. User-installed skills take
+// precedence over bundled and tap skills with the same name.
 func (h *Hub) buildIndex() {
 	var raw []SkillMeta
 
@@ -258,7 +258,10 @@ func (h *Hub) buildIndex() {
 		raw = append(raw, scanDir(h.installedDir, "user")...)
 	}
 
-	// Merge: user skills override bundled ones by name.
+	// Include tap skills.
+	raw = append(raw, h.buildTapIndex()...)
+
+	// Merge: user skills override bundled/tap ones by name.
 	merged := make(map[string]SkillMeta, len(raw))
 	for _, m := range raw {
 		existing, ok := merged[m.Name]
