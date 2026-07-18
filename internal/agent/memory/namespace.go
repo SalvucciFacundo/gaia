@@ -70,3 +70,9 @@ func (n *NamespaceManager) SearchInstructions(name string) string {
 - Then search the shared graph: "%s"
 - Use mem_get_observation(id) for full content after search returns previews`, prefix, shared)
 }
+
+// DynamicPrefix returns the namespace prefix for a dynamically-created subagent.
+// Format: gaia/subagent/{name}/ (matches SubagentPrefix pattern for memory isolation).
+func (n *NamespaceManager) DynamicPrefix(name string) string {
+	return fmt.Sprintf("gaia/subagent/%s/%s", name, n.project)
+}

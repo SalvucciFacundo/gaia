@@ -50,6 +50,34 @@ func (r *SQLiteRepo) migrate() error {
 		FOREIGN KEY (session_id) REFERENCES sessions(id)
 	);
 	CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id, created_at);
+
+	-- Dynamic subagent definitions
+	CREATE TABLE IF NOT EXISTS subagent_defs (
+		name TEXT PRIMARY KEY,
+		description TEXT NOT NULL,
+		allowed_tools TEXT NOT NULL DEFAULT '[]',
+		skills TEXT NOT NULL DEFAULT '[]',
+		system_prompt TEXT NOT NULL DEFAULT '',
+		personality TEXT NOT NULL DEFAULT '',
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	);
+
+	-- Tracker cached state (ETag, last_checked)
+	CREATE TABLE IF NOT EXISTS tracker_state (
+		key TEXT PRIMARY KEY,
+		value TEXT NOT NULL,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	);
+
+	-- Tracker cached releases
+	CREATE TABLE IF NOT EXISTS tracker_releases (
+		tag TEXT PRIMARY KEY,
+		body TEXT NOT NULL DEFAULT '',
+		published_at DATETIME NOT NULL,
+		html_url TEXT NOT NULL DEFAULT '',
+		cached_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	);
 	`
 	_, err := r.db.Exec(query)
 	return err

@@ -74,6 +74,14 @@ type SubagentPort interface {
 	Available() []string
 }
 
+// AsyncSpawner extends SubagentPort with async spawning and task management.
+// Implemented by agent.Spawner when TaskManager is wired.
+type AsyncSpawner interface {
+	SubagentPort
+	SpawnAsync(ctx context.Context, name string, task domain.SubagentTask) (string, error)
+	TaskManager() interface{} // *agent.TaskManager (avoiding circular import)
+}
+
 // CronRepository defines the contract for cron job persistence.
 type CronRepository interface {
 	ListJobs(ctx context.Context) ([]domain.CronJob, error)
