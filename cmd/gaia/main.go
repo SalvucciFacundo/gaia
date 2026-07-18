@@ -63,6 +63,9 @@ func main() {
 		case "lsp":
 			handleLSPCLI(os.Args[2:])
 			return
+		case "tracker":
+			handleTrackerCLI(os.Args[2:])
+			return
 		}
 	}
 
