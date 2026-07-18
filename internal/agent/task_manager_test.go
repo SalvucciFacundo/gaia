@@ -8,7 +8,13 @@ import (
 	"time"
 
 	"gaia/internal/core/domain"
+
+	"go.uber.org/goleak"
 )
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
+}
 
 func TestTaskManager_Lifecycle(t *testing.T) {
 	tm := NewTaskManager()
