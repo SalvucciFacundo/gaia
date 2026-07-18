@@ -39,11 +39,11 @@
 
 ## Phase 3: Learning & Memory (~380 lines)
 
-- [ ] 3.1 Create Engram namespace wrapper in `internal/agent/memory/namespace.go` — `gaia/{subagent}/{project}` prefix
-- [ ] 3.2 Implement scoped save/search/get per namespace
-- [ ] 3.3 Create learning loop in `internal/agent/learn/loop.go` — counter-based nudge (N=5)
-- [ ] 3.4 Implement session summary generation per subagent
-- [ ] 3.5 Add SDD trigger heuristic to Brain (keyword + scope detection)
-- [ ] 3.6 Wire `/direct` override and `/sdd` force commands
-- [ ] 3.7 Complete message redaction in tool output pipeline
-- [ ] 3.8 Tests: namespace format, learning counter, trigger heuristics
+- [x] 3.1 Create Engram namespace wrapper in `internal/agent/memory/namespace.go` — `gaia/{subagent}/{project}` prefix
+- [x] 3.2 Implement scoped save/search/get per namespace
+- [x] 3.3 Create learning loop in `internal/agent/learn/loop.go` — counter-based nudge (N=5)
+- [x] 3.4 Implement session summary generation per subagent
+- [x] 3.5 Add SDD trigger heuristic to Brain (keyword + scope detection)
+- [x] 3.6 Wire `/direct` override and `/sdd` force commands
+- [x] 3.7 Complete message redaction in tool output pipeline
+- [x] 3.8 Tests: namespace format, learning counter, trigger heuristics

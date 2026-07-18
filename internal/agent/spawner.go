@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"gaia/internal/agent/learn"
+	"gaia/internal/agent/memory"
 	"gaia/internal/core"
 	"gaia/internal/core/domain"
 	"gaia/internal/core/ports"
@@ -11,9 +13,10 @@ import (
 
 // SpawnerConfig holds the dependencies needed to spawn subagent executions.
 type SpawnerConfig struct {
-	Provider ports.LLMProvider
-	Tools    *core.ToolRegistry // Full tool registry; filtered per subagent
-	Budget   domain.BudgetConfig
+	Provider  ports.LLMProvider
+	Tools     *core.ToolRegistry // Full tool registry; filtered per subagent
+	Budget    domain.BudgetConfig
+	Namespace *memory.NamespaceManager // Engram namespace wrapper
 }
 
 // Spawner implements ports.SubagentPort. It creates isolated execution
@@ -21,8 +24,9 @@ type SpawnerConfig struct {
 // fresh message history. Tool filtering is enforced at the Spawner level,
 // not self-reported by subagents.
 type Spawner struct {
-	cfg      SpawnerConfig
-	registry *Registry
+	cfg        SpawnerConfig
+	registry   *Registry
+	learnLoop  *learn.LearningLoop // Tracks per-subagent execution counts
 }
 
 // NewSpawner creates a Spawner with the given configuration and subagent registry.
@@ -31,14 +35,32 @@ func NewSpawner(cfg SpawnerConfig, registry *Registry) *Spawner {
 		cfg.Budget = domain.DefaultBudget()
 	}
 	return &Spawner{
-		cfg:      cfg,
-		registry: registry,
+		cfg:       cfg,
+		registry:  registry,
+		learnLoop: learn.NewLearningLoop(5),
 	}
+}
+
+// SetLearningLoop replaces the default learning loop with a custom one.
+// Pass nil to disable learning nudges.
+func (s *Spawner) SetLearningLoop(l *learn.LearningLoop) {
+	s.learnLoop = l
+}
+
+// LearningLoop returns the spawner's learning loop (may be nil if disabled).
+func (s *Spawner) LearningLoop() *learn.LearningLoop {
+	return s.learnLoop
+}
+
+// Namespace returns the Engram namespace manager (may be nil if not configured).
+func (s *Spawner) Namespace() *memory.NamespaceManager {
+	return s.cfg.Namespace
 }
 
 // Spawn executes a named subagent with the given task.
 // It looks up the subagent factory, creates the subagent, calls Execute,
-// and returns the structured result.
+// and returns the structured result. It also records the execution in
+// the learning loop for nudge detection.
 func (s *Spawner) Spawn(ctx context.Context, name string, task domain.SubagentTask) (*domain.SubagentResult, error) {
 	factory, ok := s.registry.Get(name)
 	if !ok {
@@ -53,6 +75,12 @@ func (s *Spawner) Spawn(ctx context.Context, name string, task domain.SubagentTa
 			Summary: fmt.Sprintf("subagent %q returned nil result", name),
 		}, nil
 	}
+
+	// Record execution for learning loop
+	if s.learnLoop != nil {
+		s.learnLoop.RecordExecution(name)
+	}
+
 	return result, nil
 }
 
@@ -67,6 +95,9 @@ func (s *Spawner) Available() []string {
 //
 // The caller provides a system prompt and the initial task message.
 // RunLoop returns the final assistant message (typically the subagent's summary).
+//
+// RunLoop applies message redaction to all tool outputs before feeding
+// them back to the LLM.
 func (s *Spawner) RunLoop(ctx context.Context, task domain.SubagentTask, systemPrompt string) (*domain.Message, error) {
 	filtered := s.cfg.Tools.Filtered(task.AllowedTools)
 
@@ -96,6 +127,10 @@ func (s *Spawner) RunLoop(ctx context.Context, task domain.SubagentTask, systemP
 				if !toolResult.Success {
 					output = fmt.Sprintf("Error: %s", toolResult.Error)
 				}
+
+				// Redact sensitive content from tool output
+				output, _ = RedactContent(output)
+
 				messages = append(messages, domain.Message{
 					Role:    domain.RoleTool,
 					Content: output,
@@ -114,7 +149,7 @@ func (s *Spawner) RunLoop(ctx context.Context, task domain.SubagentTask, systemP
 	}, nil
 }
 
-// buildSystemPrompt constructs a system prompt for a subagent from the task context.
+// BuildSystemPrompt constructs a system prompt for a subagent from the task context.
 // Exported for use by subagent implementations.
 func BuildSystemPrompt(role, description string, task domain.SubagentTask) string {
 	prompt := fmt.Sprintf("You are the %s subagent. %s\n\n", role, description)
