@@ -71,6 +71,9 @@ func Load() (*domain.Config, error) {
 	if cfg.LLM.FallbackChain == nil {
 		cfg.LLM.FallbackChain = []string{}
 	}
+	if cfg.Terminal.Backend == "" {
+		cfg.Terminal.Backend = "local"
+	}
 
 	return &cfg, nil
 }

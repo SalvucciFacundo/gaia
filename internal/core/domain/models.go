@@ -74,7 +74,7 @@ type Config struct {
 		FallbackChain []string `yaml:"fallback_chain"`
 		TrustMode     string   `yaml:"trust_mode"`
 	} `yaml:"llm"`
-	Budget BudgetConfig `yaml:"budget"`
+	Budget   BudgetConfig   `yaml:"budget"`
 	Telegram struct {
 		Token          string  `yaml:"token"`
 		AllowedUserIDs []int64 `yaml:"allowed_user_ids"`
@@ -83,6 +83,29 @@ type Config struct {
 		RequiresConfirmation bool   `yaml:"requires_confirmation"`
 		Language             string `yaml:"language"` // User's preferred language (en, es, pt)
 	} `yaml:"system"`
+	Terminal TerminalConfig `yaml:"terminal"`
+}
+
+// TerminalConfig defines the execution backend for shell commands.
+type TerminalConfig struct {
+	Backend string       `yaml:"backend"` // "local", "docker", "ssh"
+	Docker  DockerConfig `yaml:"docker"`
+	SSH     SSHConfig    `yaml:"ssh"`
+}
+
+// DockerConfig holds container settings for the Docker executor.
+type DockerConfig struct {
+	Container string `yaml:"container"` // container name or ID
+	WorkDir   string `yaml:"workdir"`   // working dir inside container
+}
+
+// SSHConfig holds connection settings for the SSH executor.
+type SSHConfig struct {
+	Host       string `yaml:"host"`
+	Port       int    `yaml:"port"`
+	User       string `yaml:"user"`
+	KeyPath    string `yaml:"key_path"`
+	KnownHosts string `yaml:"known_hosts"`
 }
 
 // DefaultBudget returns a sensible default budget config.

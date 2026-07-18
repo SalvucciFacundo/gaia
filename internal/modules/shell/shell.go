@@ -6,7 +6,6 @@ package shell
 import (
 	"context"
 	"fmt"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -20,10 +19,38 @@ type Module struct {
 	projectRoot string
 	allowedCmds map[string]bool
 	timeout     time.Duration
+	executor    CommandExecutor
 }
 
 // NewModule creates a shell module scoped to the given project root.
+// Uses the local executor by default.
 func NewModule(projectRoot string) *Module {
+	return newModuleInternal(projectRoot, &LocalExecutor{})
+}
+
+// NewModuleWithConfig creates a shell module using the executor specified in config.
+// Backend defaults to "local" if not set or unrecognized.
+func NewModuleWithConfig(projectRoot string, cfg *domain.TerminalConfig) *Module {
+	var executor CommandExecutor
+	switch cfg.Backend {
+	case "docker":
+		executor = NewDockerExecutor(cfg.Docker.Container, cfg.Docker.WorkDir)
+	case "ssh":
+		executor = NewSSHExecutor(
+			cfg.SSH.Host,
+			cfg.SSH.Port,
+			cfg.SSH.User,
+			cfg.SSH.KeyPath,
+			cfg.SSH.KnownHosts,
+		)
+	default:
+		executor = &LocalExecutor{}
+	}
+	return newModuleInternal(projectRoot, executor)
+}
+
+// newModuleInternal builds a Module with the given executor (for internal and test use).
+func newModuleInternal(projectRoot string, executor CommandExecutor) *Module {
 	return &Module{
 		projectRoot: projectRoot,
 		allowedCmds: map[string]bool{
@@ -48,7 +75,8 @@ func NewModule(projectRoot string) *Module {
 			// Text
 			"awk": true, "sed": true, "tr": true, "cut": true,
 		},
-		timeout: 30 * time.Second,
+		timeout:  30 * time.Second,
+		executor: executor,
 	}
 }
 
@@ -122,11 +150,8 @@ func (m *Module) execShell(ctx context.Context, args map[string]interface{}) (*d
 	execCtx, cancel := context.WithTimeout(ctx, m.timeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(execCtx, cmdName, cmdArgs...)
-	cmd.Dir = m.projectRoot
-
-	output, err := cmd.CombinedOutput()
-	outputStr := security.RedactSecrets(string(output))
+	output, err := m.executor.Exec(execCtx, cmdName, cmdArgs, m.projectRoot)
+	outputStr := security.RedactSecrets(output)
 
 	if err != nil {
 		return &domain.ToolResult{
