@@ -74,6 +74,9 @@ func Load() (*domain.Config, error) {
 	if cfg.Terminal.Backend == "" {
 		cfg.Terminal.Backend = "local"
 	}
+	if cfg.MCP.Servers == nil {
+		cfg.MCP.Servers = []domain.MCPServerConfig{}
+	}
 
 	return &cfg, nil
 }

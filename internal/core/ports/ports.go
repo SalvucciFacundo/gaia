@@ -3,6 +3,8 @@ package ports
 import (
 	"context"
 	"io"
+	"time"
+
 	"gaia/internal/core/domain"
 )
 
@@ -70,4 +72,14 @@ type Module interface {
 type SubagentPort interface {
 	Spawn(ctx context.Context, name string, task domain.SubagentTask) (*domain.SubagentResult, error)
 	Available() []string
+}
+
+// CronRepository defines the contract for cron job persistence.
+type CronRepository interface {
+	ListJobs(ctx context.Context) ([]domain.CronJob, error)
+	CreateJob(ctx context.Context, job domain.CronJob) (string, error)
+	UpdateJob(ctx context.Context, job domain.CronJob) error
+	DeleteJob(ctx context.Context, id string) error
+	GetDueJobs(ctx context.Context) ([]domain.CronJob, error)
+	MarkRun(ctx context.Context, id string, lastRun time.Time, nextRun time.Time) error
 }

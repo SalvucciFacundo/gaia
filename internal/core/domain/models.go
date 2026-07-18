@@ -84,6 +84,20 @@ type Config struct {
 		Language             string `yaml:"language"` // User's preferred language (en, es, pt)
 	} `yaml:"system"`
 	Terminal TerminalConfig `yaml:"terminal"`
+	MCP     MCPConfig     `yaml:"mcp"`
+}
+
+// MCPConfig defines MCP (Model Context Protocol) client settings.
+type MCPConfig struct {
+	Servers []MCPServerConfig `yaml:"servers"`
+}
+
+// MCPServerConfig defines connection settings for an MCP server.
+type MCPServerConfig struct {
+	Name    string            `yaml:"name"`
+	Command string            `yaml:"command"`
+	Args    []string          `yaml:"args"`
+	Env     map[string]string `yaml:"env"`
 }
 
 // TerminalConfig defines the execution backend for shell commands.
@@ -186,4 +200,18 @@ type SubagentResult struct {
 	NextRecommended string         // Next recommended phase, or "none"
 	Risks           []string       // Risks discovered during execution
 	SkillResolution string         // How skills were resolved (paths-injected, fallback-registry, none)
+}
+
+// CronJob represents a scheduled task definition.
+type CronJob struct {
+	ID            string    `json:"id"`
+	Name          string    `json:"name"`
+	Schedule      string    `json:"schedule"`       // cron expression (e.g. "0 2 * * *")
+	Task          string    `json:"task"`            // description sent to the Brain
+	DeliverTo     string    `json:"deliver_to"`      // "terminal", "telegram"
+	DeliverTarget string    `json:"deliver_target"`  // chat ID for telegram
+	Enabled       bool      `json:"enabled"`
+	LastRun       time.Time `json:"last_run"`
+	NextRun       time.Time `json:"next_run"`
+	CreatedAt     time.Time `json:"created_at"`
 }
