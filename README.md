@@ -13,8 +13,8 @@
 
 ## ✨ Features
 
-### 🧠 12 Specialized Autonomous Subagents
-Each subagent learns independently in its domain. They don't just follow instructions — they improve with use.
+### 🧠 12+ Specialized Autonomous Subagents
+Each subagent learns independently in its domain. They don't just follow instructions — they improve with use. Talk directly to any subagent with `@name` — no orchestrator needed.
 
 | Subagent | Type | Role | Learns From |
 |---|---|---|---|
@@ -71,6 +71,48 @@ gaia skills activate go-testing # Activate a skill
 ```
 
 The skill index stays in context (~3k tokens). Full skill content loads on demand. No bloat.
+
+### ⏩ Async Background Tasks
+All subagent execution runs in the background. Send a task, get a TaskID, and keep chatting while it works:
+
+```
+> @explorer investigate this repo
+✓ Task abc-123 started (explorer)
+> @debugger analyze this crash log
+✓ Task def-456 started (debugger)
+> tasks
+  abc-123  explorer  running  00:32
+  def-456  debugger  running  00:12
+> cancel abc-123
+✓ Task abc-123 cancelled
+```
+
+The orchestrator never blocks. PipelineRunner chains SDD phases asynchronously. TaskManager tracks lifecycle (pending → running → completed/failed/cancelled) with real-time TUI updates.
+
+### 🧬 Dynamic Subagents (`/create-agent`)
+Create new subagents at runtime — no recompilation needed:
+
+```
+> /create-agent
+  → Name: "documentarian"
+  → Description: "Writes project documentation"
+  → Tools: file_read, file_list, git_log
+  → Personality: "Clear, concise, technical English"
+✓ Subagent 'documentarian' created. Type @documentarian to chat.
+```
+
+Each dynamic subagent is compiled Go code with its own system prompt, tool filter, and Engram namespace for independent learning. Persisted to SQLite — survives restarts.
+
+### 🔭 Gentle AI Upstream Tracker
+GAIA was inspired by [Gentle AI](https://github.com/Gentleman-Programming/gentle-ai). The tracker keeps parity visible:
+
+```bash
+gaia tracker check     # Check for new features in latest release
+gaia tracker report    # Full port status table
+gaia tracker port <id> # Generate issue for unported feature
+```
+
+The manifest at `tracker/manifest.yaml` maps 22 features with port status (ported/partial/not-ported/not-applicable). Automated release monitoring with ETag caching.
 
 ### 🔐 Security Built-In
 
@@ -161,18 +203,20 @@ gaia
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │                         GAIA CLI                             │
-│  gaia | gaia exec | gaia review | gaia skills | gaia cron   │
+│  gaia | gaia exec | gaia review | gaia skills               │
+│  gaia cron | gaia doctor | gaia tracker                     │
 └──────────────────────────┬───────────────────────────────────┘
                            │
 ┌──────────────────────────▼───────────────────────────────────┐
 │  ORCHESTRATOR — Main Agent Loop                              │
 │  • Think → Act → Learn → Persist                             │
-│  • Delegates to specialized subagents                        │
+│  • Delegates to specialized subagents (async, non-blocking)  │
+│  • @name direct subagent routing                             │
 │  • Progressive skill index + knowledge graph recall           │
 └──────────────────────────┬───────────────────────────────────┘
                            │
 ┌──────────────────────────▼───────────────────────────────────┐
-│  12 SUBAGENTS — Autonomous & Specialized                     │
+│  12+ SUBAGENTS — Autonomous & Runtime-Extensible            │
 │                                                              │
 │  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐            │
 │  │Explorer │ │Proposer │ │Specifier│ │Designer │  SDD       │
@@ -189,6 +233,7 @@ gaia
 │  INFRASTRUCTURE                                              │
 │  LLM Router  │  Tool Engine  │  Engram  │  KG  │  MCP       │
 │  TUI/Desktop │  Gateway      │  Skills  │ Cron │  Webhooks  │
+│  Tracker     │  Dynamic Subagents                            │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -204,11 +249,14 @@ gaia
 | **Token Efficiency** | Full transcript replay | N/A | **Knowledge graph (70%+)** |
 | **SDD Workflow** | No (external skill) | Configures for others | **Native subagent phases** |
 | **Code Review** | No (background) | GGA (bash CLI) | **Built-in GGA + 4 lenses** |
-| **Subagents** | Generic delegation | No | **12 specialized, learn per-domain** |
+| **Subagents** | Generic delegation | No | **12+ specialized + dynamic, learn per-domain** |
 | **Learning Loop** | Single, all domains | No | **Per-subagent independent** |
 | **Skills** | 40+ bundled | Registers for others | **Per-language, user-installed** |
 | **Knowledge Graph** | No | No | **Yes (Topic→Concept→Fact)** |
-| **Desktop** | No | No | **Wails (Phase 2)** |
+| **Desktop** | No | No | **Wails** |
+| **Async Tasks** | No | No | **TaskManager + @name routing** |
+| **Dynamic Subagents** | No | No | **Runtime /create-agent** |
+| **Upstream Tracking** | No | No | **`gaia tracker` CLI** |
 | **Multi-Provider** | Yes | No | **Yes + per-subagent config** |
 | **Persona** | SOUL.md | Persona system | **Seed + evolution** |
 
@@ -220,13 +268,13 @@ gaia
 |---|---|
 | **Language** | Go 1.26 |
 | **Architecture** | Hexagonal (ports & adapters) |
-| **Tests** | 376 (unit + integration) |
-| **Packages** | 34 |
-| **Milestones** | 6 (all complete) |
-| **Subagents** | 12 |
+| **Tests** | 415+ (unit + integration) |
+| **Packages** | 38 |
+| **Milestones** | 7 (including async + dynamic + tracker) |
+| **Subagents** | 12+ (static + dynamic at runtime) |
 | **Review Lenses** | 4 (risk, resilience, readability, reliability) |
 | **LLM Providers** | OpenAI, Anthropic, Ollama, Copilot |
-| **CLI Commands** | 25+ |
+| **CLI Commands** | 30+ |
 | **License** | MIT |
 
 ---
