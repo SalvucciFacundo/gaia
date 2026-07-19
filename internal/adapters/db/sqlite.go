@@ -84,6 +84,17 @@ func (r *SQLiteRepo) migrate() error {
 		html_url TEXT NOT NULL DEFAULT '',
 		cached_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	);
+
+	-- Async tasks (persisted across restarts)
+	CREATE TABLE IF NOT EXISTS tasks (
+		task_id TEXT PRIMARY KEY,
+		subagent_name TEXT NOT NULL,
+		status TEXT NOT NULL DEFAULT 'pending',
+		result_json TEXT,
+		error_text TEXT NOT NULL DEFAULT '',
+		created_at DATETIME NOT NULL,
+		completed_at DATETIME
+	);
 	`
 	_, err := r.db.Exec(query)
 	return err

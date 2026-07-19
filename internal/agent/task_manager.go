@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
@@ -10,6 +11,17 @@ import (
 
 	"github.com/google/uuid"
 )
+
+// TaskRepository is the persistence contract for async task state.
+// Implementations store tasks in SQLite or other backends.
+type TaskRepository interface {
+	// Create persists a new task in Pending state.
+	Create(ctx context.Context, state TaskState) error
+	// UpdateStatus transitions a task to a new status with optional result/error.
+	UpdateStatus(ctx context.Context, taskID string, status TaskStatus, resultJSON, errorText string, completedAt time.Time) error
+	// LoadActive returns all tasks in non-terminal states (Pending, Running).
+	LoadActive(ctx context.Context) ([]TaskState, error)
+}
 
 // TaskStatus represents the lifecycle state of an async task.
 type TaskStatus string
@@ -41,48 +53,87 @@ type taskEntry struct {
 }
 
 // TaskManager tracks async subagent tasks through their lifecycle.
-// It is safe for concurrent use.
+// It is safe for concurrent use. When a TaskRepository is configured,
+// tasks are persisted to SQLite and survive restarts.
 type TaskManager struct {
 	mu      sync.RWMutex
 	tasks   map[string]*taskEntry
 
 	subMu   sync.Mutex
 	allSubs []chan TaskState // SubscribeAll subscribers (buffered, cap 64)
+
+	repo  TaskRepository  // nil = in-memory only
+	bgCtx context.Context // used for persistence operations; nil when repo is nil
 }
 
-// NewTaskManager creates an empty TaskManager.
+// NewTaskManager creates an in-memory-only TaskManager.
 func NewTaskManager() *TaskManager {
 	return &TaskManager{
 		tasks: make(map[string]*taskEntry),
 	}
 }
 
+// NewTaskManagerWithRepo creates a TaskManager backed by a TaskRepository.
+// Active tasks (Pending, Running) are loaded from the repo on creation.
+func NewTaskManagerWithRepo(ctx context.Context, repo TaskRepository) (*TaskManager, error) {
+	tm := &TaskManager{
+		tasks: make(map[string]*taskEntry),
+		repo:  repo,
+		bgCtx: ctx,
+	}
+
+	active, err := repo.LoadActive(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("load active tasks: %w", err)
+	}
+	for _, state := range active {
+		entry := &taskEntry{state: state}
+		if state.Status == TaskRunning {
+			_, entry.cancel = context.WithCancel(context.Background())
+		}
+		tm.tasks[state.TaskID] = entry
+	}
+
+	return tm, nil
+}
+
 // CreateTask registers a new task in Pending state and returns its TaskID.
 // The returned context is derived from the parent and carries cancellation.
+// If a TaskRepository is configured, the task is persisted to SQLite.
 func (tm *TaskManager) CreateTask(name string, task domain.SubagentTask) (string, context.Context) {
 	id := uuid.NewString()
-	ctx, cancel := context.WithCancel(context.Background())
+	taskCtx, cancel := context.WithCancel(context.Background())
+
+	state := TaskState{
+		TaskID:       id,
+		SubagentName: name,
+		Status:       TaskPending,
+		CreatedAt:    time.Now(),
+	}
 
 	entry := &taskEntry{
-		state: TaskState{
-			TaskID:       id,
-			SubagentName: name,
-			Status:       TaskPending,
-			CreatedAt:    time.Now(),
-		},
+		state:  state,
 		cancel: cancel,
+	}
+
+	if tm.repo != nil {
+		if err := tm.repo.Create(tm.bgCtx, state); err != nil {
+			// Log but don't fail — in-memory operation continues.
+			fmt.Printf("task_manager: persist create failed: %v\n", err)
+		}
 	}
 
 	tm.mu.Lock()
 	tm.tasks[id] = entry
 	tm.mu.Unlock()
 
-	tm.broadcast(entry.state)
-	return id, ctx
+	tm.broadcast(state)
+	return id, taskCtx
 }
 
 // UpdateStatus transitions a task to a new status and optionally records a result or error.
 // Per-task subscribers are notified only on terminal states (Completed, Failed, Cancelled).
+// If a TaskRepository is configured, the status change is persisted to SQLite.
 func (tm *TaskManager) UpdateStatus(taskID string, status TaskStatus, result *domain.SubagentResult, err error) {
 	tm.mu.Lock()
 	entry, ok := tm.tasks[taskID]
@@ -113,6 +164,19 @@ func (tm *TaskManager) UpdateStatus(taskID string, status TaskStatus, result *do
 		entry.subs = nil
 	}
 	tm.mu.Unlock()
+
+	// Persist to SQLite outside the lock (I/O should never block task dispatch).
+	if tm.repo != nil {
+		var resultJSON string
+		if state.Result != nil {
+			if b, err := json.Marshal(state.Result); err == nil {
+				resultJSON = string(b)
+			}
+		}
+		if err := tm.repo.UpdateStatus(tm.bgCtx, taskID, state.Status, resultJSON, state.Error, state.CompletedAt); err != nil {
+			fmt.Printf("task_manager: persist status failed: %v\n", err)
+		}
+	}
 
 	for _, sub := range subs {
 		select {

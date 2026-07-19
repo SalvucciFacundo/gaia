@@ -185,8 +185,12 @@ func main() {
 	// 7b. Initialize Engram namespace manager for per-subagent memory isolation
 	namespaceMgr := memory.NewNamespaceManager(projectName)
 
-	// 7c. Initialize async TaskManager for background subagent execution.
-	taskManager := agent.NewTaskManager()
+	// 7c. Initialize async TaskManager with SQLite persistence.
+	taskRepo := db.NewTaskRepo(repo.DB())
+	taskManager, err := agent.NewTaskManagerWithRepo(context.Background(), taskRepo)
+	if err != nil {
+		log.Fatalf("Error initializing task manager: %v", err)
+	}
 
 	// 7d. Wire subagent system with memory namespace and async task tracking
 	subagentRegistry := agent.NewRegistry()
