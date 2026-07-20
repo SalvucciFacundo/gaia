@@ -1486,7 +1486,7 @@ Hermes checkpoints agent state for recovery:
 - Rollback on subagent failure
 - Recovery from partial execution
 
-**GAIA relevance**: Valuable for long-running tasks and SDD apply phases. Track for Phase 3.
+**GAIA status**: ? **Implemented** — Before every subagent Delegate, the Brain snapshots the last message ID. If the subagent returns blocked/error, messages from the failed attempt are deleted and state is restored. See `internal/core/kernel.go` Delegate().
 
 ### 19.9 Tool Search & Discovery
 
@@ -1704,5 +1704,6 @@ These Hermes features are **not in GAIA's initial scope**. Some are intentionall
 
 *Spec version: 2.0*
 *Last updated: 2026-07-20*
+
 
 

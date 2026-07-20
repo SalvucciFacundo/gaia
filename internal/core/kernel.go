@@ -936,3 +936,4 @@ func redactToolOutput(output string) (string, int) {
 	}
 	return result, count
 }
+
