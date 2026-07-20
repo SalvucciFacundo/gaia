@@ -33,3 +33,6 @@ config.yaml
 
 # SDD openspec (project-specific, not user templates)
 openspec/config.yaml
+
+# Temporary exports
+temp-export.json
