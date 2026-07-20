@@ -1415,7 +1415,19 @@ Hermes has an extensive credential management system:
 - Cross-process synchronization for shared auth stores
 - Custom provider endpoints (OpenAI-compatible)
 
-**GAIA relevance**: Important for production use. Track for Phase 4 after single-provider auth is stable.
+**GAIA status**: ✅ **Implemented** — `CredentialPool` wraps any `LLMProvider` with multi-key rotation and cooldown. Configure multiple API keys per provider in `credential_pools` config section. The pool tracks per-key rate limits (429), auth errors (401), and quota errors (402) with configurable cooldown timers. Round-robin selection skips cooldowned keys. Falls back through all keys before returning the error. See `internal/adapters/llm/pool.go`.
+
+**Config example:**
+```yaml
+credential_pools:
+  openai:
+    - key: "sk-1..."
+    - key: "sk-2..."
+    - key: "sk-3..."
+  anthropic:
+    - key: "sk-ant-..."
+    - key: "sk-ant-..."
+```
 
 ### 19.3 Iteration Budget
 

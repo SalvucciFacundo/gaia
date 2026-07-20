@@ -288,6 +288,14 @@ type MoAConfig struct {
 	Models  []MoAModel `yaml:"models"`  // extra models for parallel fan-out (primary excluded)
 }
 
+// CredentialEntry defines a single API credential with cooldown settings.
+type CredentialEntry struct {
+	Key         string        `yaml:"key"`
+	Cooldown429 time.Duration `yaml:"cooldown_429"` // rate limit cooldown (default 1h)
+	Cooldown401 time.Duration `yaml:"cooldown_401"` // auth error cooldown (default 5min)
+	Cooldown402 time.Duration `yaml:"cooldown_402"` // quota error cooldown (default 1h)
+}
+
 // GatewayConfig defines messaging gateway settings.
 type GatewayConfig struct {
 	Enabled     bool                  `yaml:"enabled"`
