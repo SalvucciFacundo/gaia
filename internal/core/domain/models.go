@@ -103,6 +103,18 @@ type Config struct {
 		Token          string  `yaml:"token"`
 		AllowedUserIDs []int64 `yaml:"allowed_user_ids"`
 	} `yaml:"telegram"`
+	Discord struct {
+		Enabled bool   `yaml:"enabled"`
+		Command string `yaml:"command"`
+	} `yaml:"discord"`
+	WhatsApp struct {
+		Enabled bool   `yaml:"enabled"`
+		Command string `yaml:"command"`
+	} `yaml:"whatsapp"`
+	Signal struct {
+		Enabled bool   `yaml:"enabled"`
+		Command string `yaml:"command"`
+	} `yaml:"signal"`
 	System struct {
 		RequiresConfirmation bool   `yaml:"requires_confirmation"`
 		Language             string `yaml:"language"` // User's preferred language (en, es, pt)
@@ -259,10 +271,12 @@ type KnowledgeFact struct {
 
 // GatewayConfig defines messaging gateway settings.
 type GatewayConfig struct {
-	Enabled   bool                   `yaml:"enabled"`
-	Telegram  TelegramGatewayConfig  `yaml:"telegram"`
-	Discord   DiscordGatewayConfig   `yaml:"discord"`
-	BrowserTools BrowserToolsConfig  `yaml:"browser_tools"`
+	Enabled     bool                  `yaml:"enabled"`
+	Telegram    TelegramGatewayConfig `yaml:"telegram"`
+	Discord     DiscordGatewayConfig  `yaml:"discord"`
+	WhatsApp    MCPGatewayConfig      `yaml:"whatsapp"`
+	Signal      MCPGatewayConfig      `yaml:"signal"`
+	BrowserTools BrowserToolsConfig   `yaml:"browser_tools"`
 }
 
 // TelegramGatewayConfig holds Telegram gateway adapter settings.
@@ -276,6 +290,13 @@ type TelegramGatewayConfig struct {
 type DiscordGatewayConfig struct {
 	Enabled bool   `yaml:"enabled"`
 	Command string `yaml:"command"` // path to discord-mcp binary
+}
+
+// MCPGatewayConfig holds generic MCP-based gateway adapter settings.
+// Used by adapters that bridge via an external MCP server process.
+type MCPGatewayConfig struct {
+	Enabled bool   `yaml:"enabled"`
+	Command string `yaml:"command"` // path to the MCP server binary
 }
 
 // BrowserToolsConfig holds optional browser automation MCP settings.

@@ -1221,7 +1221,7 @@ gaia/
 - [x] Optional browser tools MCP plugin
 - [x] `execute_code` RPC tool
 - [x] LSP integration
-- [ ] Community skills taps
+- [x] Community skills taps
 - [x] Plugin API
 - [x] **Webhook subscriptions** (GitHub events triggering automations) ← from Hermes
 - [x] **Script injection** (pre-processing scripts before agent runs) ← from Hermes

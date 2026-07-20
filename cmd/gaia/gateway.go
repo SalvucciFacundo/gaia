@@ -66,6 +66,51 @@ func handleGatewayStart() {
 		}
 	}
 
+	// Register Discord MCP adapter if configured.
+	if cfg.Discord.Command != "" {
+		dCfg := domain.DiscordGatewayConfig{
+			Enabled: true,
+			Command: cfg.Discord.Command,
+		}
+		adapter, err := gateway.NewDiscordMCPAdapter(dCfg)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error creating Discord adapter: %v\n", err)
+		} else {
+			gw.Register(adapter)
+			fmt.Println("Discord adapter registered.")
+		}
+	}
+
+	// Register WhatsApp MCP adapter if configured.
+	if cfg.WhatsApp.Command != "" {
+		wCfg := domain.MCPGatewayConfig{
+			Enabled: true,
+			Command: cfg.WhatsApp.Command,
+		}
+		adapter, err := gateway.NewWhatsAppMCPAdapter(wCfg)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error creating WhatsApp adapter: %v\n", err)
+		} else {
+			gw.Register(adapter)
+			fmt.Println("WhatsApp adapter registered.")
+		}
+	}
+
+	// Register Signal MCP adapter if configured.
+	if cfg.Signal.Command != "" {
+		sCfg := domain.MCPGatewayConfig{
+			Enabled: true,
+			Command: cfg.Signal.Command,
+		}
+		adapter, err := gateway.NewSignalMCPAdapter(sCfg)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error creating Signal adapter: %v\n", err)
+		} else {
+			gw.Register(adapter)
+			fmt.Println("Signal adapter registered.")
+		}
+	}
+
 	// Initialize DB for brain+delivery support.
 	repo, err := db.NewSQLiteRepo()
 	if err != nil {
