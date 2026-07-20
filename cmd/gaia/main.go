@@ -1,10 +1,13 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"net/url"
 
 	"context"
 
@@ -281,6 +284,53 @@ func main() {
 }
 
 // handleSkillsCLI implements the "gaia skills" subcommand family.
+// searchSkillsHub searches GitHub for repositories containing agent skills.
+// Uses the gh CLI when available; falls back to a skills.sh URL.
+func searchSkillsHub(query string) {
+	// Try gh CLI for rich search results.
+	ghPath, err := exec.LookPath("gh")
+	if err == nil {
+		searchArgs := []string{"search", "repos", query, "path:skills/SKILL.md", "--limit", "15",
+			"--json", "name,owner,description,url,updatedAt"}
+		cmd := exec.Command(ghPath, searchArgs...)
+		out, err := cmd.CombinedOutput()
+		if err == nil {
+			var results []struct {
+				Name        string `json:"name"`
+				Owner       struct{ Login string } `json:"owner"`
+				Description string `json:"description"`
+				URL         string `json:"url"`
+				UpdatedAt   string `json:"updatedAt"`
+			}
+			if json.Unmarshal(out, &results) == nil && len(results) > 0 {
+				fmt.Printf("Found %d repositories with skills matching %q:\n\n", len(results), query)
+				for _, r := range results {
+					desc := r.Description
+					if len(desc) > 70 {
+						desc = desc[:70] + "..."
+					}
+					fmt.Printf("  %s/%s\n", r.Owner.Login, r.Name)
+					fmt.Printf("  %s\n", r.URL)
+					if desc != "" {
+						fmt.Printf("  %s\n", desc)
+					}
+					fmt.Printf("  Install: gaia skills add-tap %s/%s\n", r.Owner.Login, r.Name)
+					fmt.Println()
+				}
+				fmt.Println("Tip: install any tap with: gaia skills add-tap <owner/repo>")
+				return
+			}
+		}
+	}
+
+	// Fallback: point to skills.sh
+	fmt.Printf("Search the skills hub online:\n")
+	fmt.Printf("  https://skills.sh/search?q=%s\n", url.QueryEscape(query))
+	fmt.Println()
+	fmt.Println("Install a skill from skills.sh with:")
+	fmt.Println("  gaia skills add-tap <owner/repo>")
+}
+
 func handleSkillsCLI(args []string) {
 	if len(args) == 0 {
 		fmt.Println("Usage: gaia skills <command> [args]")
@@ -292,9 +342,10 @@ func handleSkillsCLI(args []string) {
 		fmt.Println("  activate <name>  Activate a skill for prompt injection")
 		fmt.Println("  deactivate <name> Deactivate a skill")
 		fmt.Println("  remove <name>    Remove an installed skill")
-		fmt.Println("  add-tap <url>    Add a community tap (GitHub repo)")
+		fmt.Println("  add-tap <url>    Add a community tap (GitHub repo or owner/repo)")
 		fmt.Println("  remove-tap <url> Remove a community tap")
 		fmt.Println("  list-taps        List installed taps")
+		fmt.Println("  search-hub <q>   Search for skills on GitHub")
 		return
 	}
 
@@ -442,8 +493,20 @@ func handleSkillsCLI(args []string) {
 		}
 		fmt.Printf("Installed taps (%d):\n", len(taps))
 		for _, t := range taps {
-			fmt.Printf("  %-50s %d skills\n", t.URL, t.SkillCount)
+			url := t.URL
+			if url == "" {
+				url = t.InstalledPath
+			}
+			fmt.Printf("  %-50s %d skills\n", url, t.SkillCount)
 		}
+
+	case "search-hub":
+		query := ""
+		if len(cmdArgs) > 0 {
+			query = cmdArgs[0]
+		}
+		searchSkillsHub(query)
+		return
 
 	default:
 		fmt.Printf("Unknown command: %s\n", cmd)

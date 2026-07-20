@@ -2,6 +2,7 @@ package skills
 
 import (
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -35,14 +36,22 @@ func (h *Hub) tapsDir() string {
 // The tap is cloned to ~/.gaia/taps/<hash>/ and scanned for SKILL.md
 // files in subdirectories. Tap skills are added to the hub index with
 // source "tap" and lower precedence than user-installed skills.
+//
+// URL formats accepted:
+//   - "owner/repo"
+//   - "github.com/owner/repo"
+//   - "https://github.com/owner/repo"
 func (h *Hub) AddTap(url, branch string) error {
 	if branch == "" {
 		branch = "main"
 	}
 
-	// Validate URL: must be github.com, no path traversal.
+	// Normalize URL: accept owner/repo, github.com/owner/repo, or full URL.
+	url = normalizeTapURL(url)
+
+	// Validate URL: must be a github.com path, no path traversal.
 	if !strings.HasPrefix(url, "github.com/") {
-		return fmt.Errorf("tap URL must be a github.com repository, got %q", url)
+		return fmt.Errorf("tap URL must be a GitHub repository, got %q", url)
 	}
 	if strings.Contains(url, "..") {
 		return fmt.Errorf("tap URL contains path traversal: %q", url)
@@ -73,6 +82,9 @@ func (h *Hub) AddTap(url, branch string) error {
 		cmd.Run() // Best effort.
 	}
 
+	// Persist tap metadata so ListTaps can show the URL.
+	saveTapMeta(cloneDir, url, branch)
+
 	// Scan for skills.
 	skillsDirs := scanTapSkills(cloneDir)
 	h.mu.Lock()
@@ -83,6 +95,37 @@ func (h *Hub) AddTap(url, branch string) error {
 
 	_ = skillsDirs // used by rebuild
 	return nil
+}
+
+// tapMetaFile returns the path to the metadata file for a tap directory.
+func tapMetaFile(dir string) string {
+	return filepath.Join(dir, ".tap-meta.json")
+}
+
+// tapMeta holds persisted metadata for an installed tap.
+type tapMeta struct {
+	URL    string `json:"url"`
+	Branch string `json:"branch"`
+}
+
+// saveTapMeta writes tap metadata to the cloned directory.
+func saveTapMeta(dir, url, branch string) {
+	meta := tapMeta{URL: url, Branch: branch}
+	data, _ := json.Marshal(meta)
+	os.WriteFile(tapMetaFile(dir), data, 0644)
+}
+
+// loadTapMeta reads tap metadata from the cloned directory.
+func loadTapMeta(dir string) (tapMeta, error) {
+	data, err := os.ReadFile(tapMetaFile(dir))
+	if err != nil {
+		return tapMeta{}, err
+	}
+	var meta tapMeta
+	if err := json.Unmarshal(data, &meta); err != nil {
+		return tapMeta{}, err
+	}
+	return meta, nil
 }
 
 // RemoveTap removes a tap by URL and deletes its cloned directory.
@@ -128,10 +171,16 @@ func (h *Hub) ListTaps() ([]TapInfo, error) {
 		if !entry.IsDir() {
 			continue
 		}
-		taps = append(taps, TapInfo{
-			InstalledPath: filepath.Join(tapsPath, entry.Name()),
-			SkillCount:    countTapSkills(filepath.Join(tapsPath, entry.Name())),
-		})
+		dir := filepath.Join(tapsPath, entry.Name())
+		info := TapInfo{
+			InstalledPath: dir,
+			SkillCount:    countTapSkills(dir),
+		}
+		if meta, err := loadTapMeta(dir); err == nil {
+			info.URL = meta.URL
+			info.Branch = meta.Branch
+		}
+		taps = append(taps, info)
 	}
 	return taps, nil
 }
@@ -161,6 +210,23 @@ func scanTapSkills(dir string) []string {
 // countTapSkills counts SKILL.md files in a tap directory.
 func countTapSkills(dir string) int {
 	return len(scanTapSkills(dir))
+}
+
+// normalizeTapURL converts various URL formats to the normalized "github.com/owner/repo" form.
+func normalizeTapURL(url string) string {
+	// Already normalized
+	if strings.HasPrefix(url, "github.com/") {
+		return url
+	}
+	// Full HTTPS URL
+	if strings.HasPrefix(url, "https://github.com/") {
+		return strings.TrimPrefix(url, "https://")
+	}
+	// Bare owner/repo — prepend github.com/
+	if !strings.Contains(url, "/") {
+		return url // not valid, but let further validation catch it
+	}
+	return "github.com/" + url
 }
 
 // tapNameFromURL extracts a short name from a GitHub URL.
