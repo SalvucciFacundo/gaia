@@ -1496,7 +1496,7 @@ Hermes allows searching available tools by:
 - Recently used
 - Fuzzy matching
 
-**GAIA relevance**: Useful for the orchestrator to discover what tools subagents have. Track for Phase 2.
+**GAIA status**: ? **Implemented** — ToolRegistry.SearchTools() with case-insensitive name/module matching. ListToolInfo() returns all tools sorted by name with module attribution. `/tools` TUI command lists available tools. See `internal/core/registry.go`.
 
 ### 19.10 Prompt Caching
 
@@ -1704,6 +1704,7 @@ These Hermes features are **not in GAIA's initial scope**. Some are intentionall
 
 *Spec version: 2.0*
 *Last updated: 2026-07-20*
+
 
 
 

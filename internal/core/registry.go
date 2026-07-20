@@ -3,6 +3,8 @@ package core
 import (
 	"context"
 	"fmt"
+	"sort"
+	"strings"
 
 	"gaia/internal/core/domain"
 	"gaia/internal/core/ports"
@@ -14,7 +16,7 @@ type ToolEntry struct {
 	Module ports.Module
 }
 
-// ToolRegistry holds a flat map of tool names to implementations.
+// ToolRegistry manages tool definitions and dispatches execution.
 type ToolRegistry struct {
 	tools map[string]ToolEntry
 }
@@ -67,5 +69,61 @@ func (r *ToolRegistry) Tools() []string {
 	for name := range r.tools {
 		names = append(names, name)
 	}
+	sort.Strings(names)
 	return names
+}
+
+// ToolInfo holds display info for a registered tool.
+type ToolInfo struct {
+	Name        string
+	Module      string
+	Description string
+}
+
+// ListToolInfo returns all registered tools sorted by name.
+func (r *ToolRegistry) ListToolInfo() []ToolInfo {
+	seen := make(map[string]bool)
+	var tools []ToolInfo
+	for _, entry := range r.tools {
+		if seen[entry.Name] {
+			continue
+		}
+		seen[entry.Name] = true
+		desc := ""
+		// Find the description from the module's tool definitions
+		for _, def := range entry.Module.GetTools() {
+			if def.Name == entry.Name {
+				if descMap, ok := def.Arguments["description"]; ok {
+					if d, ok := descMap.(string); ok {
+						desc = d
+					}
+				}
+				break
+			}
+		}
+		tools = append(tools, ToolInfo{
+			Name:        entry.Name,
+			Module:      entry.Module.Name(),
+			Description: desc,
+		})
+	}
+	sort.Slice(tools, func(i, j int) bool { return tools[i].Name < tools[j].Name })
+	return tools
+}
+
+// SearchTools finds tools whose name or module matches the query (case-insensitive).
+func (r *ToolRegistry) SearchTools(query string) []ToolInfo {
+	all := r.ListToolInfo()
+	if query == "" {
+		return all
+	}
+	lower := strings.ToLower(query)
+	var results []ToolInfo
+	for _, t := range all {
+		if strings.Contains(strings.ToLower(t.Name), lower) ||
+			strings.Contains(strings.ToLower(t.Module), lower) {
+			results = append(results, t)
+		}
+	}
+	return results
 }
