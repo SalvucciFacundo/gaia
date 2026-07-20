@@ -290,12 +290,96 @@ func (b *Brain) getHistory(ctx context.Context, limit int) ([]domain.Message, er
 }
 
 // Delegate dispatches a task to a named subagent and returns the structured result.
+// After a successful delegation, it automatically saves subagent discoveries
+// to the shared knowledge graph for cross-pollination.
 // Returns nil, error if no subagent port is wired or the subagent is unknown.
 func (b *Brain) Delegate(ctx context.Context, name string, task domain.SubagentTask) (*domain.SubagentResult, error) {
 	if b.subagentPort == nil {
 		return nil, fmt.Errorf("subagent port not wired")
 	}
-	return b.subagentPort.Spawn(ctx, name, task)
+	result, err := b.subagentPort.Spawn(ctx, name, task)
+	if err == nil && result != nil && result.Status != domain.SubagentBlocked {
+		b.saveSubagentDiscoveries(ctx, name, task.Description, result)
+	}
+	return result, err
+}
+
+// saveSubagentDiscoveries extracts cross-domain discoveries from a subagent result
+// and saves them to the shared knowledge graph. Non-fatal — errors are logged as
+// system messages but don't interrupt the flow.
+func (b *Brain) saveSubagentDiscoveries(ctx context.Context, name, description string, result *domain.SubagentResult) {
+	if b.kgStore == nil {
+		return
+	}
+
+	now := time.Now()
+	saved := 0
+
+	// 1. Save the subagent's summary as a discovery fact
+	if result.Summary != "" {
+		summary := result.Summary
+		if len(summary) > 500 {
+			summary = summary[:500] + "..."
+		}
+		id, err := b.kgStore.AddFact(ctx, domain.KnowledgeFact{
+			Topic:       name,
+			Concept:     description,
+			Fact:        summary,
+			SourceAgent: name,
+			Labels:      []string{"discovery", "subagent-result"},
+			CreatedAt:   now,
+		})
+		if err == nil && id != "" {
+			saved++
+		}
+	}
+
+	// 2. Save each artifact as a codebase fact
+	for _, artifact := range result.Artifacts {
+		if artifact == "" {
+			continue
+		}
+		id, err := b.kgStore.AddFact(ctx, domain.KnowledgeFact{
+			Topic:       "Codebase",
+			Concept:     artifact,
+			Fact:        fmt.Sprintf("Referenced by %s during: %s", name, description),
+			SourceAgent: name,
+			Labels:      []string{"artifact", "codebase"},
+			CreatedAt:   now,
+		})
+		if err == nil && id != "" {
+			saved++
+		}
+	}
+
+	// 3. Save each risk as a risk fact
+	for _, risk := range result.Risks {
+		if risk == "" {
+			continue
+		}
+		riskText := risk
+		if len(riskText) > 300 {
+			riskText = riskText[:300] + "..."
+		}
+		id, err := b.kgStore.AddFact(ctx, domain.KnowledgeFact{
+			Topic:       "Risks",
+			Concept:     fmt.Sprintf("%s: %s", name, description),
+			Fact:        riskText,
+			SourceAgent: name,
+			Labels:      []string{"risk", "warning"},
+			CreatedAt:   now,
+		})
+		if err == nil && id != "" {
+			saved++
+		}
+	}
+
+	if saved > 0 {
+		b.repo.SaveMessage(ctx, domain.Message{
+			Role:    domain.RoleSystem,
+			Content: fmt.Sprintf("Saved %d knowledge facts from @%s.", saved, name),
+		})
+	}
 }
 
 // AvailableSubagents returns the list of registered subagent names.
@@ -599,6 +683,13 @@ func (b *Brain) handleSDDTrigger(ctx context.Context, content string, trigger Tr
 				Role:    domain.RoleAssistant,
 				Content: fmt.Sprintf("SDD pipeline failed: %v", err),
 			})
+		}
+
+		// Save discoveries from all pipeline phases
+		for i, phase := range phases {
+			if i < len(results) && results[i] != nil {
+				b.saveSubagentDiscoveries(ctx, phase.SubagentName, taskDesc, results[i])
+			}
 		}
 
 		finalMsg := buildAsyncSDDPipelineSummary(trigger.Reason, results)
