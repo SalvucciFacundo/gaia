@@ -7,34 +7,37 @@ import (
 	"gaia/internal/core/domain"
 )
 
+// modelContextWindows holds known context window sizes for common models.
 var modelContextWindows = map[string]int{
-	"gpt-4o":               128000,
-	"gpt-4o-mini":          128000,
-	"gpt-4-turbo":          128000,
-	"claude-sonnet-4":      200000,
-	"claude-haiku-3":       200000,
-	"claude-opus-4":        200000,
-	"claude-3-5-sonnet":    200000,
-	"claude-3-haiku":       200000,
-	"gemini-2.5-pro":       1000000,
-	"gemini-2.0-flash":     1000000,
-	"gemini-1.5-pro":       2000000,
-	"llama3":               8192,
-	"llama3.1":             128000,
-	"mistral":              8192,
-	"mixtral":              32768,
-	"codellama":            16384,
-	"qwen2.5":              32768,
-	"deepseek-coder":       16384,
-	"o1":                   200000,
-	"o3-mini":              200000,
+	"gpt-4o":              128000,
+	"gpt-4o-mini":         128000,
+	"gpt-4-turbo":         128000,
+	"claude-sonnet-4":     200000,
+	"claude-haiku-3":      200000,
+	"claude-opus-4":       200000,
+	"claude-3-5-sonnet":   200000,
+	"claude-3-haiku":      200000,
+	"gemini-2.5-pro":      1000000,
+	"gemini-2.0-flash":    1000000,
+	"gemini-1.5-pro":      2000000,
+	"llama3":              8192,
+	"llama3.1":            128000,
+	"mistral":             8192,
+	"mixtral":             32768,
+	"codellama":           16384,
+	"qwen2.5":             32768,
+	"deepseek-coder":      16384,
+	"o1":                  200000,
+	"o3-mini":             200000,
 }
 
+// UsageCategory represents a token usage category for the breakdown.
 type UsageCategory struct {
 	Label  string
 	Tokens int
 }
 
+// UsageStats holds the current context usage breakdown.
 type UsageStats struct {
 	Provider     string
 	Model        string
@@ -44,10 +47,12 @@ type UsageStats struct {
 	BudgetLimit  int
 }
 
+// estimateTokens estimates token count using char/4 heuristic.
 func estimateTokens(text string) int {
 	return len([]rune(text)) / 4
 }
 
+// GetUsageStats returns the current context usage breakdown.
 func (b *Brain) GetUsageStats(toolNames []string, skills []string, kgFacts []string, history []domain.Message) UsageStats {
 	stats := UsageStats{
 		Provider:     b.providerName,
@@ -56,27 +61,32 @@ func (b *Brain) GetUsageStats(toolNames []string, skills []string, kgFacts []str
 		BudgetLimit:  b.budget.MaxIterations,
 	}
 
-	systemTokens := estimateTokens("GAIA programming agent with subagents, tools, and memory")
+	// 1. System prompt (fixed, ~2k tokens for a typical GAIA system prompt)
+	systemTokens := estimateTokens("You are GAIA, a programming-first autonomous agent with subagent delegation, tool execution, and memory.")
 	stats.Categories = append(stats.Categories, UsageCategory{Label: "System Prompt", Tokens: systemTokens})
 
+	// 2. Tool definitions (estimated from tool names)
 	var toolTok int
 	for _, n := range toolNames {
-		toolTok += estimateTokens(n) + 30
+		toolTok += estimateTokens(n) + 30 // avg ~30 tokens per tool for desc + args
 	}
 	stats.Categories = append(stats.Categories, UsageCategory{Label: "Tools", Tokens: toolTok})
 
+	// 3. Active skills
 	var skillTok int
 	for _, s := range skills {
 		skillTok += estimateTokens(s)
 	}
 	stats.Categories = append(stats.Categories, UsageCategory{Label: "Skills", Tokens: skillTok})
 
+	// 4. KG Context
 	var kgTok int
 	for _, f := range kgFacts {
 		kgTok += estimateTokens(f)
 	}
 	stats.Categories = append(stats.Categories, UsageCategory{Label: "KG Context", Tokens: kgTok})
 
+	// 5. Conversation history
 	var convTok int
 	for _, msg := range history {
 		convTok += estimateTokens(fmt.Sprintf("%s: %s", msg.Role, msg.Content))
@@ -89,8 +99,10 @@ func (b *Brain) GetUsageStats(toolNames []string, skills []string, kgFacts []str
 	return stats
 }
 
+// FormatUsage formats UsageStats as a human-readable string.
 func FormatUsage(stats UsageStats) string {
 	var sb strings.Builder
+
 	sb.WriteString("── Context Usage ──────────────────────\n")
 	sb.WriteString(fmt.Sprintf("  Model:    %s / %s\n", stats.Provider, stats.Model))
 	sb.WriteString(fmt.Sprintf("  Window:   %d tokens\n", stats.ContextLimit))
@@ -113,6 +125,7 @@ func FormatUsage(stats UsageStats) string {
 		catPct := float64(c.Tokens) * 100 / float64(stats.ContextLimit)
 		sb.WriteString(fmt.Sprintf("    %-20s %6d tok  %.0f%%\n", c.Label, c.Tokens, catPct))
 	}
+
 	sb.WriteString("────────────────────────────────────────\n")
 	return sb.String()
 }
