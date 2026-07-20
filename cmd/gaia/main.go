@@ -359,6 +359,7 @@ func handleSkillsCLI(args []string) {
 		fmt.Println("  list-taps        List installed taps")
 		fmt.Println("  search-hub <q>   Search for skills on GitHub")
 	fmt.Println("  stats             Show skill usage statistics")
+	fmt.Println("  audit             Security audit all skills")
 		return
 	}
 
@@ -534,6 +535,10 @@ func handleSkillsCLI(args []string) {
 			fmt.Printf("%-30s %-8d %-7s %-8s %s\n", s.Name, s.LoadCount, active, s.Source, lastUsed)
 		}
 
+	case "audit":
+		results := hub.AuditAll()
+		fmt.Print(skills.FormatAuditResults(results))
+
 	case "search-hub":
 		query := ""
 		if len(cmdArgs) > 0 {
@@ -547,6 +552,8 @@ func handleSkillsCLI(args []string) {
 		fmt.Println("Run 'gaia skills' for usage.")
 	}
 }
+
+
 
 
 

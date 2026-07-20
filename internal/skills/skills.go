@@ -27,7 +27,12 @@ type SkillMeta struct {
 	// DirPath is the absolute directory containing this SKILL.md.
 	DirPath string `yaml:"-"`
 	// Source indicates whether the skill is bundled or user-installed.
-	Source string `yaml:"-"` // "bundled" or "user"
+	Source string `yaml:"-"` // "bundled", "user", or "tap"
+
+	// Provenance tracks where the skill came from for security auditing.
+	Provenance string `yaml:"-"` // install source URL or "bundled"
+	InstalledAt string `yaml:"-"` // install timestamp
+	ContentHash string `yaml:"-"` // sha256 of SKILL.md content for integrity
 }
 
 // Skill holds the full skill information including content.
@@ -114,3 +119,4 @@ func splitFrontmatter(r io.Reader) (frontmatter string, body string, err error) 
 
 	return strings.Join(fmLines, "\n"), strings.Join(bodyLines, "\n"), nil
 }
+

@@ -1467,7 +1467,7 @@ Hermes verifies skill origins:
 - AST-level audit of skill code before execution
 - Security guard against dangerous patterns (exfiltration, file access outside scope)
 
-**GAIA relevance**: Critical for a user-installable skills system. Track for Phase 3.
+**GAIA status**: ? **Implemented** — Skills track provenance (source, hash, install time). `gaia skills audit` scans all skills for 10 dangerous patterns (credential leaks, shell injection, destructive commands, etc.) with error/warn/info severity. Audit produces SHA256 hashes for integrity verification. See `internal/skills/audit.go`.
 
 ### 19.7 Message Redaction & Sanitization
 
@@ -1704,4 +1704,5 @@ These Hermes features are **not in GAIA's initial scope**. Some are intentionall
 
 *Spec version: 2.0*
 *Last updated: 2026-07-20*
+
 
