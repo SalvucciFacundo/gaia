@@ -105,8 +105,12 @@ type Config struct {
 	} `yaml:"telegram"`
 	Discord struct {
 		Enabled bool   `yaml:"enabled"`
-		Command string `yaml:"command"`
+		Token   string `yaml:"token"`
 	} `yaml:"discord"`
+	Slack struct {
+		Enabled bool   `yaml:"enabled"`
+		Token   string `yaml:"token"`
+	} `yaml:"slack"`
 	WhatsApp struct {
 		Enabled bool   `yaml:"enabled"`
 		Command string `yaml:"command"`
@@ -274,6 +278,7 @@ type GatewayConfig struct {
 	Enabled     bool                  `yaml:"enabled"`
 	Telegram    TelegramGatewayConfig `yaml:"telegram"`
 	Discord     DiscordGatewayConfig  `yaml:"discord"`
+	Slack       SlackGatewayConfig    `yaml:"slack"`
 	WhatsApp    MCPGatewayConfig      `yaml:"whatsapp"`
 	Signal      MCPGatewayConfig      `yaml:"signal"`
 	BrowserTools BrowserToolsConfig   `yaml:"browser_tools"`
@@ -286,10 +291,16 @@ type TelegramGatewayConfig struct {
 	AllowedUserIDs []int64 `yaml:"allowed_user_ids"`
 }
 
-// DiscordGatewayConfig holds Discord gateway adapter settings via MCP.
+// DiscordGatewayConfig holds Discord gateway adapter settings.
 type DiscordGatewayConfig struct {
 	Enabled bool   `yaml:"enabled"`
-	Command string `yaml:"command"` // path to discord-mcp binary
+	Token   string `yaml:"token"`   // Discord bot token
+}
+
+// SlackGatewayConfig holds Slack gateway adapter settings.
+type SlackGatewayConfig struct {
+	Enabled bool   `yaml:"enabled"`
+	Token   string `yaml:"token"`   // Slack bot token
 }
 
 // MCPGatewayConfig holds generic MCP-based gateway adapter settings.

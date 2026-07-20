@@ -66,18 +66,33 @@ func handleGatewayStart() {
 		}
 	}
 
-	// Register Discord MCP adapter if configured.
-	if cfg.Discord.Command != "" {
+	// Register Discord adapter if configured.
+	if cfg.Discord.Token != "" {
 		dCfg := domain.DiscordGatewayConfig{
 			Enabled: true,
-			Command: cfg.Discord.Command,
+			Token:   cfg.Discord.Token,
 		}
-		adapter, err := gateway.NewDiscordMCPAdapter(dCfg)
+		adapter, err := gateway.NewDiscordAdapter(dCfg)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error creating Discord adapter: %v\n", err)
 		} else {
 			gw.Register(adapter)
 			fmt.Println("Discord adapter registered.")
+		}
+	}
+
+	// Register Slack adapter if configured.
+	if cfg.Slack.Token != "" {
+		sCfg := domain.SlackGatewayConfig{
+			Enabled: true,
+			Token:   cfg.Slack.Token,
+		}
+		adapter, err := gateway.NewSlackAdapter(sCfg)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error creating Slack adapter: %v\n", err)
+		} else {
+			gw.Register(adapter)
+			fmt.Println("Slack adapter registered.")
 		}
 	}
 
