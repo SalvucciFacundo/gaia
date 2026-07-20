@@ -1388,7 +1388,22 @@ Hermes supports **Mixture of Agents** — running multiple models cooperatively 
 - A synthesis model combines results
 - Tracing and debugging for MoA flows
 
-**GAIA relevance**: Could be valuable for the Designer + Implementer + Verifier pipeline. Track for Phase 5+.
+**GAIA status**: ✅ **Implemented** — MoA is built into the Spawner via `moaRunner`. When a subagent has `moa.enabled: true` in its config, the first LLM call fans out to multiple models in parallel (goroutines + 30s timeout), collects responses, and synthesizes them via the primary model. Subsequent tool-calling iterations use a single model for coherence. Configurable per subagent (including dynamic subagents created via `/create-agent`). Orchestrator never uses MoA. See `internal/agent/moa.go`.
+
+**Config example:**
+```yaml
+subagents:
+  implementer:
+    provider: openai
+    model: gpt-4o
+    moa:
+      enabled: true
+      models:
+        - provider: anthropic
+          model: claude-sonnet-4-20250514
+        - provider: google
+          model: gemini-2.5-pro
+```
 
 ### 19.2 Credential Pool & Provider Rotation
 
