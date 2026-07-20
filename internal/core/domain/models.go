@@ -189,6 +189,7 @@ type SubagentTask struct {
 	AllowedTools []string // Tool names allowed for this subagent; empty = all
 	Mode         string   // Execution mode: "plan" or "build"
 	IsDirectChat bool     // True when routed via @name syntax; subagent responds directly to user
+	MoA          MoAConfig // Mixture-of-Agents config (empty = single-model)
 }
 
 // ReviewState represents the state of a review transaction in the formal state machine.
@@ -271,6 +272,20 @@ type KnowledgeFact struct {
 	SourceAgent string    `json:"source_agent"` // e.g. "designer"
 	Labels      []string  `json:"labels"`       // e.g. ["security", "auth", "jwt"]
 	CreatedAt   time.Time `json:"created_at"`
+}
+
+// MoAModel defines an additional model to use in a Mixture-of-Agents fan-out.
+type MoAModel struct {
+	Provider        string `yaml:"provider"`
+	Model           string `yaml:"model"`
+	ReasoningEffort string `yaml:"reasoning_effort"`
+	Label           string `yaml:"label"` // optional label for tracing/debugging
+}
+
+// MoAConfig controls Mixture-of-Agents for a subagent.
+type MoAConfig struct {
+	Enabled bool       `yaml:"enabled"` // false = single-model mode (default)
+	Models  []MoAModel `yaml:"models"`  // extra models for parallel fan-out (primary excluded)
 }
 
 // GatewayConfig defines messaging gateway settings.

@@ -199,14 +199,24 @@ func main() {
 		log.Fatalf("Error initializing task manager: %v", err)
 	}
 
-	// 7d. Wire subagent system with memory namespace and async task tracking
+	// 7d. Initialize MoA providers (all available, for per-subagent MoA fan-out).
+	moaProviders := make(map[string]ports.LLMProvider)
+	for name, constructor := range llm.Registry {
+		p, err := constructor(cfg)
+		if err == nil {
+			moaProviders[name] = p
+		}
+	}
+
+	// 7e. Wire subagent system with memory namespace, async task tracking, and MoA providers.
 	subagentRegistry := agent.NewRegistry()
 	subagentSpawner := agent.NewSpawner(agent.SpawnerConfig{
-		Provider:    router,
-		Tools:       brain.Registry(),
-		Budget:      cfg.Budget,
-		Namespace:   namespaceMgr,
-		TaskManager: taskManager,
+		Provider:     router,
+		Tools:        brain.Registry(),
+		Budget:       cfg.Budget,
+		Namespace:    namespaceMgr,
+		TaskManager:  taskManager,
+		MoAProviders: moaProviders,
 	}, subagentRegistry)
 
 	// Register SDD subagents (M2: 5 phases; M3: +3 new phases)

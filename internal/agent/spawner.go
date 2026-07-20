@@ -13,11 +13,12 @@ import (
 
 // SpawnerConfig holds the dependencies needed to spawn subagent executions.
 type SpawnerConfig struct {
-	Provider    ports.LLMProvider
-	Tools       *core.ToolRegistry // Full tool registry; filtered per subagent
-	Budget      domain.BudgetConfig
-	Namespace   *memory.NamespaceManager // Engram namespace wrapper
-	TaskManager *TaskManager             // Async task lifecycle tracking (nil = sync-only mode)
+	Provider     ports.LLMProvider
+	Tools        *core.ToolRegistry // Full tool registry; filtered per subagent
+	Budget       domain.BudgetConfig
+	Namespace    *memory.NamespaceManager // Engram namespace wrapper
+	TaskManager  *TaskManager             // Async task lifecycle tracking (nil = sync-only mode)
+	MoAProviders map[string]ports.LLMProvider // providers for MoA fan-out, keyed by name
 }
 
 // Spawner implements ports.SubagentPort. It creates isolated execution
@@ -141,6 +142,11 @@ func (s *Spawner) Available() []string {
 //
 // RunLoop applies message redaction to all tool outputs before feeding
 // them back to the LLM.
+//
+// When task.MoA.Enabled is true and MoAProviders are configured, the first
+// iteration uses MoA (fan-out to multiple models + synthesis) instead of
+// a single provider call. Subsequent iterations (tool call loops) always
+// use the single provider for consistency.
 func (s *Spawner) RunLoop(ctx context.Context, task domain.SubagentTask, systemPrompt string) (*domain.Message, error) {
 	filtered := s.cfg.Tools.Filtered(task.AllowedTools)
 
@@ -157,7 +163,23 @@ func (s *Spawner) RunLoop(ctx context.Context, task domain.SubagentTask, systemP
 		default:
 		}
 
-		resp, err := s.cfg.Provider.Chat(ctx, messages)
+		var resp *domain.Message
+		var err error
+
+		// First iteration + MoA enabled → use MoA fan-out
+		if iter == 0 && task.MoA.Enabled && len(s.cfg.MoAProviders) > 0 {
+			runner, moaErr := newMoARunner(s.cfg.Provider, s.cfg.MoAProviders, task.MoA)
+			if moaErr == nil && runner != nil {
+				resp, err = runner.run(ctx, messages)
+			}
+			// If MoA failed or returned nothing, fall back to single provider
+			if resp == nil || err != nil {
+				resp, err = s.cfg.Provider.Chat(ctx, messages)
+			}
+		} else {
+			resp, err = s.cfg.Provider.Chat(ctx, messages)
+		}
+
 		if err != nil {
 			return nil, fmt.Errorf("llm chat: %w", err)
 		}

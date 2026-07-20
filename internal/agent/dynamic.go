@@ -13,13 +13,14 @@ import (
 // SubagentDef holds the user-defined configuration for a dynamic subagent.
 // It is the persistence model for the subagent_defs SQLite table.
 type SubagentDef struct {
-	Name         string    `json:"name"`
-	Description  string    `json:"description"`
-	AllowedTools []string  `json:"allowed_tools"`
-	Skills       []string  `json:"skills"`
-	SystemPrompt string    `json:"system_prompt"`
-	Personality  string    `json:"personality"`
-	CreatedAt    time.Time `json:"created_at"`
+	Name         string          `json:"name"`
+	Description  string          `json:"description"`
+	AllowedTools []string        `json:"allowed_tools"`
+	Skills       []string        `json:"skills"`
+	SystemPrompt string          `json:"system_prompt"`
+	Personality  string          `json:"personality"`
+	MoA          domain.MoAConfig `json:"moa"`
+	CreatedAt    time.Time       `json:"created_at"`
 }
 
 // DefRepository is the persistence contract for dynamic subagent definitions.
