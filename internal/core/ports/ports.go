@@ -43,6 +43,10 @@ type Repository interface {
 	GetHistory(ctx context.Context, limit int) ([]domain.Message, error)
 	CreateSession(ctx context.Context, name string) (string, error)
 	GetMessages(ctx context.Context, sessionID string, limit int) ([]domain.Message, error)
+	// GetMessageCount returns the total number of stored messages.
+	GetMessageCount(ctx context.Context) (int, error)
+	// GetHistoryFrom returns messages starting at the given offset (0-based, oldest first).
+	GetHistoryFrom(ctx context.Context, limit, offset int) ([]domain.Message, error)
 }
 
 // UIService handles the terminal interaction.

@@ -82,9 +82,11 @@ func SDDPhases(taskDesc string) []PipelinePhase {
 	}
 }
 
-// BudgetConfig defines iteration limits for the agent loop.
+// BudgetConfig defines iteration and context limits for the agent loop.
 type BudgetConfig struct {
-	MaxIterations int `yaml:"max_iterations"`
+	MaxIterations       int `yaml:"max_iterations"`
+	CompactionThreshold int `yaml:"compaction_threshold"`  // messages before compaction triggers (0 = disabled)
+	KeepRecentMessages  int `yaml:"keep_recent_messages"`  // messages to keep verbatim after compaction
 }
 
 // Config represents the application configuration.
@@ -146,7 +148,11 @@ type SSHConfig struct {
 
 // DefaultBudget returns a sensible default budget config.
 func DefaultBudget() BudgetConfig {
-	return BudgetConfig{MaxIterations: 25}
+	return BudgetConfig{
+		MaxIterations:       25,
+		CompactionThreshold: 50,  // compact when history exceeds 50 messages
+		KeepRecentMessages:  20,  // keep last 20 messages verbatim
+	}
 }
 
 // SubagentStatus represents the outcome of a subagent execution.

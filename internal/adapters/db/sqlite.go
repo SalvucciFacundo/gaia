@@ -151,6 +151,36 @@ func (r *SQLiteRepo) GetHistory(ctx context.Context, limit int) ([]domain.Messag
 	return r.GetMessages(ctx, "default", limit)
 }
 
+func (r *SQLiteRepo) GetMessageCount(ctx context.Context) (int, error) {
+	query := `SELECT COUNT(*) FROM messages WHERE session_id = 'default'`
+	var count int
+	err := r.db.QueryRowContext(ctx, query).Scan(&count)
+	return count, err
+}
+
+func (r *SQLiteRepo) GetHistoryFrom(ctx context.Context, limit, offset int) ([]domain.Message, error) {
+	query := `SELECT id, role, content, created_at FROM messages WHERE session_id = 'default' ORDER BY created_at ASC LIMIT ? OFFSET ?`
+	rows, err := r.db.QueryContext(ctx, query, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var history []domain.Message
+	for rows.Next() {
+		var msg domain.Message
+		var roleStr string
+		var createdAt time.Time
+		if err := rows.Scan(&msg.ID, &roleStr, &msg.Content, &createdAt); err != nil {
+			return nil, err
+		}
+		msg.Role = domain.Role(roleStr)
+		msg.CreatedAt = createdAt
+		history = append(history, msg)
+	}
+	return history, rows.Err()
+}
+
 func (r *SQLiteRepo) GetMessages(ctx context.Context, sessionID string, limit int) ([]domain.Message, error) {
 	query := `SELECT id, role, content, created_at FROM messages WHERE session_id = ? ORDER BY created_at ASC LIMIT ?`
 	rows, err := r.db.QueryContext(ctx, query, sessionID, limit)

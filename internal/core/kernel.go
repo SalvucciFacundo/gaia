@@ -17,15 +17,16 @@ import (
 // Brain orchestrates the agent loop: receive user input, call LLM,
 // execute tool calls, enforce budget, delegate to subagents, and return results.
 type Brain struct {
-	provider     ports.LLMProvider
-	repo         ports.Repository
-	registry     *ToolRegistry
-	guard        *ConfirmGuard
-	ui           ports.UIService
-	budget       domain.BudgetConfig
-	onToken      func(string)           // streaming callback
-	subagentPort ports.SubagentPort      // subagent delegation (nil if not wired)
-	kgStore      ports.KnowledgeGraphStore // shared knowledge graph (nil if not wired)
+	provider      ports.LLMProvider
+	repo          ports.Repository
+	registry      *ToolRegistry
+	guard         *ConfirmGuard
+	ui            ports.UIService
+	budget        domain.BudgetConfig
+	onToken       func(string)                // streaming callback
+	subagentPort  ports.SubagentPort           // subagent delegation (nil if not wired)
+	kgStore       ports.KnowledgeGraphStore    // shared knowledge graph (nil if not wired)
+	compactedTo   int                          // messages compacted so far (context compaction)
 }
 
 // BrainOption configures the Brain.
@@ -101,6 +102,114 @@ func (b *Brain) queryKGContext(ctx context.Context, text string) []string {
 	return result
 }
 
+// compactHistory compacts stale messages when the history exceeds the compaction threshold.
+// Old messages (beyond keepRecent) are condensed into a single system message, reducing
+// token usage on long conversations. Compaction is non-destructive — old messages remain
+// in the database but are excluded from subsequent history fetches via compactedTo offset.
+func (b *Brain) compactHistory(ctx context.Context) error {
+	if b.budget.CompactionThreshold <= 0 {
+		return nil // disabled
+	}
+
+	count, err := b.repo.GetMessageCount(ctx)
+	if err != nil {
+		return fmt.Errorf("get message count for compaction: %w", err)
+	}
+
+	keepRecent := b.budget.KeepRecentMessages
+	if keepRecent <= 0 {
+		keepRecent = 20
+	}
+
+	// Only compact when history exceeds the threshold
+	if count < b.budget.CompactionThreshold {
+		return nil
+	}
+
+	compactCount := count - keepRecent
+	if compactCount <= b.compactedTo {
+		return nil // already compacted up to this point
+	}
+
+	// Fetch un-compacted old messages
+	oldCount := compactCount - b.compactedTo
+	oldMsgs, err := b.repo.GetHistoryFrom(ctx, oldCount, b.compactedTo)
+	if err != nil {
+		return fmt.Errorf("fetch old messages for compaction: %w", err)
+	}
+	if len(oldMsgs) == 0 {
+		return nil
+	}
+
+	// Build compacted summary: drop tool outputs, condense user/assistant messages
+	var sb strings.Builder
+	sb.WriteString("Compacted conversation history (older messages):\n")
+	for _, msg := range oldMsgs {
+		// Skip tool role messages entirely — they're the longest and least relevant
+		if msg.Role == domain.RoleTool {
+			continue
+		}
+
+		prefix := strings.ToUpper(string(msg.Role))[:4]
+		content := msg.Content
+
+		// Truncate long messages
+		if len(content) > 300 {
+			content = content[:300] + "..."
+		}
+		// Single-line compact format
+		content = strings.ReplaceAll(content, "\n", " ")
+		sb.WriteString(fmt.Sprintf("[%s] %s\n", prefix, content))
+	}
+
+	summary := sb.String()
+
+	// Cap total compacted size at ~3000 chars (~750 tokens)
+	if len(summary) > 3000 {
+		summary = summary[:3000] + "\n...[truncated]"
+	}
+
+	// Save as a system message so it appears in the conversation context
+	summaryMsg := domain.Message{
+		Role:    domain.RoleSystem,
+		Content: summary,
+	}
+	if err := b.repo.SaveMessage(ctx, summaryMsg); err != nil {
+		return fmt.Errorf("save compaction summary: %w", err)
+	}
+
+	b.compactedTo = compactCount
+	return nil
+}
+
+// getHistory returns conversation history, filtering out compacted messages.
+// If compaction has occurred (compactedTo > 0), returns only the recent messages
+// (oldest compacted messages are excluded but their compaction summary exists).
+func (b *Brain) getHistory(ctx context.Context, limit int) ([]domain.Message, error) {
+	if b.compactedTo > 0 {
+		// Messages before compactedTo have been compacted into a summary.
+		// Return the summary (most recent system message) + recent messages.
+		history, err := b.repo.GetHistoryFrom(ctx, b.budget.KeepRecentMessages, b.compactedTo)
+		if err != nil {
+			return nil, err
+		}
+		// Also try to include the compaction summary (last system message)
+		recent, err := b.repo.GetHistoryFrom(ctx, b.budget.KeepRecentMessages+5, 0)
+		if err != nil {
+			return history, nil // best-effort
+		}
+		// Find the compaction summary — it's the most recent system msg with COMPACTED prefix
+		for i := len(recent) - 1; i >= 0; i-- {
+			if recent[i].Role == domain.RoleSystem && strings.Contains(recent[i].Content, "Compacted conversation") {
+				// Prepend summary then recent messages
+				return append([]domain.Message{recent[i]}, history...), nil
+			}
+		}
+		return history, nil
+	}
+	return b.repo.GetHistory(ctx, limit)
+}
+
 // Delegate dispatches a task to a named subagent and returns the structured result.
 // Returns nil, error if no subagent port is wired or the subagent is unknown.
 func (b *Brain) Delegate(ctx context.Context, name string, task domain.SubagentTask) (*domain.SubagentResult, error) {
@@ -157,9 +266,19 @@ func (b *Brain) ProcessMessage(ctx context.Context, content string) error {
 		b.repo.SaveMessage(ctx, kgMsg)
 	}
 
+	// 2c. Context compaction: condense stale history when the conversation is long.
+	// This runs before the LLM loop so the compacted summary is available.
+	if err := b.compactHistory(ctx); err != nil {
+		// Non-fatal — log and continue with full history
+		b.repo.SaveMessage(ctx, domain.Message{
+			Role:    domain.RoleSystem,
+			Content: fmt.Sprintf("Warning: context compaction failed: %v", err),
+		})
+	}
+
 	// 3. Iteration loop with budget
 	for iter := 0; iter < b.budget.MaxIterations; iter++ {
-		history, err := b.repo.GetHistory(ctx, 50)
+		history, err := b.getHistory(ctx, 50)
 		if err != nil {
 			return fmt.Errorf("get history: %w", err)
 		}

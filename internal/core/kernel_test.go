@@ -55,6 +55,10 @@ func (r *stubRepo) CreateSession(ctx context.Context, name string) (string, erro
 func (r *stubRepo) GetMessages(ctx context.Context, sessionID string, limit int) ([]domain.Message, error) {
 	return []domain.Message{}, nil
 }
+func (r *stubRepo) GetMessageCount(ctx context.Context) (int, error)     { return 0, nil }
+func (r *stubRepo) GetHistoryFrom(ctx context.Context, limit, offset int) ([]domain.Message, error) {
+	return []domain.Message{}, nil
+}
 
 // stubUI records Display calls.
 type stubUI struct {
