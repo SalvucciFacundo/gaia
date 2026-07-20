@@ -239,6 +239,18 @@ type CronJob struct {
 	CreatedAt     time.Time `json:"created_at"`
 }
 
+// KnowledgeFact is a single atomic fact in the shared knowledge graph.
+// Facts are organized as Topic → Concept → Fact with source attribution.
+type KnowledgeFact struct {
+	ID          string    `json:"id"`
+	Topic       string    `json:"topic"`       // e.g. "Authentication"
+	Concept     string    `json:"concept"`     // e.g. "JWT in this project"
+	Fact        string    `json:"fact"`        // e.g. "Tokens expire in 24h, refresh in 7d"
+	SourceAgent string    `json:"source_agent"` // e.g. "designer"
+	Labels      []string  `json:"labels"`       // e.g. ["security", "auth", "jwt"]
+	CreatedAt   time.Time `json:"created_at"`
+}
+
 // GatewayConfig defines messaging gateway settings.
 type GatewayConfig struct {
 	Enabled   bool                   `yaml:"enabled"`

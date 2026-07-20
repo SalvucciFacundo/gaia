@@ -1154,77 +1154,77 @@ gaia/
 
 ### Milestone 1: Core Agent Loop (Week 1-3)
 
-- [ ] Multi-provider LLM (Anthropic, OpenAI, Gemini, Ollama)
-- [ ] Tool execution engine (registry + dispatch)
-- [ ] Refactor Copilot into multi-provider architecture
-- [ ] Progressive skill loader (Level 0 → Level 1)
-- [ ] Engram integration (via MCP or Go SDK)
+- [x] Multi-provider LLM (Anthropic, OpenAI, Gemini, Ollama, Copilot)
+- [x] Tool execution engine (registry + dispatch)
+- [x] Refactor Copilot into multi-provider architecture
+- [x] Progressive skill loader (Level 0 → Level 1)
+- [x] Engram integration (via MCP)
 - [ ] Knowledge graph store (Topic → Concept → Fact)
 - [ ] Per-turn memory recall from KG
 - [ ] Context compaction (summarize stale history)
-- [ ] **Iteration budget** (safety: prevent runaway agents, per-subagent caps) ← from Hermes
-- [ ] **Confirmation modes** (always / per-session / per-action / never + /trust commands) ← from Hermes
-- [ ] **Onboarding expansion**: language selection + skill recommendation in wizard ← from Hermes
-- [ ] **Session persistence** (save/restore conversations by session ID)
+- [x] **Iteration budget** (safety: prevent runaway agents, per-subagent caps) ← from Hermes
+- [x] **Confirmation modes** (always / per-session / per-action / never + /trust commands) ← from Hermes
+- [x] **Onboarding expansion**: language selection + skill recommendation in wizard ← from Hermes
+- [x] **Session persistence** (save/restore conversations by session ID)
 - [ ] **Undo/Retry commands** (/undo, /retry)
-- [ ] Tests for core loop
+- [x] Tests for core loop
 
 ### Milestone 2: Subagent System (Week 4-6)
 
-- [ ] Subagent base (spawn, delegate, return summary)
-- [ ] Orchestrator: delegation logic + synthesis
-- [ ] Explorer subagent
-- [ ] Implementer subagent
-- [ ] Verifier subagent
-- [ ] Per-subagent model configuration
-- [ ] Per-subagent memory namespaces in Engram
-- [ ] Hook into SDD flow (trigger on substantial changes)
-- [ ] **Message redaction & sanitization** (redact API keys, tokens, PII) ← from Hermes
-- [ ] **Tool guardrails** (path security, URL safety, write approval) ← from Hermes
+- [x] Subagent base (spawn, delegate, return summary)
+- [x] Orchestrator: delegation logic + synthesis
+- [x] Explorer subagent
+- [x] Implementer subagent
+- [x] Verifier subagent
+- [x] Per-subagent model configuration
+- [x] Per-subagent memory namespaces in Engram
+- [x] Hook into SDD flow (trigger on substantial changes)
+- [x] **Message redaction & sanitization** (redact API keys, tokens, PII) ← from Hermes
+- [x] **Tool guardrails** (path security, URL safety, write approval) ← from Hermes
 
 ### Milestone 3: Learning & Skills (Week 7-9)
 
-- [ ] Learning loop (nudge, session summary, skill creation)
-- [ ] Per-subagent learning (independent nudge + skill creation)
+- [x] Learning loop (nudge, session summary, skill creation)
+- [x] Per-subagent learning (independent nudge + skill creation)
 - [ ] Shared knowledge graph cross-pollination
-- [ ] Skills Hub (search, install, activate, deactivate, remove)
-- [ ] Wizard: first-run language selection + skill recommendation
-- [ ] `gaia skills` commands
-- [ ] All subagents: Proposer, Specifier, Designer, Planner, Archiver, Reviewer, Debugger, Researcher, Learner
-- [ ] **Non-interactive / headless mode** (`gaia exec`, `gaia --json`, `gaia --quiet`)
-- [ ] **Output modes** (`--json`, `--verbose`, `--quiet` flags)
+- [x] Skills Hub (search, install, activate, deactivate, remove)
+- [x] Wizard: first-run language selection + skill recommendation
+- [x] `gaia skills` commands
+- [x] All subagents: Proposer, Specifier, Designer, Planner, Archiver, Reviewer, Debugger, Researcher, Learner
+- [x] **Non-interactive / headless mode** (`gaia exec`, `gaia --json`, `gaia --quiet`)
+- [x] **Output modes** (`--json`, `--verbose`, `--quiet` flags)
 
 ### Milestone 4: Review & Quality (Week 10-12)
 
-- [ ] GGA review: 4 lenses (risk, resilience, readability, reliability)
-- [ ] Bounded review with content-bound receipt (SHA256)
-- [ ] Pre-commit/pre-push gate validation
-- [ ] Judgment Day protocol (judge-a, judge-b, fix-agent)
-- [ ] AGENTS.md standards parser
-- [ ] `gaia review` commands
+- [x] GGA review: 4 lenses (risk, resilience, readability, reliability)
+- [x] Bounded review with content-bound receipt (SHA256)
+- [x] Pre-commit/pre-push gate validation
+- [x] Judgment Day protocol (judge-a, judge-b, fix-agent)
+- [x] AGENTS.md standards parser
+- [x] `gaia review` commands
 
 ### Milestone 5: Production (Week 13-16)
 
-- [ ] Docker terminal backend
-- [ ] SSH terminal backend
-- [ ] Wails Desktop app
-- [ ] Cron scheduler
-- [ ] MCP client
-- [ ] Desktop notifications
-- [ ] `gaia doctor` — system diagnostics
-- [ ] SDD onboard — guided walkthrough
-- [ ] **Cron delivery to platforms** (scheduled tasks delivering results) ← from Hermes
+- [x] Docker terminal backend
+- [x] SSH terminal backend
+- [x] Wails Desktop app
+- [x] Cron scheduler
+- [x] MCP client
+- [x] Desktop notifications
+- [x] `gaia doctor` — system diagnostics
+- [x] SDD onboard — guided walkthrough
+- [x] **Cron delivery to platforms** (scheduled tasks delivering results) ← from Hermes
 
 ### Milestone 6: Ecosystem (Week 17+)
 
-- [ ] Messaging gateway (Telegram, Discord via MCP)
-- [ ] Optional browser tools MCP plugin
-- [ ] `execute_code` RPC tool
-- [ ] LSP integration
+- [x] Messaging gateway (Telegram, Discord via MCP)
+- [x] Optional browser tools MCP plugin
+- [x] `execute_code` RPC tool
+- [x] LSP integration
 - [ ] Community skills taps
-- [ ] Plugin API
-- [ ] **Webhook subscriptions** (GitHub events triggering automations) ← from Hermes
-- [ ] **Script injection** (pre-processing scripts before agent runs) ← from Hermes
+- [x] Plugin API
+- [x] **Webhook subscriptions** (GitHub events triggering automations) ← from Hermes
+- [x] **Script injection** (pre-processing scripts before agent runs) ← from Hermes
 
 ---
 
@@ -1676,4 +1676,4 @@ These Hermes features are **not in GAIA's initial scope**. Some are intentionall
 ---
 
 *Spec version: 2.0*
-*Last updated: 2026-07-18*
+*Last updated: 2026-07-20*

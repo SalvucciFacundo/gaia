@@ -25,6 +25,7 @@ type Brain struct {
 	budget       domain.BudgetConfig
 	onToken      func(string)           // streaming callback
 	subagentPort ports.SubagentPort      // subagent delegation (nil if not wired)
+	kgStore      ports.KnowledgeGraphStore // shared knowledge graph (nil if not wired)
 }
 
 // BrainOption configures the Brain.
@@ -60,6 +61,44 @@ func (b *Brain) RegisterModule(mod ports.Module) {
 // Pass nil to disable subagent delegation.
 func (b *Brain) SetSubagentPort(sp ports.SubagentPort) {
 	b.subagentPort = sp
+}
+
+// SetKnowledgeGraphStore wires the shared knowledge graph into the Brain.
+// When set, the Brain queries relevant facts before each turn and auto-populates
+// subagent task KGContext fields. Pass nil to disable.
+func (b *Brain) SetKnowledgeGraphStore(kg ports.KnowledgeGraphStore) {
+	b.kgStore = kg
+}
+
+// queryKGContext searches the knowledge graph for facts relevant to the given text.
+// Returns formatted KG facts or nil if the store is not wired.
+func (b *Brain) queryKGContext(ctx context.Context, text string) []string {
+	if b.kgStore == nil {
+		return nil
+	}
+
+	// Search for facts matching the query — use keywords from the text
+	facts, err := b.kgStore.SearchFacts(ctx, text)
+	if err != nil || len(facts) == 0 {
+		// Fall back to recent facts if search yields nothing
+		recent, recentErr := b.kgStore.GetRecentFacts(ctx, 5)
+		if recentErr != nil || len(recent) == 0 {
+			return nil
+		}
+		facts = recent
+	}
+
+	result := make([]string, 0, len(facts))
+	seen := make(map[string]bool)
+	for _, f := range facts {
+		key := f.Topic + "/" + f.Concept + "/" + f.Fact
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		result = append(result, fmt.Sprintf("[%s/%s] %s (by %s)", f.Topic, f.Concept, f.Fact, f.SourceAgent))
+	}
+	return result
 }
 
 // Delegate dispatches a task to a named subagent and returns the structured result.
@@ -106,6 +145,16 @@ func (b *Brain) ProcessMessage(ctx context.Context, content string) error {
 	}
 	if err := b.repo.SaveMessage(ctx, userMsg); err != nil {
 		return fmt.Errorf("save user message: %w", err)
+	}
+
+	// 2b. Inject relevant knowledge graph facts as context
+	if kgFacts := b.queryKGContext(ctx, content); len(kgFacts) > 0 {
+		kgMsg := domain.Message{
+			Role: domain.RoleSystem,
+			Content: "Knowledge graph facts relevant to this task:\n" +
+				strings.Join(kgFacts, "\n"),
+		}
+		b.repo.SaveMessage(ctx, kgMsg)
 	}
 
 	// 3. Iteration loop with budget
@@ -263,6 +312,7 @@ func (b *Brain) handleDirectSubagent(ctx context.Context, content string) error 
 		Description:  message,
 		Mode:         "plan",
 		IsDirectChat: true,
+		KGContext:    b.queryKGContext(ctx, message),
 	}
 
 	// Try async spawn first
@@ -322,8 +372,9 @@ func (b *Brain) handleSDDTrigger(ctx context.Context, content string, trigger Tr
 	// Build the SDD pipeline phases
 	phases := domain.SDDPhases(taskDesc)
 	baseTask := domain.SubagentTask{
-		ID:   "sdd-pipeline",
-		Mode: "plan",
+		ID:        "sdd-pipeline",
+		Mode:      "plan",
+		KGContext: b.queryKGContext(ctx, taskDesc),
 	}
 
 	// Try async pipeline via AsyncSpawner

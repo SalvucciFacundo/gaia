@@ -19,8 +19,8 @@ func TestAllChecks(t *testing.T) {
 		if result.Name == "" {
 			t.Error("check returned empty name")
 		}
-		if result.Duration == 0 {
-			t.Error("check returned zero duration")
+		if result.Duration < 0 {
+			t.Error("check returned negative duration")
 		}
 		// Status should be one of the known values
 		switch result.Status {

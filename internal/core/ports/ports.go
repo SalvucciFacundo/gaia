@@ -107,6 +107,25 @@ type GatewayAdapter interface {
 // MessageHandler processes an incoming gateway message and returns a response.
 type MessageHandler func(ctx context.Context, msg IncomingMessage) (string, error)
 
+// KnowledgeGraphStore defines storage and retrieval for the shared knowledge graph.
+// Facts are organized as Topic → Concept → Fact with source attribution.
+type KnowledgeGraphStore interface {
+	// AddFact stores a new fact. ID may be auto-generated if empty.
+	AddFact(ctx context.Context, fact domain.KnowledgeFact) (string, error)
+	// GetFactsByTopic returns all facts for a given topic.
+	GetFactsByTopic(ctx context.Context, topic string) ([]domain.KnowledgeFact, error)
+	// GetFactsByConcept returns all facts under a specific topic+concept.
+	GetFactsByConcept(ctx context.Context, topic, concept string) ([]domain.KnowledgeFact, error)
+	// SearchFacts performs full-text search across all facts.
+	SearchFacts(ctx context.Context, query string) ([]domain.KnowledgeFact, error)
+	// GetRecentFacts returns the most recent N facts across all topics.
+	GetRecentFacts(ctx context.Context, limit int) ([]domain.KnowledgeFact, error)
+	// GetAllTopics returns all distinct topic names.
+	GetAllTopics(ctx context.Context) ([]string, error)
+	// GetRecentTopics returns topics that have facts newer than the given duration.
+	GetRecentTopics(ctx context.Context, since time.Duration) ([]string, error)
+}
+
 // IncomingMessage is a normalized message from any gateway adapter.
 type IncomingMessage struct {
 	Platform   string

@@ -185,6 +185,10 @@ func main() {
 	// 7b. Initialize Engram namespace manager for per-subagent memory isolation
 	namespaceMgr := memory.NewNamespaceManager(projectName)
 
+	// 7b2. Initialize Knowledge Graph store for cross-domain facts.
+	kgStore := db.NewKnowledgeGraph(repo.DB())
+	brain.SetKnowledgeGraphStore(kgStore)
+
 	// 7c. Initialize async TaskManager with SQLite persistence.
 	taskRepo := db.NewTaskRepo(repo.DB())
 	taskManager, err := agent.NewTaskManagerWithRepo(context.Background(), taskRepo)

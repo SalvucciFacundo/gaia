@@ -16,11 +16,20 @@ type SQLiteRepo struct {
 	db *sql.DB
 }
 
-// NewSQLiteRepo creates a new SQLite repository, running migrations automatically.
+// NewSQLiteRepo creates a new SQLite repository at the default path (~/.config/gaia/gaia.db).
 func NewSQLiteRepo() (*SQLiteRepo, error) {
 	home, _ := os.UserHomeDir()
 	dbDir := filepath.Join(home, ".config/gaia")
 	dbPath := filepath.Join(dbDir, "gaia.db")
+	return newRepoAt(dbPath)
+}
+
+// NewSQLiteRepoWithPath creates a new SQLite repository at the given path.
+func NewSQLiteRepoWithPath(dbPath string) (*SQLiteRepo, error) {
+	return newRepoAt(dbPath)
+}
+
+func newRepoAt(dbPath string) (*SQLiteRepo, error) {
 
 	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
@@ -94,6 +103,24 @@ func (r *SQLiteRepo) migrate() error {
 		error_text TEXT NOT NULL DEFAULT '',
 		created_at DATETIME NOT NULL,
 		completed_at DATETIME
+	);
+
+	-- Knowledge graph: shared cross-domain facts
+	CREATE TABLE IF NOT EXISTS knowledge_facts (
+		id TEXT PRIMARY KEY,
+		topic TEXT NOT NULL,
+		concept TEXT NOT NULL,
+		fact TEXT NOT NULL,
+		source_agent TEXT NOT NULL,
+		labels TEXT NOT NULL DEFAULT '[]',
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	);
+	CREATE INDEX IF NOT EXISTS idx_knowledge_topic ON knowledge_facts(topic);
+	CREATE INDEX IF NOT EXISTS idx_knowledge_topic_concept ON knowledge_facts(topic, concept);
+	CREATE VIRTUAL TABLE IF NOT EXISTS knowledge_facts_fts USING fts5(
+		topic, concept, fact, labels,
+		content='knowledge_facts',
+		content_rowid='rowid'
 	);
 	`
 	_, err := r.db.Exec(query)
