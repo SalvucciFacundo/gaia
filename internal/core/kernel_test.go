@@ -59,6 +59,12 @@ func (r *stubRepo) GetMessageCount(ctx context.Context) (int, error)     { retur
 func (r *stubRepo) GetHistoryFrom(ctx context.Context, limit, offset int) ([]domain.Message, error) {
 	return []domain.Message{}, nil
 }
+func (r *stubRepo) GetLastMessages(ctx context.Context, n int) ([]domain.Message, error) {
+	return []domain.Message{}, nil
+}
+func (r *stubRepo) DeleteMessagesAfter(ctx context.Context, afterID string) error {
+	return nil
+}
 
 // stubUI records Display calls.
 type stubUI struct {

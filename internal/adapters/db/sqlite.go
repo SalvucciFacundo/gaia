@@ -181,6 +181,41 @@ func (r *SQLiteRepo) GetHistoryFrom(ctx context.Context, limit, offset int) ([]d
 	return history, rows.Err()
 }
 
+func (r *SQLiteRepo) GetLastMessages(ctx context.Context, n int) ([]domain.Message, error) {
+	query := `SELECT id, role, content, created_at FROM messages WHERE session_id = 'default' ORDER BY created_at DESC LIMIT ?`
+	rows, err := r.db.QueryContext(ctx, query, n)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var history []domain.Message
+	for rows.Next() {
+		var msg domain.Message
+		var roleStr string
+		var createdAt time.Time
+		if err := rows.Scan(&msg.ID, &roleStr, &msg.Content, &createdAt); err != nil {
+			return nil, err
+		}
+		msg.Role = domain.Role(roleStr)
+		msg.CreatedAt = createdAt
+		history = append(history, msg)
+	}
+	return history, rows.Err()
+}
+
+func (r *SQLiteRepo) DeleteMessagesAfter(ctx context.Context, afterID string) error {
+	// First, find the timestamp of the given message
+	var ts time.Time
+	err := r.db.QueryRowContext(ctx, `SELECT created_at FROM messages WHERE id = ?`, afterID).Scan(&ts)
+	if err != nil {
+		return fmt.Errorf("find message %s: %w", afterID, err)
+	}
+
+	_, err = r.db.ExecContext(ctx, `DELETE FROM messages WHERE session_id = 'default' AND created_at >= ?`, ts)
+	return err
+}
+
 func (r *SQLiteRepo) GetMessages(ctx context.Context, sessionID string, limit int) ([]domain.Message, error) {
 	query := `SELECT id, role, content, created_at FROM messages WHERE session_id = ? ORDER BY created_at ASC LIMIT ?`
 	rows, err := r.db.QueryContext(ctx, query, sessionID, limit)

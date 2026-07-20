@@ -182,6 +182,85 @@ func (b *Brain) compactHistory(ctx context.Context) error {
 	return nil
 }
 
+// UndoLastTurn removes the last user message and everything the AI generated
+// in response, effectively rewinding the conversation by one turn.
+func (b *Brain) UndoLastTurn(ctx context.Context) error {
+	lastMsgs, err := b.repo.GetLastMessages(ctx, 2)
+	if err != nil {
+		return fmt.Errorf("undo: get last messages: %w", err)
+	}
+
+	// Find the last user message to know what to delete
+	var lastUserID string
+	for _, msg := range lastMsgs {
+		if msg.Role == domain.RoleUser {
+			lastUserID = msg.ID
+			break
+		}
+	}
+	if lastUserID == "" {
+		undoMsg := domain.Message{
+			Role:    domain.RoleSystem,
+			Content: "Nothing to undo — no user message found.",
+		}
+		b.repo.SaveMessage(ctx, undoMsg)
+		return b.ui.Display(undoMsg)
+	}
+
+	if err := b.repo.DeleteMessagesAfter(ctx, lastUserID); err != nil {
+		return fmt.Errorf("undo: delete messages: %w", err)
+	}
+
+	// Reset compaction state since history changed
+	b.compactedTo = 0
+
+	undoMsg := domain.Message{
+		Role:    domain.RoleSystem,
+		Content: "Last turn undone.",
+	}
+	b.repo.SaveMessage(ctx, undoMsg)
+	return b.ui.Display(undoMsg)
+}
+
+// RetryLastTurn removes the last AI response and re-runs the last user message
+// through the full agent loop.
+func (b *Brain) RetryLastTurn(ctx context.Context) error {
+	lastMsgs, err := b.repo.GetLastMessages(ctx, 2)
+	if err != nil {
+		return fmt.Errorf("retry: get last messages: %w", err)
+	}
+
+	// Find the last user message content
+	var lastUserContent string
+	var lastUserID string
+	for _, msg := range lastMsgs {
+		if msg.Role == domain.RoleUser {
+			lastUserContent = msg.Content
+			lastUserID = msg.ID
+			break
+		}
+	}
+	if lastUserContent == "" {
+		errMsg := domain.Message{
+			Role:    domain.RoleSystem,
+			Content: "Nothing to retry — no previous user message.",
+		}
+		b.repo.SaveMessage(ctx, errMsg)
+		return b.ui.Display(errMsg)
+	}
+
+	// Delete everything after the last user message
+	if err := b.repo.DeleteMessagesAfter(ctx, lastUserID); err != nil {
+		return fmt.Errorf("retry: delete messages: %w", err)
+	}
+
+	// Reset compaction state
+	b.compactedTo = 0
+
+	// Re-process the user message
+	return b.ProcessMessage(ctx, lastUserContent)
+}
+
 // getHistory returns conversation history, filtering out compacted messages.
 // If compaction has occurred (compactedTo > 0), returns only the recent messages
 // (oldest compacted messages are excluded but their compaction summary exists).
@@ -234,11 +313,21 @@ func (b *Brain) Registry() *ToolRegistry {
 
 // ProcessMessage handles a user input through the full agent loop.
 // Before the standard iteration loop, it checks for @name direct routing,
-// then SDD trigger keywords, and routes through the SDD pipeline when appropriate.
+// then SDD trigger keywords, /undo, /retry, and routes accordingly.
 func (b *Brain) ProcessMessage(ctx context.Context, content string) error {
 	// 0. @name direct routing
 	if strings.HasPrefix(content, "@") {
 		return b.handleDirectSubagent(ctx, content)
+	}
+
+	// 0b. /undo — revert the last turn
+	if content == "/undo" {
+		return b.UndoLastTurn(ctx)
+	}
+
+	// 0c. /retry — re-run the last user message
+	if content == "/retry" {
+		return b.RetryLastTurn(ctx)
 	}
 
 	// 1. SDD trigger detection

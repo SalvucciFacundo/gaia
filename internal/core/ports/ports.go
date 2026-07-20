@@ -47,6 +47,10 @@ type Repository interface {
 	GetMessageCount(ctx context.Context) (int, error)
 	// GetHistoryFrom returns messages starting at the given offset (0-based, oldest first).
 	GetHistoryFrom(ctx context.Context, limit, offset int) ([]domain.Message, error)
+	// GetLastMessages returns the most recent N messages, newest first.
+	GetLastMessages(ctx context.Context, n int) ([]domain.Message, error)
+	// DeleteMessagesAfter deletes all messages with created_at >= the given message's timestamp.
+	DeleteMessagesAfter(ctx context.Context, afterID string) error
 }
 
 // UIService handles the terminal interaction.
