@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -326,6 +327,9 @@ func (b *Brain) Delegate(ctx context.Context, name string, task domain.SubagentT
 // and saves them to the shared knowledge graph. Non-fatal — errors are logged as
 // system messages but don't interrupt the flow.
 func (b *Brain) saveSubagentDiscoveries(ctx context.Context, name, description string, result *domain.SubagentResult) {
+	projectRoot, _ := os.Getwd()
+	projectName := DetectProjectName(projectRoot); _ = projectName
+	projectLang := DetectLanguage(projectRoot)
 	if b.kgStore == nil {
 		return
 	}
@@ -368,6 +372,34 @@ func (b *Brain) saveSubagentDiscoveries(ctx context.Context, name, description s
 		if err == nil && id != "" {
 			saved++
 		}
+	}
+
+	// 2b. Save user habits & preferences (from orchestrator-level observations)
+	if name == "orchestrator" {
+		b.kgStore.AddFact(ctx, domain.KnowledgeFact{
+			Topic:       "User Habits",
+			Scope:       "user",
+			Language:    projectLang,
+			Concept:     description,
+			Fact:        result.Summary,
+			SourceAgent: name,
+			Labels:      []string{"preference", "user"},
+			CreatedAt:   now,
+		})
+	}
+
+	// 2c. Save language-level knowledge (applies to all projects in this language)
+	if projectLang != "" {
+		b.kgStore.AddFact(ctx, domain.KnowledgeFact{
+			Topic:       name,
+			Scope:       "language",
+			Language:    projectLang,
+			Concept:     description,
+			Fact:        result.Summary,
+			SourceAgent: name,
+			Labels:      []string{"language", projectLang},
+			CreatedAt:   now,
+		})
 	}
 
 	// 3. Save each risk as a risk fact
@@ -944,6 +976,14 @@ func redactToolOutput(output string) (string, int) {
 	}
 	return result, count
 }
+
+
+
+
+
+
+
+
 
 
 

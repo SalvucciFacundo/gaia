@@ -270,7 +270,10 @@ type KnowledgeFact struct {
 	ID          string    `json:"id"`
 	Topic       string    `json:"topic"`       // e.g. "Authentication"
 	Concept     string    `json:"concept"`     // e.g. "JWT in this project"
-	Fact        string    `json:"fact"`        // e.g. "Tokens expire in 24h, refresh in 7d"
+	Project     string    `json:"project"`     // project name
+	Language    string    `json:"language"`    // e.g. "go", "java"
+	Scope       string    `json:"scope"`       // "user"|"language"|"project"
+	Fact        string    `json:"fact"`        // e.g. "Tokens expire in 24h"
 	SourceAgent string    `json:"source_agent"` // e.g. "designer"
 	Labels      []string  `json:"labels"`       // e.g. ["security", "auth", "jwt"]
 	CreatedAt   time.Time `json:"created_at"`
@@ -347,5 +350,8 @@ type BrowserToolsConfig struct {
 	Enabled bool   `yaml:"enabled"`
 	Command string `yaml:"command"` // path to browser MCP server
 }
+
+
+
 
 

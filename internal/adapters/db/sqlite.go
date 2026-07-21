@@ -113,6 +113,9 @@ func (r *SQLiteRepo) migrate() error {
 		fact TEXT NOT NULL,
 		source_agent TEXT NOT NULL,
 		labels TEXT NOT NULL DEFAULT '[]',
+		project TEXT NOT NULL DEFAULT '',
+		language TEXT NOT NULL DEFAULT '',
+		scope TEXT NOT NULL DEFAULT 'project',
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	);
 	CREATE INDEX IF NOT EXISTS idx_knowledge_topic ON knowledge_facts(topic);

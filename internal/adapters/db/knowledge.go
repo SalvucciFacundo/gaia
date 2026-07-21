@@ -37,11 +37,11 @@ func (k *SQLiteKnowledgeGraph) AddFact(ctx context.Context, fact domain.Knowledg
 		return "", fmt.Errorf("marshal labels: %w", err)
 	}
 
-	query := `INSERT INTO knowledge_facts (id, topic, concept, fact, source_agent, labels, created_at)
+	query := `INSERT INTO knowledge_facts (id, topic, concept, fact, source_agent, labels, created_at, project, language, scope)
 		VALUES (?, ?, ?, ?, ?, ?, ?)`
 	_, err = k.db.ExecContext(ctx, query,
 		fact.ID, fact.Topic, fact.Concept, fact.Fact,
-		fact.SourceAgent, string(labelsJSON), fact.CreatedAt)
+		fact.SourceAgent, string(labelsJSON), fact.CreatedAt, fact.Project, fact.Language, fact.Scope)
 	if err != nil {
 		return "", fmt.Errorf("insert knowledge fact: %w", err)
 	}
@@ -151,7 +151,7 @@ func (k *SQLiteKnowledgeGraph) queryFacts(ctx context.Context, query string, arg
 		var createdAt time.Time
 
 		if err := rows.Scan(&fact.ID, &fact.Topic, &fact.Concept, &fact.Fact,
-			&fact.SourceAgent, &labelsJSON, &createdAt); err != nil {
+			&fact.SourceAgent, &labelsJSON, &fact.Project, &fact.Language, &fact.Scope, &createdAt); err != nil {
 			return nil, fmt.Errorf("scan fact: %w", err)
 		}
 
@@ -186,3 +186,4 @@ func sanitizeFTS(s string) string {
 	}
 	return strings.Join(quoted, " ")
 }
+

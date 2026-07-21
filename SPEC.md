@@ -1715,7 +1715,25 @@ These Hermes features are **not in GAIA's initial scope**. Some are intentionall
 
 
 "
-## 22. Remote Server Mode
+## 22. Three-Scope Learning
+
+GAIA learns at three levels:
+- **User scope**: Your coding habits and preferences (crosses all projects)
+- **Language scope**: Framework patterns and idioms (crosses all projects of same language)
+- **Project scope**: Specific file paths and architecture (single project only)
+
+### Auto-Detection
+GAIA detects the project language from build files (go.mod, pom.xml, package.json, etc.).
+
+### Knowledge Flow
+1. Subagent completes a task
+2. Implementation facts ? **project scope**
+3. Language patterns ? **language scope**  
+4. User preferences ? **user scope**
+
+See \`internal/core/language.go\` for language detection.
+
+## 23. Remote Server Mode
 
 GAIA can run as an HTTP server for remote access.
 
@@ -1726,3 +1744,4 @@ gaia serve 9090         # Custom port
 ### API
 GET  /health           -> {"status": "ok"}
 POST /message          -> {"status": "ok"} (body: {"content": "..."})
+
