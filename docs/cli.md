@@ -100,3 +100,18 @@ gaia skills add-tap https://github.com/owner/repo
 | `/plan` | Switch to plan mode |
 | `/build` | Switch to build mode |
 | `/mode` | Show current mode |
+
+## MCP Server Configuration
+
+Servers with OAuth can pass tokens via config:
+
+\\\yaml
+mcp:
+  servers:
+    - name: discord
+      command: ./discord-mcp
+      access_token: "your-oauth-token"
+      token_url: "https://discord.com/api/oauth2/token"
+\\\
+
+Tokens are injected as environment variables \MCP_ACCESS_TOKEN\, \ACCESS_TOKEN\, and \MCP_TOKEN_URL\.

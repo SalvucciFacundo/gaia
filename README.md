@@ -3,7 +3,8 @@
 [![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8?logo=go)](https://go.dev)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/SalvucciFacundo/gaia?logo=github)](https://github.com/SalvucciFacundo/gaia/releases)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)]()
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)
+[![CI](https://github.com/SalvucciFacundo/gaia/actions/workflows/release.yml/badge.svg)](https://github.com/SalvucciFacundo/gaia/actions)]()
 
 **GAIA is a programming-first autonomous agent** written in Go.  
 Single binary, zero external dependencies, Windows/macOS/Linux.
@@ -96,6 +97,8 @@ gaia skills search go           # Find Go skills
 gaia skills install go-testing  # Install
 gaia skills audit               # Security scan (10 patterns)
 gaia skills stats               # Usage statistics
+gaia skills audit               # Security scan (10 patterns)
+gaia skills add-tap owner/repo  # Add community skill source
 ```
 
 Skills from GitHub taps:
@@ -275,7 +278,7 @@ gaia exec "list files" --backend ssh://user@server
 | **Subagents** | 12+ (static + dynamic at runtime) |
 | **Review Lenses** | 4 (risk, resilience, readability, reliability) |
 | **LLM Providers** | OpenAI, Anthropic, Ollama, Copilot |
-| **Gateway Platforms** | Telegram, Discord, Slack, WhatsApp, Signal |
+| **Gateway Platforms** | Telegram (direct), Discord (direct), Slack (direct), WhatsApp MCP, Signal MCP |
 | **CLI Commands** | 30+ |
 | **License** | MIT |
 
@@ -302,3 +305,5 @@ MIT — see [LICENSE](LICENSE).
 ---
 
 *Built with Go. Inspired by Hermes Agent, Gentle-AI, ogcode, and pi-go.*
+
+
