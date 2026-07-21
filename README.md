@@ -30,7 +30,7 @@ Each subagent learns independently in its domain — and improves with use.
 | **Implementer** | SDD | Writes code following specs |
 | **Verifier** | SDD | Runs tests against specs |
 | **Archiver** | SDD | Closes and archives changes |
-| **Reviewer** | On-demand | GGA code review (4 lenses) |
+| **Reviewer** | On-demand | BR code review (4 lenses) |
 | **Debugger** | On-demand | Root cause analysis + fix |
 | **Researcher** | On-demand | Web search + documentation |
 | **Learner** | Background | Creates and improves skills |
@@ -71,7 +71,7 @@ explore → propose → spec → design → tasks → apply → verify → archi
 
 Each phase is a specialized subagent with its own memory, learning loop, and model config.
 
-### 📝 GGA Code Review
+### 📝 BR Code Review
 Bounded code review with 4 lenses + content-bound receipts (SHA256):
 
 | Lens | Focus |
@@ -311,5 +311,6 @@ MIT — see [LICENSE](LICENSE).
 ---
 
 *Built with Go. Inspired by Hermes Agent, Gentle-AI, ogcode, and pi-go.*
+
 
 

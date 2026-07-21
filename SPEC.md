@@ -10,7 +10,7 @@ GAIA is a **programming-exclusive autonomous agent** written in Go. It is not "H
 
 GAIA combines:
 - **Hermes Agent** — Learning loop, skill creation/improvement, memory nudge, subagents
-- **Gentle-AI concepts** — SDD phases (10), GGA review (4 lenses + receipts), Judgment Day protocol, Engram memory model
+- **Gentle-AI concepts** — SDD phases (10), BR review (4 lenses + receipts), Judgment Day protocol, Engram memory model
 - **ogcode** — Knowledge graph recall for 70%+ token savings on long sessions
 - **pi-go architecture** — Go-native agent structure, subagent spawning patterns
 
@@ -110,7 +110,7 @@ Each subagent is an autonomous LLM-powered agent with:
 | **Planner** | sdd-tasks | Break specs into concrete implementation tasks | planning | Cheap |
 | **Implementer** | sdd-apply | Write code following specs and tasks | language-specific skills (per stack) | Standard |
 | **Verifier** | sdd-verify | Run tests, validate implementation against spec | testing, debugging | Standard |
-| **Reviewer** | GGA (4 lenses) | Code review: risk, resilience, readability, reliability + bounded receipts | code-review, security | Premium |
+| **Reviewer** | BR (4 lenses) | Code review: risk, resilience, readability, reliability + bounded receipts | code-review, security | Premium |
 | **Learner** | n/a | Analyze usage, create/improve skills, consolidate learning | all skills (read-only) | Cheap |
 | **Researcher** | n/a | Web research, documentation lookup, API discovery | web-search, web-extract | Cheap |
 | **Archiver** | sdd-archive | Close completed changes, sync specs, persist final state | documentation | Cheap |
@@ -425,7 +425,7 @@ Each SDD subagent has specific rules inherited from the corresponding Gentle-AI 
 
 | Subagent | Rules |
 |---|---|
-| **Reviewer** | Follows GGA protocol: 4 lenses (risk, resilience, readability, reliability). Bounded review with content-bound receipt. Never modifies code. Findings: BLOCKER / WARNING / SUGGESTION. |
+| **Reviewer** | Follows BR protocol: 4 lenses (risk, resilience, readability, reliability). Bounded review with content-bound receipt. Never modifies code. Findings: BLOCKER / WARNING / SUGGESTION. |
 | **Learner** | Analyzes subagent usage patterns. Proposes skill creation/improvement. Never modifies code or artifacts directly. Reports to orchestrator. |
 | **Researcher** | Web search + extraction. Must cite sources. Never modifies code. |
 | **Debugger** | Bug analysis ? root cause ? fix ? verify. Follows scientific method: hypothesis, test, confirm. Reports fix + verification evidence. |
@@ -632,9 +632,9 @@ Gentle-AI's SDD phases map directly to GAIA subagents:
 | `sdd-archive` | Archiver | Archive completed changes |
 | `sdd-onboard` | Orchestrator | Guided onboarding walkthrough |
 
-### 9.2 GGA Review ? Reviewer Subagent
+### 9.2 BR Review ? Reviewer Subagent
 
-| Gentle-AI GGA Lens | GAIA Reviewer Mode | Focus |
+| Gentle-AI BR Lens | GAIA Reviewer Mode | Focus |
 |---|---|---|
 | `review-risk` | Risk mode | Security, permissions, data exposure, architecture |
 | `review-resilience` | Resilience mode | Fallbacks, retry, degradation, observability |
@@ -722,7 +722,7 @@ The receipt is a content-bound artifact with SHA256 of the reviewed snapshot:
 
 ```json
 {
-  "schema": "gentle-ai.review-receipt/v2",
+  "schema": "gaia.review-receipt/v1",
   "lineage_id": "{sha256 of the review transaction chain}",
   "snapshot_hash": "sha256:{hash of all reviewed files}",
   "selected_lenses": ["review-risk", "review-readability"],
@@ -991,7 +991,7 @@ All tools are **language-agnostic** unless marked. ~50 tools total, programming-
 | **Web & Research** | web_search, web_extract, browser_navigate, browser_snapshot, browser_vision | ?? Planned |
 | **Agent Orchestration** | delegate_task, todo, clarify, execute_code | ?? Planned |
 | **SDD Workflow** | sdd_init, sdd_explore, sdd_propose, sdd_spec, sdd_design, sdd_tasks, sdd_apply, sdd_verify, sdd_archive, sdd_onboard | ?? Planned |
-| **Review (GGA)** | review_risk, review_resilience, review_readability, review_reliability, review_pr, review_staged, review_file, install_hook | ?? Planned |
+| **Review (BR)** | review_risk, review_resilience, review_readability, review_reliability, review_pr, review_staged, review_file, install_hook | ?? Planned |
 | **Judgment Day** | jd_judge_a, jd_judge_b, jd_fix | ?? Planned |
 | **Scheduling** | cronjob (create, list, update, pause, resume, run, remove) | ?? Planned |
 | **Config & System** | config_get, config_set, doctor | ? Existing |
@@ -1118,7 +1118,7 @@ gaia/
 ¦   ¦   +-- skills/                # Progressive skill system
 ¦   ¦   +-- learning/              # Learning loop
 ¦   ¦   +-- context/               # Context compactor + assembler
-¦   ¦   +-- review/                # GGA bounded review
+¦   ¦   +-- review/                # BR bounded review
 ¦   ¦   +-- mcp/                   # MCP client
 ¦   +-- adapters/
 ¦   ¦   +-- llm/                   # Provider-specific clients
@@ -1196,7 +1196,7 @@ gaia/
 
 ### Milestone 4: Review & Quality (Week 10-12)
 
-- [x] GGA review: 4 lenses (risk, resilience, readability, reliability)
+- [x] BR review: 4 lenses (risk, resilience, readability, reliability)
 - [x] Bounded review with content-bound receipt (SHA256)
 - [x] Pre-commit/pre-push gate validation
 - [x] Judgment Day protocol (judge-a, judge-b, fix-agent)
@@ -1282,7 +1282,7 @@ In-session trust commands: `/trust session`, `/trust once`, `/trust always`, `/t
 
 | Risk | Mitigation |
 |---|---|
-| Committing secrets | Pre-commit hook checks for credentials, tokens, keys using GGA patterns. |
+| Committing secrets | Pre-commit hook checks for credentials, tokens, keys using BR patterns. |
 | Force push | Disabled by default. Requires explicit override. |
 | Committing to protected branches | Blocked unless explicitly overridden by user. |
 
@@ -1363,7 +1363,7 @@ require (
 | **Memory** | FSRS + Honcho | Engram (MCP server) | Engram (native) |
 | **Token Efficiency** | Full transcript replay | N/A | Knowledge graph recall (70%+) |
 | **SDD Workflow** | No (external skill) | Configures for other agents | Native subagent phases |
-| **Code Review** | No (background review) | GGA (bash CLI) | Built-in GGA + 4 lenses |
+| **Code Review** | No (background review) | BR (bash CLI) | Built-in BR + 4 lenses |
 | **Subagents** | Generic delegation | No | 12 specialized, per-domain learning |
 | **Learning Loop** | Single, all domains | No | Per-subagent independent learning |
 | **Skills** | 40+ bundled | Registers for other agents | Per-language, user-installed, progressive |
@@ -1546,7 +1546,7 @@ Hermes enforces tool execution policies:
 - URL safety validation
 - Write approval workflows
 
-**GAIA relevance**: Critical for a programming agent that runs shell commands. Integrate with GGA review. Track for Phase 2.
+**GAIA relevance**: Critical for a programming agent that runs shell commands. Integrate with BR review. Track for Phase 2.
 
 ### 19.15 Non-Interactive / Headless Mode
 
@@ -1744,4 +1744,5 @@ gaia serve 9090         # Custom port
 ### API
 GET  /health           -> {"status": "ok"}
 POST /message          -> {"status": "ok"} (body: {"content": "..."})
+
 

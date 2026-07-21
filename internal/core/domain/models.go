@@ -225,7 +225,7 @@ type ReviewFinding struct {
 
 // ReviewReceipt is the content-bound receipt produced by a review.
 type ReviewReceipt struct {
-	Schema                string         `json:"schema"`                  // "gentle-ai.review-receipt/v2"
+	Schema                string         `json:"schema"`                  // "gaia.review-receipt/v1"
 	LineageID             string         `json:"lineage_id"`              // SHA256 of review transaction chain
 	SnapshotHash          string         `json:"snapshot_hash"`           // "sha256:{hash of all reviewed files}"
 	SelectedLenses        []string       `json:"selected_lenses"`         // ["review-risk", "review-readability"]
@@ -350,6 +350,7 @@ type BrowserToolsConfig struct {
 	Enabled bool   `yaml:"enabled"`
 	Command string `yaml:"command"` // path to browser MCP server
 }
+
 
 
 

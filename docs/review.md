@@ -1,6 +1,6 @@
 # Code Review System
 
-GAIA includes a built-in bounded code review system inspired by Gentle-AI's GGA (Gentleman Guardian Angel) and extended with Judgment Day for adversarial review.
+GAIA includes a built-in bounded code review system inspired by Gentle-AI's BR (Gentleman Guardian Angel) and extended with Judgment Day for adversarial review.
 
 ---
 
@@ -142,7 +142,7 @@ final_verifying ─── Tests + build confirm the fix
 
 ```json
 {
-  "schema": "gentle-ai.review-receipt/v2",
+  "schema": "gaia.review-receipt/v1",
   "lineage_id": "sha256:abc123...",
   "snapshot_hash": "sha256:def456...",
   "selected_lenses": ["review-risk", "review-readability"],
@@ -230,3 +230,4 @@ gaia review start --judgment-day
 4. **Fix Agent** — Applies surgical corrections (budget-limited)
 5. **Re-judgment** — Maximum 2 rounds of fix + re-judgment
 6. **Approval** — Both judges must agree, otherwise escalated to human
+

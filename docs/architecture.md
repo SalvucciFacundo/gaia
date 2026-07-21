@@ -43,7 +43,7 @@ gaia/
 │   │   ├── fileops/          # File operations
 │   │   ├── gitops/           # Git operations
 │   │   └── security/         # Path validation, URL safety, redaction
-│   ├── review/               # GGA review engine
+│   ├── review/               # BR review engine
 │   │   ├── engine.go         # Review engine
 │   │   ├── state.go          # State machine (13 states)
 │   │   ├── risk.go           # Risk taxonomy (8 codes)
@@ -262,3 +262,4 @@ Layer 5: Skill Security
   ├── AST audit before loading
   └── Restricted execution scope
 ```
+

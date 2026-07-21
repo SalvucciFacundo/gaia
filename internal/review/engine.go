@@ -177,7 +177,7 @@ func (e *Engine) GenerateReceipt(tx *Transaction, findings []domain.ReviewFindin
 
 	now := time.Now()
 	receipt := &domain.ReviewReceipt{
-		Schema:                "gentle-ai.review-receipt/v2",
+		Schema:                "gaia.review-receipt/v1",
 		LineageID:             lineageID,
 		SnapshotHash:          tx.SnapshotHash,
 		SelectedLenses:        lensNames,
@@ -260,3 +260,4 @@ func computeLineageID(snapshotHash, txID string) string {
 	h.Write([]byte(txID))
 	return fmt.Sprintf("%x", h.Sum(nil))
 }
+

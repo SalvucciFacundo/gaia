@@ -29,7 +29,7 @@ func TestGateValidationPass(t *testing.T) {
 
 	// Create an approved receipt with the matching hash.
 	receipt := &domain.ReviewReceipt{
-		Schema:       "gentle-ai.review-receipt/v2",
+		Schema:       "gaia.review-receipt/v1",
 		LineageID:    "test-lineage-id",
 		SnapshotHash: snapshotHash,
 		State:        domain.ReviewStateApproved,
@@ -67,7 +67,7 @@ func TestGateValidationFailContentChanged(t *testing.T) {
 
 	// Create receipt with a DIFFERENT hash (simulating content change).
 	receipt := &domain.ReviewReceipt{
-		Schema:       "gentle-ai.review-receipt/v2",
+		Schema:       "gaia.review-receipt/v1",
 		LineageID:    "test-lineage-id",
 		SnapshotHash: "sha256:0000000000000000000000000000000000000000000000000000000000000000",
 		State:        domain.ReviewStateApproved,
@@ -123,7 +123,7 @@ func TestGateValidationWrongState(t *testing.T) {
 	snapshotHash := review.ComputeSnapshotHash(snapshots)
 
 	receipt := &domain.ReviewReceipt{
-		Schema:       "gentle-ai.review-receipt/v2",
+		Schema:       "gaia.review-receipt/v1",
 		LineageID:    "test-lineage-id",
 		SnapshotHash: snapshotHash,
 		State:        domain.ReviewStateEscalated, // NOT approved
@@ -232,7 +232,7 @@ func TestFSReceiptStore(t *testing.T) {
 	store := &FSReceiptStore{reviewDir: filepath.Join(dir, ".gaia", "reviews")}
 
 	receipt := &domain.ReviewReceipt{
-		Schema:       "gentle-ai.review-receipt/v2",
+		Schema:       "gaia.review-receipt/v1",
 		LineageID:    "abc123def4567890",
 		SnapshotHash: "sha256:test",
 		State:        domain.ReviewStateApproved,
@@ -332,3 +332,4 @@ var _ ReceiptStore = (*memReceiptStore)(nil)
 
 // Ensure unused imports compile for json if needed.
 var _ = json.Marshal
+

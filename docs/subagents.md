@@ -104,12 +104,12 @@ These 4 subagents are dispatched on demand by user request or keyword detection.
 
 ### Reviewer
 
-**Role**: Code review using GGA's 4 lenses.
+**Role**: Code review using BR's 4 lenses.
 **Tools**: Read-only
 **Trigger**: `/review` command or `gaia review start`
 **Learns From**: Which review comments prevent bugs
 
-The reviewer runs the GGA engine:
+The reviewer runs the BR engine:
 1. Classify risk (8 codes → low/medium/high)
 2. Select lenses (none/1/all 4)
 3. Run lens analyzers (each LLM-based)
@@ -201,3 +201,4 @@ During tasks:
   2. Skill load → load domain skills on demand
   3. Knowledge graph query → pull cross-domain concepts
 ```
+

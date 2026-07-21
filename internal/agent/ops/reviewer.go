@@ -11,7 +11,7 @@ import (
 	"gaia/internal/review/gates"
 )
 
-// reviewer analyzes code through GGA's 4 lenses — risk, resilience,
+// reviewer analyzes code through BR's 4 lenses — risk, resilience,
 // readability, and reliability — and returns a bounded receipt.
 // It has read-only access: read files, list directories, and inspect
 // git history, but CANNOT write code or execute shell commands.
@@ -27,7 +27,7 @@ func NewReviewer(spawner *agent.Spawner) agent.Subagent {
 func (r *reviewer) Name() string { return "reviewer" }
 
 func (r *reviewer) Description() string {
-	return "Reviews code through GGA 4 lenses (risk, resilience, readability, reliability) — read-only"
+	return "Reviews code through BR 4 lenses (risk, resilience, readability, reliability) — read-only"
 }
 
 func (r *reviewer) Execute(ctx context.Context, task domain.SubagentTask) *domain.SubagentResult {
@@ -227,3 +227,4 @@ func countBySeverity(findings []domain.ReviewFinding, severity string) int {
 }
 
 var _ agent.Subagent = (*reviewer)(nil)
+

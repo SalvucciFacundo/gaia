@@ -120,6 +120,7 @@ Copy and paste this prompt when instructing an AI agent to build the website:
 > "Build a modern landing page for GAIA (Go Autonomous Intelligence Agent). Use the design system defined in `docs/design-system.md` and match the aesthetic of the hero image `assets/hero_banner.png`.  
 > The site must have:  
 > 1. Deep dark background (`#07090e`) with ambient neon cyan/emerald blurred glows.  
-> 2. Glassmorphic cards for features (12 subagents, MoA, Knowledge Graph, GGA Review).  
+> 2. Glassmorphic cards for features (12 subagents, MoA, Knowledge Graph, BR Review).  
 > 3. Sleek typography using Google Fonts (Outfit & JetBrains Mono).  
 > 4. Interactive micro-animations on hover and code snippet previews."
+
