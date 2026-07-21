@@ -134,10 +134,12 @@ type MCPConfig struct {
 
 // MCPServerConfig defines connection settings for an MCP server.
 type MCPServerConfig struct {
-	Name    string            `yaml:"name"`
-	Command string            `yaml:"command"`
-	Args    []string          `yaml:"args"`
-	Env     map[string]string `yaml:"env"`
+	Name        string            `yaml:"name"`
+	Command     string            `yaml:"command"`
+	Args        []string          `yaml:"args"`
+	Env         map[string]string `yaml:"env"`
+	AccessToken string            `yaml:"access_token"` // OAuth token for remote/authenticated servers
+	TokenURL    string            `yaml:"token_url"`    // OAuth token refresh endpoint
 }
 
 // TerminalConfig defines the execution backend for shell commands.

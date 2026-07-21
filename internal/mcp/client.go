@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"sync"
 
@@ -47,13 +48,22 @@ func (c *Client) Connect(ctx context.Context) error {
 	// Start the MCP server process via stdio
 	c.cmd = exec.CommandContext(ctx, c.config.Command, c.config.Args...)
 
-	// Set environment variables
+	// Set environment variables (inherit parent + custom env)
+	env := os.Environ()
 	if c.config.Env != nil {
-		c.cmd.Env = make([]string, 0, len(c.config.Env))
 		for k, v := range c.config.Env {
-			c.cmd.Env = append(c.cmd.Env, k+"="+v)
+			env = append(env, k+"="+v)
 		}
 	}
+	// Inject OAuth access token for authenticated MCP servers
+	if c.config.AccessToken != "" {
+		env = append(env, "MCP_ACCESS_TOKEN="+c.config.AccessToken)
+		env = append(env, "ACCESS_TOKEN="+c.config.AccessToken)
+	}
+	if c.config.TokenURL != "" {
+		env = append(env, "MCP_TOKEN_URL="+c.config.TokenURL)
+	}
+	c.cmd.Env = env
 
 	var err error
 	c.stdin, err = c.cmd.StdinPipe()
@@ -238,3 +248,5 @@ func (c *Client) sendRequest(req MCPJSONRPCRequest) (*MCPJSONRPCResponse, error)
 
 	return &resp, nil
 }
+
+

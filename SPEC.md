@@ -1534,7 +1534,7 @@ Hermes supports OAuth-based authentication for MCP servers:
 - Per-server credential management
 - Token refresh for MCP connections
 
-**GAIA relevance**: Track for Phase 4 when MCP client is implemented.
+**GAIA status**: ? **Implemented** — MCPServerConfig now supports AccessToken and TokenURL fields. MCP client injects them as environment variables (MCP_ACCESS_TOKEN, ACCESS_TOKEN, MCP_TOKEN_URL) when connecting to server processes. For HTTP-based MCP servers (future), extend client.go to pass token in Authorization header.
 
 ### 19.14 Tool Guardrails & Security Policies
 
@@ -1704,6 +1704,7 @@ These Hermes features are **not in GAIA's initial scope**. Some are intentionall
 
 *Spec version: 2.0*
 *Last updated: 2026-07-20*
+
 
 
 
