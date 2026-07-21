@@ -3,89 +3,96 @@
 
 param(
     [string]$InstallDir = "$env:USERPROFILE\.gaia",
+    [string]$Mode = "menu",     # "full", "client", "menu"
     [switch]$AddToPath = $true
 )
 
 $ErrorActionPreference = "Stop"
-$Host.UI.RawUI.WindowTitle = "GAIA — Installing..."
 
-function Write-Step {
-    param([string]$Message, [string]$Status = ">>>")
-    Write-Host " $Status $Message" -ForegroundColor Cyan
-}
+# ─── UI Helpers ──────────────────────────────────────────
 
-function Write-Success {
-    param([string]$Message)
-    Write-Host "  DONE $Message" -ForegroundColor Green
-}
+function Write-Step { param([string]$M) Write-Host "  >> $M" -ForegroundColor Cyan }
+function Write-OK   { param([string]$M) Write-Host "  OK $M" -ForegroundColor Green }
+function Write-Warn { param([string]$M) Write-Host "  !! $M" -ForegroundColor Yellow }
 
-function Write-Warning {
-    param([string]$Message)
-    Write-Host "  WARN $Message" -ForegroundColor Yellow
-}
+function Show-Menu {
+    Clear-Host
+    Write-Host @"
 
-# 1. Banner
-Write-Host @"
+  ╔══════════════════════════════════════════╗
+  ║         GAIA — Installation Mode          ║
+  ╚══════════════════════════════════════════╝
 
-    ╔══════════════════════════════════════════╗
-    ║           GAIA — Go AI Agent             ║
-    ║     Programming-first autonomous agent    ║
-    ╚══════════════════════════════════════════╝
+  Choose how you want to install GAIA:
 
 "@ -ForegroundColor Magenta
-
-# 2. Detect architecture
-Write-Step "Detecting system..."
-$arch = if ([Environment]::Is64BitOperatingSystem) { "amd64" } else { "386" }
-$os = "windows"
-Write-Success "$os / $arch"
-
-# 3. Find or build the binary
-$binaryName = "gaia.exe"
-$sourceBinary = Join-Path $PSScriptRoot $binaryName
-$targetDir = Join-Path $InstallDir "bin"
-$targetBinary = Join-Path $targetDir $binaryName
-
-if (Test-Path $sourceBinary) {
-    Write-Step "Found pre-built binary: $sourceBinary"
-} else {
-    Write-Step "No pre-built binary found. Building from source..."
-    $goCheck = Get-Command "go" -ErrorAction SilentlyContinue
-    if (-not $goCheck) {
-        Write-Warning "Go is not installed. Attempting to download binary..."
-        Write-Warning "Please install Go from https://go.dev/dl/ first, then run this script again."
-        Write-Host "  Or download the latest GAIA release from:"
-        Write-Host "  https://github.com/SalvucciFacundo/gaia/releases" -ForegroundColor Cyan
-        exit 1
-    }
-    
-    Push-Location $PSScriptRoot
-    try {
-        go build -o $binaryName ./cmd/gaia/
-        if ($LASTEXITCODE -ne 0) { throw "Build failed" }
-        Write-Success "Built gaia.exe from source"
-    } finally {
-        Pop-Location
-    }
+    Write-Host "  [1]  Full Install" -ForegroundColor Green
+    Write-Host "       GAIA runs on THIS machine (default)."
+    Write-Host "       Installs the agent + all tools + TUI."
+    Write-Host ""
+    Write-Host "  [2]  Remote Client" -ForegroundColor Cyan
+    Write-Host "       GAIA runs on a remote server (VPS/cloud)."
+    Write-Host "       Installs only the desktop client to connect remotely."
+    Write-Host ""
+    $choice = Read-Host "  Select [1] or [2]"
+    if ($choice -eq "2") { return "client" }
+    return "full"
 }
 
-# 4. Create directories
-Write-Step "Creating directories..."
-New-Item -ItemType Directory -Force -Path $targetDir | Out-Null
-New-Item -ItemType Directory -Force -Path "$InstallDir\skills" | Out-Null
-New-Item -ItemType Directory -Force -Path "$InstallDir\taps" | Out-Null
-Write-Success "Created $InstallDir"
+# ─── Installation Mode ───────────────────────────────────
 
-# 5. Copy binary
-Write-Step "Installing binary..."
-Copy-Item -Path $sourceBinary -Destination $targetBinary -Force
-Write-Success "Installed to $targetBinary"
+if ($Mode -eq "menu") {
+    $Mode = Show-Menu
+}
 
-# 6. Create default config
-Write-Step "Creating default configuration..."
-$configPath = "$InstallDir\config.yaml"
-if (-not (Test-Path $configPath)) {
-    @"
+Write-Host ""
+Write-Host "  Mode: $Mode" -ForegroundColor Yellow
+Write-Host ""
+
+# ─── Full Installation ───────────────────────────────────
+
+if ($Mode -eq "full") {
+    Write-Step "Full installation selected"
+
+    # 1. Find or build binary
+    $binaryName = "gaia.exe"
+    $sourceBinary = Join-Path $PSScriptRoot $binaryName
+    $targetDir = Join-Path $InstallDir "bin"
+    $targetBinary = Join-Path $targetDir $binaryName
+
+    if (Test-Path $sourceBinary) {
+        Write-Step "Found pre-built binary"
+    } else {
+        Write-Step "No binary found. Building from source..."
+        $goCheck = Get-Command "go" -ErrorAction SilentlyContinue
+        if (-not $goCheck) {
+            Write-Warn "Go is not installed."
+            Write-Warn "Download from: https://go.dev/dl/"
+            Write-Warn "Then run this script again."
+            exit 1
+        }
+        Push-Location $PSScriptRoot
+        go build -ldflags="-s -w" -o $binaryName ./cmd/gaia/
+        if ($LASTEXITCODE -ne 0) { throw "Build failed" }
+        Pop-Location
+        Write-OK "Built gaia.exe from source"
+    }
+
+    # 2. Create directories
+    Write-Step "Creating directories..."
+    New-Item -ItemType Directory -Force -Path $targetDir | Out-Null
+    New-Item -ItemType Directory -Force -Path "$InstallDir\skills" | Out-Null
+    New-Item -ItemType Directory -Force -Path "$InstallDir\taps" | Out-Null
+    Write-OK "Directories created"
+
+    # 3. Copy binary
+    Copy-Item -Path $sourceBinary -Destination $targetBinary -Force
+    Write-OK "Binary installed to $targetBinary"
+
+    # 4. Default config
+    $configPath = "$InstallDir\config.yaml"
+    if (-not (Test-Path $configPath)) {
+@"
 api_keys:
   openai: ""
   anthropic: ""
@@ -98,66 +105,131 @@ budget:
   max_iterations: 25
   compaction_threshold: 50
   keep_recent_messages: 20
-"@ | Set-Content -Path $configPath
-    Write-Success "Created $configPath"
-} else {
-    Write-Warning "Config already exists, skipping: $configPath"
-}
-
-# 7. Add to PATH
-if ($AddToPath) {
-    Write-Step "Adding to PATH..."
-    $userPath = [Environment]::GetEnvironmentVariable("PATH", "User")
-    if ($userPath -notlike "*$targetDir*") {
-        $newPath = "$targetDir;$userPath"
-        [Environment]::SetEnvironmentVariable("PATH", $newPath, "User")
-        Write-Success "Added $targetDir to PATH"
-        Write-Warning "Restart your terminal or run: `$env:PATH = `"$targetDir;`$env:PATH`""
+"@ | Set-Content -Path $configPath -Encoding UTF8
+        Write-OK "Created $configPath"
     } else {
-        Write-Success "Already in PATH"
+        Write-Warn "Config exists, skipping"
     }
-}
 
-# 8. Create start menu shortcut
-Write-Step "Creating Start Menu shortcut..."
-try {
-    $shortcutPath = "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\GAIA.lnk"
-    $shell = New-Object -ComObject WScript.Shell
-    $shortcut = $shell.CreateShortcut($shortcutPath)
-    $shortcut.TargetPath = $targetBinary
-    $shortcut.WorkingDirectory = "%USERPROFILE%"
-    $shortcut.Description = "GAIA — Go AI Agent"
-    $shortcut.Save()
-    Write-Success "Created Start Menu shortcut"
-} catch {
-    Write-Warning "Could not create shortcut: $_"
-}
+    # 5. PATH
+    if ($AddToPath) {
+        $userPath = [Environment]::GetEnvironmentVariable("PATH", "User")
+        if ($userPath -notlike "*$targetDir*") {
+            [Environment]::SetEnvironmentVariable("PATH", "$targetDir;$userPath", "User")
+            Write-OK "Added to PATH"
+        }
+    }
 
-# 9. Summary
-Write-Host @"
+    # 6. Shortcut
+    try {
+        $scPath = "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\GAIA.lnk"
+        $shell = New-Object -ComObject WScript.Shell
+        $sc = $shell.CreateShortcut($scPath)
+        $sc.TargetPath = $targetBinary
+        $sc.Description = "GAIA — Go AI Agent"
+        $sc.Save()
+        Write-OK "Created Start Menu shortcut"
+    } catch { Write-Warn "Could not create shortcut" }
 
-    ─── Installation Complete ───
+    # 7. Summary
+    Write-Host @"
 
-  GAIA is installed at:
-    $InstallDir
+  ── Installation Complete (Full) ──
 
-  Binary:
-    $targetBinary
+  Binary:    gaia.exe
+  Config:    $configPath
+  PATH:      Added
+
+  Next steps:
+    1. Edit your API keys:     notepad $configPath
+    2. Run GAIA:               gaia
+    3. Skills:                 gaia skills list
+    4. Remote server:          gaia serve 8080
 
 "@ -ForegroundColor Green
+}
 
-Write-Host "  Quick Start:" -ForegroundColor Yellow
-Write-Host "   1. Edit your API keys:   notepad $configPath" -ForegroundColor White
-Write-Host "   2. Run the wizard:       gaia" -ForegroundColor White
-Write-Host "   3. List skills:          gaia skills list" -ForegroundColor White
-Write-Host "   4. Check health:         gaia doctor" -ForegroundColor White
-Write-Host "   5. Start gateway:        gaia gateway start" -ForegroundColor White
-Write-Host "   6. Remote server:        gaia serve 8080" -ForegroundColor White
-Write-Host ""
+# ─── Client-Only Installation ────────────────────────────
 
-# 10. Offer to run
+if ($Mode -eq "client") {
+    Write-Step "Remote client installation"
+
+    $targetDir = Join-Path $InstallDir "bin"
+    $targetBinary = Join-Path $targetDir "gaia.exe"
+
+    # 1. Copy binary (same process, just different config)
+    $binaryName = "gaia.exe"
+    $sourceBinary = Join-Path $PSScriptRoot $binaryName
+
+    if (-not (Test-Path $sourceBinary)) {
+        Push-Location $PSScriptRoot
+        go build -ldflags="-s -w" -o $binaryName ./cmd/gaia/
+        if ($LASTEXITCODE -ne 0) { throw "Build failed" }
+        Pop-Location
+    }
+
+    New-Item -ItemType Directory -Force -Path $targetDir | Out-Null
+    Copy-Item -Path $sourceBinary -Destination $targetBinary -Force
+    Write-OK "Binary installed"
+
+    # 2. Client config — prompts for remote URL
+    $configPath = "$InstallDir\config.yaml"
+    $remoteUrl = Read-Host "  Enter your remote GAIA server URL (e.g. http://your-vps:8080)"
+    if ($remoteUrl -eq "") { $remoteUrl = "http://localhost:8080" }
+
+@"
+remote:
+  enabled: true
+  url: $remoteUrl
+llm:
+  provider: remote
+  model: remote
+  trust_mode: never
+"@ | Set-Content -Path $configPath -Encoding UTF8
+    Write-OK "Created client config pointing to $remoteUrl"
+
+    # 3. PATH
+    if ($AddToPath) {
+        $userPath = [Environment]::GetEnvironmentVariable("PATH", "User")
+        if ($userPath -notlike "*$targetDir*") {
+            [Environment]::SetEnvironmentVariable("PATH", "$targetDir;$userPath", "User")
+            Write-OK "Added to PATH"
+        }
+    }
+
+    # 4. Shortcut — desktop app connecting to remote
+    try {
+        $scPath = "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\GAIA Remote.lnk"
+        $shell = New-Object -ComObject WScript.Shell
+        $sc = $shell.CreateShortcut($scPath)
+        $sc.TargetPath = $targetBinary
+        $sc.Arguments = "serve $remoteUrl"
+        $sc.Description = "GAIA — Remote Client"
+        $sc.Save()
+        Write-OK "Created Start Menu shortcut"
+    } catch { Write-Warn "Could not create shortcut" }
+
+    # 5. Summary
+    Write-Host @"
+
+  ── Installation Complete (Remote Client) ──
+
+  Binary:    gaia.exe
+  Server:    $remoteUrl
+  Config:    $configPath
+
+  Run the client:
+    gaia
+
+  Or use the Start Menu shortcut "GAIA Remote".
+
+"@ -ForegroundColor Cyan
+}
+
+# ─── Done ────────────────────────────────────────────────
+
 $runNow = Read-Host "  Run GAIA now? (Y/n)"
 if ($runNow -ne "n") {
-    Write-Host "`n  Starting GAIA...`n" -ForegroundColor Cyan
+    Write-Host "  Starting GAIA..." -ForegroundColor Cyan
     & $targetBinary
 }
