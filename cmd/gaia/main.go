@@ -67,6 +67,9 @@ func main() {
 		case "lsp":
 			handleLSPCLI(os.Args[2:])
 			return
+		case "session":
+			handleSessionCLI(os.Args[2:])
+			return
 		case "tracker":
 			handleTrackerCLI(os.Args[2:])
 			return
@@ -344,6 +347,7 @@ func searchSkillsHub(query string) {
 	fmt.Println("  gaia skills add-tap <owner/repo>")
 }
 
+
 func handleSkillsCLI(args []string) {
 	if len(args) == 0 {
 		fmt.Println("Usage: gaia skills <command> [args]")
@@ -553,6 +557,11 @@ func handleSkillsCLI(args []string) {
 		fmt.Println("Run 'gaia skills' for usage.")
 	}
 }
+
+
+
+
+
 
 
 

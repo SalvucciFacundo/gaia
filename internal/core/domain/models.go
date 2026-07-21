@@ -298,6 +298,13 @@ type CredentialEntry struct {
 	Cooldown402 time.Duration `yaml:"cooldown_402"` // quota error cooldown (default 1h)
 }
 
+// SessionInfo holds metadata for a saved conversation session.
+type SessionInfo struct {
+	ID        string
+	Name      string
+	CreatedAt time.Time
+}
+
 // GatewayConfig defines messaging gateway settings.
 type GatewayConfig struct {
 	Enabled     bool                  `yaml:"enabled"`
@@ -340,4 +347,5 @@ type BrowserToolsConfig struct {
 	Enabled bool   `yaml:"enabled"`
 	Command string `yaml:"command"` // path to browser MCP server
 }
+
 

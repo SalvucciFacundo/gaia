@@ -56,6 +56,9 @@ func (r *stubRepo) GetMessages(ctx context.Context, sessionID string, limit int)
 	return []domain.Message{}, nil
 }
 func (r *stubRepo) GetMessageCount(ctx context.Context) (int, error)     { return 0, nil }
+func (r *stubRepo) ListSessions(ctx context.Context) ([]domain.SessionInfo, error) {
+	return nil, nil
+}
 func (r *stubRepo) GetHistoryFrom(ctx context.Context, limit, offset int) ([]domain.Message, error) {
 	return []domain.Message{}, nil
 }
@@ -133,3 +136,4 @@ func TestBrain_SimpleChat(t *testing.T) {
 		t.Errorf("unexpected response: %q", ui.displayed[0].Content)
 	}
 }
+

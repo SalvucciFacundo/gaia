@@ -143,3 +143,4 @@ type IncomingMessage struct {
 	ChatID     string
 	ThreadID   string // optional
 }
+

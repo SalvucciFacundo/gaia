@@ -1637,7 +1637,7 @@ Multiple agents support:
 - `/retry` — re-run the last turn with a different approach
 - Conversation branching — fork a session at any point
 
-**GAIA relevance**: `/undo` and `/retry` are useful UX features for Phase 1. Session restore for Phase 2.
+**GAIA status**: ? **Implemented** � `/undo` and `/retry` available in TUI. `gaia session list` shows recent sessions. `gaia session restore <id>` loads previous conversation messages. See `cmd/gaia/session.go`.
 
 ### 19.20 Model Reuse Across Subagents with Different Reasoning Effort
 
@@ -1704,6 +1704,8 @@ These Hermes features are **not in GAIA's initial scope**. Some are intentionall
 
 *Spec version: 2.0*
 *Last updated: 2026-07-20*
+
+
 
 
 

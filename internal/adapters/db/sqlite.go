@@ -238,3 +238,22 @@ func (r *SQLiteRepo) GetMessages(ctx context.Context, sessionID string, limit in
 	}
 	return history, nil
 }
+
+func (r *SQLiteRepo) ListSessions(ctx context.Context) ([]domain.SessionInfo, error) {
+	query := `SELECT id, name, created_at FROM sessions ORDER BY created_at DESC LIMIT 50`
+	rows, err := r.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var sessions []domain.SessionInfo
+	for rows.Next() {
+		var s domain.SessionInfo
+		if err := rows.Scan(&s.ID, &s.Name, &s.CreatedAt); err != nil {
+			return nil, err
+		}
+		sessions = append(sessions, s)
+	}
+	return sessions, rows.Err()
+}
