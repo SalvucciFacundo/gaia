@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
+	"time"
 
 	"gaia/internal/core/domain"
 	"gaia/internal/core/ports"
@@ -16,14 +18,18 @@ type ToolEntry struct {
 	Module ports.Module
 }
 
-// ToolRegistry manages tool definitions and dispatches execution.
+// ToolRegistry manages tool definitions and dispatches execution with caching.
 type ToolRegistry struct {
 	tools map[string]ToolEntry
+	cache *ToolCache
 }
 
-// NewToolRegistry creates an empty tool registry.
+// NewToolRegistry creates an empty tool registry with caching.
 func NewToolRegistry() *ToolRegistry {
-	return &ToolRegistry{tools: make(map[string]ToolEntry)}
+	return &ToolRegistry{
+		tools: make(map[string]ToolEntry),
+		cache: NewToolCache(),
+	}
 }
 
 // Register adds all tools from a module to the registry.
@@ -33,7 +39,7 @@ func (r *ToolRegistry) Register(mod ports.Module) {
 	}
 }
 
-// Execute dispatches a tool call by name.
+// Execute dispatches a tool call by name, with caching for read-only tools.
 func (r *ToolRegistry) Execute(ctx context.Context, name string, args map[string]interface{}) (*domain.ToolResult, error) {
 	entry, ok := r.tools[name]
 	if !ok {
@@ -42,11 +48,33 @@ func (r *ToolRegistry) Execute(ctx context.Context, name string, args map[string
 			Error:   fmt.Sprintf("unknown tool: %s", name),
 		}, nil
 	}
-	return entry.Module.Execute(ctx, name, args)
+
+	// Try cache for read-only tools
+	if r.cache != nil && isReadOnlyTool(name) {
+		cacheKey := buildCacheKey(name, args)
+		if cached, ok := r.cache.Get(cacheKey); ok {
+			return cached, nil
+		}
+	}
+
+	result, execErr := entry.Module.Execute(ctx, name, args)
+	if execErr != nil {
+		result = &domain.ToolResult{
+			Success: false,
+			Error:   execErr.Error(),
+		}
+	}
+
+	// Cache read-only results
+	if r.cache != nil && isReadOnlyTool(name) && result != nil {
+		cacheKey := buildCacheKey(name, args)
+		r.cache.Set(cacheKey, result)
+	}
+
+	return result, nil
 }
 
 // Filtered returns a new ToolRegistry containing only the specified tool names.
-// If allowed is nil or empty, a copy with all tools is returned.
 func (r *ToolRegistry) Filtered(allowed []string) *ToolRegistry {
 	filtered := NewToolRegistry()
 	if len(allowed) == 0 {
@@ -90,7 +118,6 @@ func (r *ToolRegistry) ListToolInfo() []ToolInfo {
 		}
 		seen[entry.Name] = true
 		desc := ""
-		// Find the description from the module's tool definitions
 		for _, def := range entry.Module.GetTools() {
 			if def.Name == entry.Name {
 				if descMap, ok := def.Arguments["description"]; ok {
@@ -111,7 +138,7 @@ func (r *ToolRegistry) ListToolInfo() []ToolInfo {
 	return tools
 }
 
-// SearchTools finds tools whose name or module matches the query (case-insensitive).
+// SearchTools finds tools whose name or module matches the query.
 func (r *ToolRegistry) SearchTools(query string) []ToolInfo {
 	all := r.ListToolInfo()
 	if query == "" {
@@ -126,4 +153,68 @@ func (r *ToolRegistry) SearchTools(query string) []ToolInfo {
 		}
 	}
 	return results
+}
+
+// ---- Tool Cache ----
+
+// readOnlyTools whose output is deterministic within a short window.
+var readOnlyTools = map[string]bool{
+	"read": true, "glob": true, "grep": true,
+	"file_info": true, "list_dir": true,
+}
+
+func isReadOnlyTool(name string) bool {
+	return readOnlyTools[strings.ToLower(name)]
+}
+
+func buildCacheKey(name string, args map[string]interface{}) string {
+	key := name
+	for k, v := range args {
+		key += fmt.Sprintf("|%s=%v", k, v)
+	}
+	return key
+}
+
+type cacheItem struct {
+	result    *domain.ToolResult
+	expiresAt time.Time
+}
+
+const defaultToolCacheTTL = 5 * time.Second
+
+// ToolCache provides TTL-based caching for tool outputs.
+type ToolCache struct {
+	mu    sync.Mutex
+	items map[string]*cacheItem
+}
+
+func NewToolCache() *ToolCache {
+	return &ToolCache{items: make(map[string]*cacheItem)}
+}
+
+func (c *ToolCache) Get(key string) (*domain.ToolResult, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	item, ok := c.items[key]
+	if !ok || time.Now().After(item.expiresAt) {
+		delete(c.items, key)
+		return nil, false
+	}
+	return item.result, true
+}
+
+func (c *ToolCache) Set(key string, result *domain.ToolResult) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.items[key] = &cacheItem{
+		result:    result,
+		expiresAt: time.Now().Add(defaultToolCacheTTL),
+	}
+}
+
+// Flush clears all cached tool results (call after write operations like git commit).
+func (c *ToolCache) Flush() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.items = make(map[string]*cacheItem)
 }

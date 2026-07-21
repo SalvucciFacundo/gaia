@@ -1505,7 +1505,7 @@ Hermes caches LLM responses:
 - Configurable TTL per provider
 - Cache invalidation on context changes
 
-**GAIA relevance**: Token and cost savings. Track for Phase 3.
+**GAIA status**: ? **Implemented as Tool Output Cache** — Cachea resultados de tools read-only (read, glob, grep, file_info, list_dir) con TTL de 5 segundos. Si un subagente lee el mismo archivo dos veces en el mismo loop, la segunda vez devuelve el resultado cachead sin ejecutar. El caché se invalida automáticamente por TTL. Ver `internal/core/registry.go` ToolCache.
 
 ### 19.11 Rate Limiting & Cost Tracking
 
@@ -1704,6 +1704,7 @@ These Hermes features are **not in GAIA's initial scope**. Some are intentionall
 
 *Spec version: 2.0*
 *Last updated: 2026-07-20*
+
 
 
 
