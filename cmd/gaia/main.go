@@ -67,6 +67,9 @@ func main() {
 		case "lsp":
 			handleLSPCLI(os.Args[2:])
 			return
+		case "serve":
+			handleServe(os.Args[2:])
+			return
 		case "session":
 			handleSessionCLI(os.Args[2:])
 			return
@@ -557,6 +560,7 @@ func handleSkillsCLI(args []string) {
 		fmt.Println("Run 'gaia skills' for usage.")
 	}
 }
+
 
 
 

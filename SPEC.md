@@ -1,4 +1,4 @@
-# GAIA — Go Autonomous Intelligence Agent
+# GAIA � Go Autonomous Intelligence Agent
 
 ## Specification v2.0
 
@@ -9,10 +9,10 @@
 GAIA is a **programming-exclusive autonomous agent** written in Go. It is not "Hermes in Go" nor "Gentle-AI as an agent." It is a **multi-agent system where specialized subagents learn independently in their domain**, orchestrated by a main agent that delegates and synthesizes.
 
 GAIA combines:
-- **Hermes Agent** — Learning loop, skill creation/improvement, memory nudge, subagents
-- **Gentle-AI concepts** — SDD phases (10), GGA review (4 lenses + receipts), Judgment Day protocol, Engram memory model
-- **ogcode** — Knowledge graph recall for 70%+ token savings on long sessions
-- **pi-go architecture** — Go-native agent structure, subagent spawning patterns
+- **Hermes Agent** � Learning loop, skill creation/improvement, memory nudge, subagents
+- **Gentle-AI concepts** � SDD phases (10), GGA review (4 lenses + receipts), Judgment Day protocol, Engram memory model
+- **ogcode** � Knowledge graph recall for 70%+ token savings on long sessions
+- **pi-go architecture** � Go-native agent structure, subagent spawning patterns
 
 **Core philosophy:**
 - **Programming-first**: No TTS, image gen, Home Assistant, Spotify, or Discord bloat. Pure coding agent.
@@ -23,7 +23,7 @@ GAIA combines:
 
 ---
 
-## 2. Why GAIA? — Core Differentiators
+## 2. Why GAIA? � Core Differentiators
 
 | What exists | What's missing | What GAIA does |
 |---|---|---|
@@ -38,58 +38,58 @@ GAIA combines:
 ## 3. Architecture Overview
 
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│                     GAIA (single binary)                         │
-│                                                                  │
-│  ┌─────────────────────────────────────────────────────────┐    │
-│  │  ORCHESTRATOR — Main Agent Loop                          │    │
-│  │  • Think → Act → Learn → Persist                        │    │
-│  │  • Delegates to specialized subagents                   │    │
-│  │  • Synthesizes results, never does the work itself      │    │
-│  │  • Progressive skill index in context (~3k tokens)      │    │
-│  │  • Per-turn knowledge graph recall (~500 tokens)        │    │
-│  │  • Context compaction (summarize stale history)         │    │
-│  └────────────────────────┬────────────────────────────────┘    │
-│                           │                                      │
-│  ┌────────────────────────▼────────────────────────────────┐    │
-│  │  SUBAGENT SYSTEM — Autonomous & Specialized              │    │
-│  │                                                          │    │
-│  │  Each subagent has:                                      │    │
-│  │  • Own memory namespace in Engram (topic key)            │    │
-│  │  • Independent learning loop (nudge + skill creation)    │    │
-│  │  • Configurable LLM model (different per subagent)       │    │
-│  │  • Own skill index (only what it needs)                  │    │
-│  │  • Shared knowledge graph for cross-domain concepts      │    │
-│  │                                                          │    │
-│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐   │    │
-│  │  │ Explorer  │ │Proposer  │ │Specifier │ │Designer  │   │    │
-│  │  └──────────┘ └──────────┘ └──────────┘ └──────────┘   │    │
-│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐   │    │
-│  │  │Planner   │ │Implement.│ │Verifier  │ │Reviewer  │   │    │
-│  │  └──────────┘ └──────────┘ └──────────┘ └──────────┘   │    │
-│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐   │    │
-│  │  │Learner   │ │Researcher│ │Archiver  │ │Debugger  │   │    │
-│  │  └──────────┘ └──────────┘ └──────────┘ └──────────┘   │    │
-│  └────────────────────────┬────────────────────────────────┘    │
-│                           │                                      │
-│  ┌────────────────────────▼────────────────────────────────┐    │
-│  │  INFRASTRUCTURE                                         │    │
-│  │                                                          │    │
-│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐   │    │
-│  │  │LLM Multi-│ │Tool Exec │ │Memory    │ │ KG       │   │    │
-│  │  │Provider  │ │Engine    │ │(Engram)  │ │Recall    │   │    │
-│  │  └──────────┘ └──────────┘ └──────────┘ └──────────┘   │    │
-│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐   │    │
-│  │  │TUI       │ │Desktop   │ │MCP       │ │Skills    │   │    │
-│  │  │Bubbletea │ │Wails     │ │Client    │ │Loader    │   │    │
-│  │  └──────────┘ └──────────┘ └──────────┘ └──────────┘   │    │
-│  └─────────────────────────────────────────────────────────┘    │
-└──────────────────────────────────────────────────────────────────┘
++------------------------------------------------------------------+
+�                     GAIA (single binary)                         �
+�                                                                  �
+�  +---------------------------------------------------------+    �
+�  �  ORCHESTRATOR � Main Agent Loop                          �    �
+�  �  � Think ? Act ? Learn ? Persist                        �    �
+�  �  � Delegates to specialized subagents                   �    �
+�  �  � Synthesizes results, never does the work itself      �    �
+�  �  � Progressive skill index in context (~3k tokens)      �    �
+�  �  � Per-turn knowledge graph recall (~500 tokens)        �    �
+�  �  � Context compaction (summarize stale history)         �    �
+�  +---------------------------------------------------------+    �
+�                           �                                      �
+�  +------------------------?--------------------------------+    �
+�  �  SUBAGENT SYSTEM � Autonomous & Specialized              �    �
+�  �                                                          �    �
+�  �  Each subagent has:                                      �    �
+�  �  � Own memory namespace in Engram (topic key)            �    �
+�  �  � Independent learning loop (nudge + skill creation)    �    �
+�  �  � Configurable LLM model (different per subagent)       �    �
+�  �  � Own skill index (only what it needs)                  �    �
+�  �  � Shared knowledge graph for cross-domain concepts      �    �
+�  �                                                          �    �
+�  �  +----------+ +----------+ +----------+ +----------+   �    �
+�  �  � Explorer  � �Proposer  � �Specifier � �Designer  �   �    �
+�  �  +----------+ +----------+ +----------+ +----------+   �    �
+�  �  +----------+ +----------+ +----------+ +----------+   �    �
+�  �  �Planner   � �Implement.� �Verifier  � �Reviewer  �   �    �
+�  �  +----------+ +----------+ +----------+ +----------+   �    �
+�  �  +----------+ +----------+ +----------+ +----------+   �    �
+�  �  �Learner   � �Researcher� �Archiver  � �Debugger  �   �    �
+�  �  +----------+ +----------+ +----------+ +----------+   �    �
+�  +---------------------------------------------------------+    �
+�                           �                                      �
+�  +------------------------?--------------------------------+    �
+�  �  INFRASTRUCTURE                                         �    �
+�  �                                                          �    �
+�  �  +----------+ +----------+ +----------+ +----------+   �    �
+�  �  �LLM Multi-� �Tool Exec � �Memory    � � KG       �   �    �
+�  �  �Provider  � �Engine    � �(Engram)  � �Recall    �   �    �
+�  �  +----------+ +----------+ +----------+ +----------+   �    �
+�  �  +----------+ +----------+ +----------+ +----------+   �    �
+�  �  �TUI       � �Desktop   � �MCP       � �Skills    �   �    �
+�  �  �Bubbletea � �Wails     � �Client    � �Loader    �   �    �
+�  �  +----------+ +----------+ +----------+ +----------+   �    �
+�  +---------------------------------------------------------+    �
++------------------------------------------------------------------+
 ```
 
 ---
 
-## 4. Subagent System — 12 Autonomous Specialists
+## 4. Subagent System � 12 Autonomous Specialists
 
 Each subagent is an autonomous LLM-powered agent with:
 - Isolated context (never sees other subagents' intermediate work)
@@ -116,7 +116,7 @@ Each subagent is an autonomous LLM-powered agent with:
 | **Archiver** | sdd-archive | Close completed changes, sync specs, persist final state | documentation | Cheap |
 | **Debugger** | n/a | Bug analysis, root cause, fix, verify | debugging, testing | Standard |
 
-### 4.2 Orchestrator — The Main Agent
+### 4.2 Orchestrator � The Main Agent
 
 The orchestrator is the only agent the user interacts with directly. It:
 - Maintains the conversation with the user
@@ -133,20 +133,20 @@ The user can switch between modes at any time. The orchestrator enforces the mod
 | Mode | Can do | Cannot do | Comandos |
 |---|---|---|---|
 | **plan** | Explorer, Proposer, Specifier, Designer, Researcher, Learner | Write code, modify files, run terminal commands, execute git write ops | `/plan`, `/plan on` |
-| **build** (default) | All subagents including Implementer, Verifier, Debugger, Reviewer | Nothing — full agent | `/build`, `/plan off` |
+| **build** (default) | All subagents including Implementer, Verifier, Debugger, Reviewer | Nothing � full agent | `/build`, `/plan off` |
 
-- `/plan` → Switch to plan mode. The orchestrator rejects any request to write code or run destructive commands with: "I'm in plan mode. Switch to /build to implement."
-- `/build` → Switch to build mode. Full agent capabilities including file writes and terminal execution.
-- `/mode` → Show current mode.
+- `/plan` ? Switch to plan mode. The orchestrator rejects any request to write code or run destructive commands with: "I'm in plan mode. Switch to /build to implement."
+- `/build` ? Switch to build mode. Full agent capabilities including file writes and terminal execution.
+- `/mode` ? Show current mode.
 
 The orchestrator also auto-detects intent: if the user says "what do you think about..." it stays in whatever mode it's in. If user says "implement this" while in plan mode, it responds with the plan-mode warning and optionally offers to create a proposal.
 
 **When to trigger SDD (in build mode):**
-- User asks for a new feature or substantial change → Explorer → Proposer → ... → Archiver
-- User asks a quick question → Direct response (no subagents)
-- User reports a bug → Debugger → Verifier
-- User asks for code review → Reviewer
-- User asks for research → Researcher
+- User asks for a new feature or substantial change ? Explorer ? Proposer ? ... ? Archiver
+- User asks a quick question ? Direct response (no subagents)
+- User reports a bug ? Debugger ? Verifier
+- User asks for code review ? Reviewer
+- User asks for research ? Researcher
 
 ### 4.3 Per-Subagent Model Configuration
 
@@ -175,7 +175,7 @@ subagents:
   # ... etc
 ```
 
-### 4.4 SDD Protocol — Shared Rules (from Gentle-AI)
+### 4.4 SDD Protocol � Shared Rules (from Gentle-AI)
 
 > These rules are inherited from Gentle-AI's SDD workflow and are **mandatory** for all SDD-phase subagents. Losing them breaks the pipeline.
 
@@ -188,24 +188,24 @@ Every SDD phase subagent is an **executor**, not an orchestrator. Do the phase w
 1. The orchestrator injects a `## Skills to load before work` block with exact `SKILL.md` paths
 2. The subagent reads those files BEFORE task-specific work
 3. Fallback: search skill registry via `mem_search("skill-registry")` or read `.atl/skill-registry.md`
-4. Skill loading is NOT delegation — it's reading files
+4. Skill loading is NOT delegation � it's reading files
 
-#### 4.4.3 Artifact Retrieval (Section B — Engram Mode)
+#### 4.4.3 Artifact Retrieval (Section B � Engram Mode)
 
 **CRITICAL**: `mem_search` returns 300-char PREVIEWS. You MUST call `mem_get_observation(id)` for EVERY artifact. Skipping this produces wrong output.
 
 Retrieval flow:
 ```
-STEP A — SEARCH (get IDs, run all in parallel):
-  mem_search(query: "sdd/{change-name}/proposal", ...) → save ID
-  mem_search(query: "sdd/{change-name}/spec", ...) → save ID
+STEP A � SEARCH (get IDs, run all in parallel):
+  mem_search(query: "sdd/{change-name}/proposal", ...) ? save ID
+  mem_search(query: "sdd/{change-name}/spec", ...) ? save ID
 
-STEP B — RETRIEVE (run all in parallel):
-  mem_get_observation(id: {proposal_id})  ← REQUIRED, not optional
-  mem_get_observation(id: {spec_id})      ← REQUIRED, not optional
+STEP B � RETRIEVE (run all in parallel):
+  mem_get_observation(id: {proposal_id})  ? REQUIRED, not optional
+  mem_get_observation(id: {spec_id})      ? REQUIRED, not optional
 ```
 
-#### 4.4.4 Artifact Persistence (Section C — Mandatory)
+#### 4.4.4 Artifact Persistence (Section C � Mandatory)
 
 Every phase that produces an artifact **MUST persist it**. Skipping this BREAKS the pipeline.
 
@@ -225,7 +225,7 @@ mem_save(
 **Hybrid mode:** Do BOTH (file + mem_save).
 **None mode:** Return result inline only. No files, no mem_save.
 
-#### 4.4.5 Return Envelope (Section D — Mandatory)
+#### 4.4.5 Return Envelope (Section D � Mandatory)
 
 > **CRITICAL**: The subagent's FINAL output MUST be text (the return envelope), NOT a tool call. If you need to call `mem_save`, do it BEFORE your final text response. Do NOT call `mem_session_summary`.
 
@@ -277,7 +277,7 @@ Each SDD subagent has specific rules inherited from the corresponding Gentle-AI 
 **Purpose**: Investigate codebase before committing to a change. Read existing code, understand architecture, identify patterns.
 
 **Rules:**
-- Read the actual codebase — never guess or assume patterns
+- Read the actual codebase � never guess or assume patterns
 - Identify entry points, module structure, conventions, dependencies
 - Check test infrastructure and existing test patterns
 - If exploration reveals the change is larger than expected, report estimated scope
@@ -292,8 +292,8 @@ Each SDD subagent has specific rules inherited from the corresponding Gentle-AI 
 - **Before writing**: offer the user a proposal question round (3-5 questions) to clarify business understanding, edge cases, and scope boundaries
 - **Capabilities section is the CONTRACT** with Specifier. Every new capability becomes a new spec file. Every modified capability becomes a delta spec.
 - **Mandatory sections**: Intent, Scope (in/out), Capabilities (new/modified), Approach, Affected Areas, Risks, Rollback Plan, Dependencies, Success Criteria
-- **Rollback plan is MANDATORY** — every proposal must say how to revert
-- **Success criteria are MANDATORY** — measurable outcomes
+- **Rollback plan is MANDATORY** � every proposal must say how to revert
+- **Success criteria are MANDATORY** � measurable outcomes
 - **Size budget**: under 450 words. Bullet points and tables over prose
 - Artifact type: `proposal`
 - Detection: `sdd/{change-name}/proposal`
@@ -303,25 +303,25 @@ Each SDD subagent has specific rules inherited from the corresponding Gentle-AI 
 **Purpose**: Write delta specifications with structured requirements and scenarios.
 
 **Rules (inherited from Gentle-AI sdd-spec):**
-- **Read the proposal's Capabilities section first** — it tells you exactly which spec files to create
+- **Read the proposal's Capabilities section first** � it tells you exactly which spec files to create
 - **RFC 2119 keywords** are mandatory: MUST/SHALL for absolute requirements, SHOULD for recommendations, MAY for options
 - **Given/When/Then format** for ALL scenarios
 - **Every requirement MUST have at least ONE scenario** (happy path + edge case)
-- **MODIFIED requirements**: copy the ENTIRE existing requirement block (all scenarios), THEN edit. Never write partial MODIFIED blocks — they lose content at archive time
+- **MODIFIED requirements**: copy the ENTIRE existing requirement block (all scenarios), THEN edit. Never write partial MODIFIED blocks � they lose content at archive time
 - **REMOVED requirements** MUST include Reason and SHOULD include Migration
 - **RENAMED requirements** MUST state both old and new names explicitly
-- **Specs describe WHAT, not HOW** — no implementation details
-- Specs MUST be testable — someone should be able to write an automated test from each scenario
+- **Specs describe WHAT, not HOW** � no implementation details
+- Specs MUST be testable � someone should be able to write an automated test from each scenario
 - **Size budget**: under 650 words. Requirement tables over narrative
 - Artifact type: `spec`
 - Detection: `sdd/{change-name}/spec`
 
 **Delta Spec Structure:**
 ```
-## ADDED Requirements  → Append to main spec at archive time
-## MODIFIED Requirements → Replace matching requirement in main spec (FULL block copy-then-edit)
-## REMOVED Requirements → Delete from main spec (with Reason + Migration)
-## RENAMED Requirements → Rename in main spec (old name → new name)
+## ADDED Requirements  ? Append to main spec at archive time
+## MODIFIED Requirements ? Replace matching requirement in main spec (FULL block copy-then-edit)
+## REMOVED Requirements ? Delete from main spec (with Reason + Migration)
+## RENAMED Requirements ? Rename in main spec (old name ? new name)
 ```
 
 #### 4.5.4 Designer (sdd-design)
@@ -329,7 +329,7 @@ Each SDD subagent has specific rules inherited from the corresponding Gentle-AI 
 **Purpose**: Create technical design with architecture decisions, data flow, file changes.
 
 **Rules (inherited from Gentle-AI sdd-design):**
-- **ALWAYS read the actual codebase** before designing — never guess file paths or patterns
+- **ALWAYS read the actual codebase** before designing � never guess file paths or patterns
 - **Every decision MUST have a rationale** (the why, alternatives considered)
 - Use the project's **ACTUAL** patterns and conventions, not generic best practices
 - If codebase uses a different pattern than recommended, **follow the existing pattern** unless the change explicitly addresses it
@@ -345,7 +345,7 @@ Each SDD subagent has specific rules inherited from the corresponding Gentle-AI 
 **Purpose**: Break specs and design into concrete, actionable implementation tasks.
 
 **Rules (inherited from Gentle-AI sdd-tasks):**
-- **Review Workload Forecast is MANDATORY** — estimate changed lines, 400-line budget risk, chained PR recommendation
+- **Review Workload Forecast is MANDATORY** � estimate changed lines, 400-line budget risk, chained PR recommendation
 - **Forecast MUST include exact guard lines**:
   ```
   Decision needed before apply: Yes|No
@@ -354,8 +354,8 @@ Each SDD subagent has specific rules inherited from the corresponding Gentle-AI 
   400-line budget risk: Low|Medium|High
   ```
 - **Tasks MUST be**: Specific (concrete file), Actionable (one logical unit), Verifiable (testable), Small (completable in one session)
-- Order by dependency — Phase 1 tasks shouldn't depend on Phase 2
-- If project uses TDD: RED (write failing test) → GREEN (pass) → REFACTOR
+- Order by dependency � Phase 1 tasks shouldn't depend on Phase 2
+- If project uses TDD: RED (write failing test) ? GREEN (pass) ? REFACTOR
 - **Size budget**: under 530 words. Checklist format, 1-2 lines per task
 - Artifact type: `tasks`
 - Detection: `sdd/{change-name}/tasks`
@@ -365,8 +365,8 @@ Each SDD subagent has specific rules inherited from the corresponding Gentle-AI 
 **Purpose**: Write code following specs, design, and tasks.
 
 **Rules (inherited from Gentle-AI sdd-apply):**
-- **ALWAYS read specs BEFORE implementing** — specs are your acceptance criteria
-- **ALWAYS follow the design decisions** — don't freelance a different approach
+- **ALWAYS read specs BEFORE implementing** � specs are your acceptance criteria
+- **ALWAYS follow the design decisions** � don't freelance a different approach
 - **ALWAYS match existing code patterns** and conventions in the project
 - **Merge Protocol (CRITICAL)**: When apply-progress exists, READ it first, then MERGE your progress with existing progress. Never OVERWRITE.
 - **Work Unit Evidence is MANDATORY** for every assigned batch:
@@ -374,7 +374,7 @@ Each SDD subagent has specific rules inherited from the corresponding Gentle-AI 
   - Runtime harness command/scenario (or explicit `N/A` with reason)
   - Rollback boundary (exact files/behavior that can be reverted)
 - **Before returning**: re-read the persisted tasks artifact. Confirm every completed task is marked `[x]`. If not, fix it before reporting.
-- If design is wrong or incomplete, NOTE IT in your return — don't silently deviate
+- If design is wrong or incomplete, NOTE IT in your return � don't silently deviate
 - If task is blocked, STOP and report back
 - If workload forecast requires a decision and none was provided, STOP before writing code
 - **Size budget**: no fixed limit, but prefer focused, reversible commits
@@ -386,19 +386,19 @@ Each SDD subagent has specific rules inherited from the corresponding Gentle-AI 
 **Purpose**: Validate implementation against specs, run tests, report compliance.
 
 **Rules (inherited from Gentle-AI sdd-verify):**
-- **Run actual tests** — static analysis alone is never verification
+- **Run actual tests** � static analysis alone is never verification
 - **A spec scenario is compliant ONLY when a covering test passed at runtime**
 - Compare specs first, design second, task completion third
-- **Do NOT fix issues** — report them for the orchestrator/user
+- **Do NOT fix issues** � report them for the orchestrator/user
 - **Compliance matrix**: map every spec scenario to verdict (COMPLIANT, FAILING, UNTESTED)
 - **Graceful handling**:
-  - Tasks only → verify task completion only (spec/design: SKIPPED)
-  - Tasks + specs → verify completeness + correctness (design: SKIPPED)
-  - All artifacts → verify all dimensions
+  - Tasks only ? verify task completion only (spec/design: SKIPPED)
+  - Tasks + specs ? verify completeness + correctness (design: SKIPPED)
+  - All artifacts ? verify all dimensions
 - **Severity**:
-  - Test command exits non-zero → CRITICAL
-  - Spec scenario has no passing test → CRITICAL
-  - Design deviation exists → WARNING (unless it breaks a spec)
+  - Test command exits non-zero ? CRITICAL
+  - Spec scenario has no passing test ? CRITICAL
+  - Design deviation exists ? WARNING (unless it breaks a spec)
 - Strict TDD verify: load `strict-tdd-verify.md` when active
 - **Final verdict**: `PASS`, `PASS WITH WARNINGS`, or `FAIL`
 - Artifact type: `verify-report`
@@ -412,12 +412,12 @@ Each SDD subagent has specific rules inherited from the corresponding Gentle-AI 
 - **Native Review Receipt Gate**: Before any operation, require a valid review receipt. Missing, pending, scope-changed, invalidated, or escalated blocks archive.
 - **Task Completion Gate**: If any implementation task is unchecked (`- [ ]`), STOP and block archive. Only proceed if orchestrator explicitly approves stale-checkbox reconciliation with proof from `apply-progress` and `verify-report`.
 - **Delta merge**:
-  - ADDED → Append to main spec
-  - MODIFIED → Replace matching requirement (full block)
-  - REMOVED → Delete (require Reason + Migration notes)
-  - RENAMED → Rename (require explicit old/new names)
-- **Move to archive**: `openspec/changes/{change-name}/ → openspec/changes/archive/YYYY-MM-DD-{change-name}/`
-- **Archive is AUDIT TRAIL** — never delete or modify archived changes
+  - ADDED ? Append to main spec
+  - MODIFIED ? Replace matching requirement (full block)
+  - REMOVED ? Delete (require Reason + Migration notes)
+  - RENAMED ? Rename (require explicit old/new names)
+- **Move to archive**: `openspec/changes/{change-name}/ ? openspec/changes/archive/YYYY-MM-DD-{change-name}/`
+- **Archive is AUDIT TRAIL** � never delete or modify archived changes
 - Artifact type: `archive-report`
 - Detection: `sdd/{change-name}/archive-report`
 
@@ -428,11 +428,11 @@ Each SDD subagent has specific rules inherited from the corresponding Gentle-AI 
 | **Reviewer** | Follows GGA protocol: 4 lenses (risk, resilience, readability, reliability). Bounded review with content-bound receipt. Never modifies code. Findings: BLOCKER / WARNING / SUGGESTION. |
 | **Learner** | Analyzes subagent usage patterns. Proposes skill creation/improvement. Never modifies code or artifacts directly. Reports to orchestrator. |
 | **Researcher** | Web search + extraction. Must cite sources. Never modifies code. |
-| **Debugger** | Bug analysis → root cause → fix → verify. Follows scientific method: hypothesis, test, confirm. Reports fix + verification evidence. |
+| **Debugger** | Bug analysis ? root cause ? fix ? verify. Follows scientific method: hypothesis, test, confirm. Reports fix + verification evidence. |
 
 ---
 
-## 5. Learning Model — Hybrid
+## 5. Learning Model � Hybrid
 
 Each subagent learns independently, but cross-domain knowledge is shared.
 
@@ -452,17 +452,17 @@ Each subagent learns independently, but cross-domain knowledge is shared.
 
 ### 5.2 Shared Knowledge Graph
 
-Cross-domain concepts are stored in a shared knowledge graph (Topic → Concept → Fact):
+Cross-domain concepts are stored in a shared knowledge graph (Topic ? Concept ? Fact):
 
 ```
 Topic: "Authentication"
-├── Concept: "JWT in this project"
-│   ├── Fact: "Tokens expire in 24h, refresh in 7d"  (contributed by Designer)
-│   ├── Fact: "Common bug: missing token refresh on 401"  (contributed by Debugger)
-│   └── Fact: "Test helper: auth.NewTestToken()"  (contributed by Verifier)
-├── Concept: "User roles"
-│   ├── Fact: "Roles: admin, user, viewer"  (contributed by Specifier)
-│   └── Fact: "Middleware: requireRole('admin')"  (contributed by Explorer)
++-- Concept: "JWT in this project"
+�   +-- Fact: "Tokens expire in 24h, refresh in 7d"  (contributed by Designer)
+�   +-- Fact: "Common bug: missing token refresh on 401"  (contributed by Debugger)
+�   +-- Fact: "Test helper: auth.NewTestToken()"  (contributed by Verifier)
++-- Concept: "User roles"
+�   +-- Fact: "Roles: admin, user, viewer"  (contributed by Specifier)
+�   +-- Fact: "Middleware: requireRole('admin')"  (contributed by Explorer)
 ```
 
 Any subagent can query the knowledge graph. The orchestrator decides what to share.
@@ -471,20 +471,20 @@ Any subagent can query the knowledge graph. The orchestrator decides what to sha
 
 ```
 After each subagent task:
-  1. Session Summary → auto-generate domain-specific learnings
-  2. Memory Nudge → persist important observations to its Engram namespace
-  3. Skill Check → create/improve domain skills if needed
-  4. Knowledge Graph → share cross-domain learnings
+  1. Session Summary ? auto-generate domain-specific learnings
+  2. Memory Nudge ? persist important observations to its Engram namespace
+  3. Skill Check ? create/improve domain skills if needed
+  4. Knowledge Graph ? share cross-domain learnings
 
 During tasks:
-  1. Memory Recall → pull relevant context from its own memory
-  2. Skill Load → load domain skills on demand
-  3. Knowledge Graph Query → pull cross-domain context
+  1. Memory Recall ? pull relevant context from its own memory
+  2. Skill Load ? load domain skills on demand
+  3. Knowledge Graph Query ? pull cross-domain context
 ```
 
 ---
 
-## 6. Skill System — Progressive Loading
+## 6. Skill System � Progressive Loading
 
 ### 6.1 Philosophy
 
@@ -497,22 +497,22 @@ Skills are **NOT bundled** with GAIA. The user installs only what they need.
 4. Installed skills go to `~/.gaia/skills/`
 
 **After install:**
-- `gaia skills search <query>` — Search available skills
-- `gaia skills install <name>` — Install a specific skill
-- `gaia skills list` — List installed skills
-- `gaia skills activate/deactivate <name>` — Toggle without uninstalling
-- `gaia skills remove <name>` — Delete a skill
+- `gaia skills search <query>` � Search available skills
+- `gaia skills install <name>` � Install a specific skill
+- `gaia skills list` � List installed skills
+- `gaia skills activate/deactivate <name>` � Toggle without uninstalling
+- `gaia skills remove <name>` � Delete a skill
 
 ### 6.2 Progressive Disclosure
 
 ```
 Context at all times (ORCHESTRATOR):
-  Level 0: skills_list() → [{name, description, tags}, ...]   (~3k tokens)
+  Level 0: skills_list() ? [{name, description, tags}, ...]   (~3k tokens)
             Only installed + activated skills shown
 
 Loaded on demand (SUBAGENT LEVEL):
-  Level 1: skill_view(name) → Full SKILL.md content           (varies)
-  Level 2: skill_view(name, path) → Specific reference file    (varies)
+  Level 1: skill_view(name) ? Full SKILL.md content           (varies)
+  Level 2: skill_view(name, path) ? Specific reference file    (varies)
 ```
 
 The orchestrator only holds Level 0. When a subagent is spawned, the orchestrator passes matching skill names and the subagent loads Level 1 as needed.
@@ -528,7 +528,7 @@ Skills come from a **decentralized hub**:
 ```yaml
 ---
 name: go-testing
-description: "Write Go tests — table-driven, subtests, parallel, fakes"
+description: "Write Go tests � table-driven, subtests, parallel, fakes"
 version: 1.0.0
 languages: [go]
 tags: [testing, tdd]
@@ -546,31 +546,31 @@ Each subagent only loads skills relevant to its domain:
 
 ---
 
-## 7. LLM Integration — Multi-Provider with Per-Subagent Routing
+## 7. LLM Integration � Multi-Provider with Per-Subagent Routing
 
 ### 7.1 Supported Providers
 
 | Provider | Go Library | Status |
 |---|---|---|
-| Anthropic (Claude) | `github.com/anthropics/anthropic-sdk-go` | ✅ Planned |
-| OpenAI (GPT) | `github.com/sashabaranov/go-openai` | ✅ Planned |
-| Gemini (Google) | Custom REST client | ✅ Planned |
-| Ollama (Local) | REST API | ✅ Planned |
-| GitHub Copilot | Existing copilot_client.go | ✅ Existing |
-| OpenRouter | OpenAI-compatible API | ✅ Planned |
+| Anthropic (Claude) | `github.com/anthropics/anthropic-sdk-go` | ? Planned |
+| OpenAI (GPT) | `github.com/sashabaranov/go-openai` | ? Planned |
+| Gemini (Google) | Custom REST client | ? Planned |
+| Ollama (Local) | REST API | ? Planned |
+| GitHub Copilot | Existing copilot_client.go | ? Existing |
+| OpenRouter | OpenAI-compatible API | ? Planned |
 
 ### 7.2 Provider Router
 
 ```
-Request → Router → Provider (based on config)
-         → Fallback (on failure)
-         → Streaming (SSE for TUI)
-         → Tool definition conversion (per-provider format)
+Request ? Router ? Provider (based on config)
+         ? Fallback (on failure)
+         ? Streaming (SSE for TUI)
+         ? Tool definition conversion (per-provider format)
 ```
 
 ---
 
-## 8. Token Efficiency — Knowledge Graph Recall (from ogcode)
+## 8. Token Efficiency � Knowledge Graph Recall (from ogcode)
 
 ### 8.1 The Problem
 
@@ -585,7 +585,7 @@ Traditional agents replay the **entire conversation** every turn. At 50 messages
   + Knowledge Graph Recall            ~500 tokens
   + Recent Messages (last 5)          ~2k tokens
   + Compacted Summary                 ~1k tokens
-  ─────────────────────────────────────────
+  -----------------------------------------
   TOTAL per turn:                    ~8.5k tokens
 
   vs. Hermes (50 msgs):              ~25k tokens
@@ -598,9 +598,9 @@ Traditional agents replay the **entire conversation** every turn. At 50 messages
 
 | Mechanism | How It Works | Token Impact |
 |---|---|---|
-| **Knowledge Graph Recall** | Per-turn: query KG for facts relevant to current task. Each fact has embedding + labels. | Largest saving — grows with session length |
+| **Knowledge Graph Recall** | Per-turn: query KG for facts relevant to current task. Each fact has embedding + labels. | Largest saving � grows with session length |
 | **Context Compaction** | Summarize stale messages instead of replaying verbatim. Triggered at configurable threshold. | Caps prompt size on long sessions |
-| **Progressive Skills** | Level 0 (index, ~3k) → Level 1 (full skill, varies) → Level 2 (references). Only load what's needed. | Only loads relevant skills |
+| **Progressive Skills** | Level 0 (index, ~3k) ? Level 1 (full skill, varies) ? Level 2 (references). Only load what's needed. | Only loads relevant skills |
 | **Memory Recall** | Pull precise facts from Engram instead of re-deriving. | Fewer exploration turns |
 | **Session Search** | FTS5 search past sessions, no LLM calls needed. | Fast recall without context cost |
 
@@ -613,9 +613,9 @@ Each subagent has a configured token budget. When the budget is low:
 
 ---
 
-## 9. Gentle-AI Concepts — Native Integration
+## 9. Gentle-AI Concepts � Native Integration
 
-### 9.1 SDD Phases → GAIA Subagents
+### 9.1 SDD Phases ? GAIA Subagents
 
 Gentle-AI's SDD phases map directly to GAIA subagents:
 
@@ -632,7 +632,7 @@ Gentle-AI's SDD phases map directly to GAIA subagents:
 | `sdd-archive` | Archiver | Archive completed changes |
 | `sdd-onboard` | Orchestrator | Guided onboarding walkthrough |
 
-### 9.2 GGA Review → Reviewer Subagent
+### 9.2 GGA Review ? Reviewer Subagent
 
 | Gentle-AI GGA Lens | GAIA Reviewer Mode | Focus |
 |---|---|---|
@@ -657,7 +657,7 @@ For high-risk changes (auth, security, payments, >400 lines):
 3. Fix agent (fix-agent) applies surgical corrections
 4. Maximum 2 rounds of fix + re-judgment
 
-### 9.4 Review Protocol — Formal State Machine & Receipts
+### 9.4 Review Protocol � Formal State Machine & Receipts
 
 GAIA's review system follows the formal Gentle-AI review integration contract, adapted for native execution.
 
@@ -667,19 +667,19 @@ When the Reviewer determines risk level, it classifies each risk reason with a c
 
 | Risk Code | Signal | When It Fires |
 |---|---|---|
-| `configuration_change` | — | Changes to config files, env vars, feature flags |
-| `executable_change` | — | Changes to executable binary outputs |
+| `configuration_change` | � | Changes to config files, env vars, feature flags |
+| `executable_change` | � | Changes to executable binary outputs |
 | `executable_mode` | permissions | File permission mode changes (e.g., +x) |
 | `hot_path` | auth/security/payments | Changes to authentication, authorization, payments, or security-critical paths |
-| `large_change` | — | More than 400 changed lines |
-| `non_executable_only` | — | Only documentation, comments, formatting, typo fixes (no lens needed) |
+| `large_change` | � | More than 400 changed lines |
+| `non_executable_only` | � | Only documentation, comments, formatting, typo fixes (no lens needed) |
 | `service_token` | auth | New or modified service account tokens, API keys embedded in code |
 | `shell_source` | shell_process | New or modified shell scripts, Makefile targets, or subprocess invocations |
 
 Risk level is determined by combining reasons:
-- Only `non_executable_only` → **Low** (no lens needed)
-- Any other reason → **Medium** (select one dominant lens)
-- `hot_path`, `large_change`, `service_token`, or `shell_source` → **High** (run all 4 lenses)
+- Only `non_executable_only` ? **Low** (no lens needed)
+- Any other reason ? **Medium** (select one dominant lens)
+- `hot_path`, `large_change`, `service_token`, or `shell_source` ? **High** (run all 4 lenses)
 
 #### 9.4.2 Review State Machine
 
@@ -687,31 +687,31 @@ Each review transaction progresses through formal states, tracked in Engram:
 
 ```
   unreviewed (initial state)
-      │
-      ▼
+      �
+      ?
   reviewing (review in progress)
-      │
-      ├── judges_confirmed (Judgment Day judges have reported)
-      │
-      ▼
+      �
+      +-- judges_confirmed (Judgment Day judges have reported)
+      �
+      ?
   findings_frozen (no more changes to findings)
-      │
-      ▼
+      �
+      ?
   evidence_classified (each finding classified as BLOCKER/WARNING/SUGGESTION)
-      │
-      ├── fix_required → fixing → fix_validating (correction loop, max 1 round normal, 2 rounds Judgment Day)
-      │
-      ▼
+      �
+      +-- fix_required ? fixing ? fix_validating (correction loop, max 1 round normal, 2 rounds Judgment Day)
+      �
+      ?
   ready_final_verification
-      │
-      ▼
+      �
+      ?
   final_verifying (running tests + build to confirm fix)
-      │
-      ▼
+      �
+      ?
   approved (receipt issued)
-      │
-      ├── escalated (unresolvable — human intervention needed)
-      └── invalidated (content changed since receipt — new review needed)
+      �
+      +-- escalated (unresolvable � human intervention needed)
+      +-- invalidated (content changed since receipt � new review needed)
 ```
 
 Each state transition is recorded in Engram under `gaia/review/{change-name}/{transaction-id}` for full traceability.
@@ -749,12 +749,12 @@ Config changes and review state transitions are tracked in a journal for auditab
 
 ```
 gaia journal --change {change-name}
-→ Lists all state transitions, who triggered them, and timestamps
+? Lists all state transitions, who triggered them, and timestamps
 ```
 
 Every `mem_save` call for review artifacts includes the mutation journal entry automatically.
 
-### 9.5 Engram → GAIA Memory
+### 9.5 Engram ? GAIA Memory
 
 Engram's memory model maps directly:
 
@@ -770,31 +770,31 @@ Engram's memory model maps directly:
 
 ### 9.5 Memory Export & Human Visualization (Phase 3+)
 
-While GAIA's memory lives in Engram + Knowledge Graph (machine-native), the user may want to **read, edit, or explore** what the agent has learned. For this, GAIA can optionally export memories to a structured format viewable in any markdown editor — with Obsidian as a first-class target.
+While GAIA's memory lives in Engram + Knowledge Graph (machine-native), the user may want to **read, edit, or explore** what the agent has learned. For this, GAIA can optionally export memories to a structured format viewable in any markdown editor � with Obsidian as a first-class target.
 
 **Export structure** (generated after each session or on demand):
 
 ```
 gaia-memory-export/
-├── Project/
-│   ├── Auth-System.md              # Facts del KG sobre auth
-│   │   - Token expiration: 24h, refresh: 7d
-│   │   - Common bug: missing refresh on 401
-│   │   - Test helper: auth.NewTestToken()
-│   ├── API-Design.md               # Decisiones de arquitectura
-│   │   - Hexagonal architecture with ports/adapters
-│   │   - All mutations go through service layer
-│   └── Common-Bugs.md              # Bugs frecuentes y fixes
-│       - N+1 query in UserList → fixed with eager loading
-├── User/
-│   ├── Preferences.md              # Lenguajes, frameworks, estilo
-│   │   - Primary: Go, TypeScript, Rust
-│   │   - Style: early returns, table-driven tests
-│   │   - Personality: Teacher persona
-│   └── Learning-Style.md           # Cómo prefiere que le expliquen
-└── Skills/
-    ├── go-testing.md               # Skill que GAIA creó o mejoró
-    └── react-patterns.md
++-- Project/
+�   +-- Auth-System.md              # Facts del KG sobre auth
+�   �   - Token expiration: 24h, refresh: 7d
+�   �   - Common bug: missing refresh on 401
+�   �   - Test helper: auth.NewTestToken()
+�   +-- API-Design.md               # Decisiones de arquitectura
+�   �   - Hexagonal architecture with ports/adapters
+�   �   - All mutations go through service layer
+�   +-- Common-Bugs.md              # Bugs frecuentes y fixes
+�       - N+1 query in UserList ? fixed with eager loading
++-- User/
+�   +-- Preferences.md              # Lenguajes, frameworks, estilo
+�   �   - Primary: Go, TypeScript, Rust
+�   �   - Style: early returns, table-driven tests
+�   �   - Personality: Teacher persona
+�   +-- Learning-Style.md           # C�mo prefiere que le expliquen
++-- Skills/
+    +-- go-testing.md               # Skill que GAIA cre� o mejor�
+    +-- react-patterns.md
 ```
 
 **How it works:**
@@ -812,11 +812,11 @@ gaia-memory-export/
 - Share memory exports with team members
 - Archive project knowledge when a project concludes
 
-**Not the primary memory backend** — this is export/visualization only. The core memory remains in Engram + Knowledge Graph for performance, conflict detection, and lifecycle management.
+**Not the primary memory backend** � this is export/visualization only. The core memory remains in Engram + Knowledge Graph for performance, conflict detection, and lifecycle management.
 
 ---
 
-### 9.6 Persona System — Starting Points That Evolve
+### 9.6 Persona System � Starting Points That Evolve
 
 GAIA's persona system is fundamentally different from a static `SOUL.md` or a fixed instruction list. **The persona is a starting point, not a cage.** Each subagent's behavior evolves with experience.
 
@@ -825,14 +825,14 @@ GAIA's persona system is fundamentally different from a static `SOUL.md` or a fi
 ### 9.6.1 How Personas Evolve
 
 ```
-Session 1:  Persona base "Strict" → "No acepto código sin tests"
-               ↓
-Session 10:  El subagente aprendió que en este proyecto
-             los tests de integración son más valiosos que
+Session 1:  Persona base "Strict" ? "No acepto c�digo sin tests"
+               ?
+Session 10:  El subagente aprendi� que en este proyecto
+             los tests de integraci�n son m�s valiosos que
              los unitarios para ciertos casos
-               ↓
+               ?
 Session 50:  "Reviso que los tests cubran el happy path
-             y 2 edge cases. Si es API, priorizá integración."
+             y 2 edge cases. Si es API, prioriz� integraci�n."
 ```
 
 The learning loop tracks:
@@ -843,15 +843,15 @@ The learning loop tracks:
 
 ### 9.6.2 Initial Persona Seeds
 
-The user can choose a starting persona. This is the **seed** — the subagent will evolve from here:
+The user can choose a starting persona. This is the **seed** � the subagent will evolve from here:
 
 | Persona | Seed Behavior | Can Evolve To |
 |---|---|---|
-| **Teacher** | Warm but firm. Explica el POR QUÉ. | Maybe discovers user prefers examples over theory → adapts |
-| **Professional** | Neutral, directo, eficiente. | Maybe user responds better to encouragement → becomes warmer |
-| **Strict** | Exigente. No acepta código sin tests. | Maybe learns which rules matter for THIS project → nuanced strictness |
-| **Friendly** | Relajado, alentador. | Maybe user needs more direct feedback → balances friendliness with honesty |
-| **Custom** | Definido por el usuario vía archivo. | User's seed gets refined by experience |
+| **Teacher** | Warm but firm. Explica el POR QU�. | Maybe discovers user prefers examples over theory ? adapts |
+| **Professional** | Neutral, directo, eficiente. | Maybe user responds better to encouragement ? becomes warmer |
+| **Strict** | Exigente. No acepta c�digo sin tests. | Maybe learns which rules matter for THIS project ? nuanced strictness |
+| **Friendly** | Relajado, alentador. | Maybe user needs more direct feedback ? balances friendliness with honesty |
+| **Custom** | Definido por el usuario v�a archivo. | User's seed gets refined by experience |
 
 **Configuration:**
 
@@ -890,9 +890,9 @@ Seed: Reviewer persona = "Strict, constructive"
 
 Session 1-5:  "This function lacks error handling (BLOCKER)"
 Session 6-10: Reviewer noticed user accepts suggestions better
-              when framed as questions → evolves
+              when framed as questions ? evolves
 Session 11+:  "What happens if this function receives nil?
-              Consider handling that case — last time we had
+              Consider handling that case � last time we had
               a nil panic in similar code (ref: bug #424)"
 ```
 
@@ -901,12 +901,12 @@ Session 11+:  "What happens if this function receives nil?
 Custom seed personas use a markdown file. Compatible with Hermes `SOUL.md` format so users can migrate existing personas:
 
 ```markdown
-# GAIA Persona Seed — Senior Rustacean
+# GAIA Persona Seed � Senior Rustacean
 
 ## Starting Tone
 - Direct and precise, like a senior Rust engineer
 - Short responses unless asked for details
-- This is a seed — expect it to evolve with use
+- This is a seed � expect it to evolve with use
 
 ## Core Values (evolve with experience)
 - Correctness over speed
@@ -925,7 +925,7 @@ If the user wants the agent to STOP evolving (keep a fixed personality), they ca
 
 ```yaml
 persona:
-  evolution_enabled: false   # Freeze — never change behavior
+  evolution_enabled: false   # Freeze � never change behavior
   evolution_review: prompt   # or 'auto'
 ```
 
@@ -934,13 +934,13 @@ When frozen, the persona becomes a static instruction set (like traditional SOUL
 ### 9.6.6 Quick Switching
 
 ```
-/persona strict          → Switch seed to strict
-/persona teacher         → Switch seed to teacher
-/persona freeze          → Stop evolution, keep current persona
-/persona unfreeze        → Re-enable evolution
-/persona reset           → Reset to seed persona (clear all learned adaptations)
-/persona status          → Show current persona + evolution state
-/persona custom my-rust  → Load custom seed from file
+/persona strict          ? Switch seed to strict
+/persona teacher         ? Switch seed to teacher
+/persona freeze          ? Stop evolution, keep current persona
+/persona unfreeze        ? Re-enable evolution
+/persona reset           ? Reset to seed persona (clear all learned adaptations)
+/persona status          ? Show current persona + evolution state
+/persona custom my-rust  ? Load custom seed from file
 ```
 
 ---
@@ -958,7 +958,7 @@ Built with Bubbletea (existing GAIA codebase):
 
 ### 10.2 Desktop App (Phase 2)
 
-Built with Wails (Go + webview — single binary, double-click to open):
+Built with Wails (Go + webview � single binary, double-click to open):
 - Same agent backend, different UI layer
 - Wails embeds web UI using OS native webview (Edge on Windows, WebKit on Mac/Linux)
 - No Chrome/Electron dependency
@@ -983,18 +983,18 @@ All tools are **language-agnostic** unless marked. ~50 tools total, programming-
 
 | Category | Tools | Status |
 |---|---|---|
-| **File Operations** | read, write, edit, glob, grep, file_info, list_dir | ✅ Existing |
-| **Terminal & Process** | terminal, process, pty | ✅ Existing |
-| **Git Operations** | status, diff, commit, branch, log, worktree, blame | ✅ Existing |
-| **Memory & KG** | memory_save, memory_search, memory_recall, session_search, knowledge_graph | ⚠️ Refactor needed |
-| **Skills** | skills_list, skill_view, skill_manage, skill_search, learn | ⚠️ Redesign needed |
-| **Web & Research** | web_search, web_extract, browser_navigate, browser_snapshot, browser_vision | 🔄 Planned |
-| **Agent Orchestration** | delegate_task, todo, clarify, execute_code | 🔄 Planned |
-| **SDD Workflow** | sdd_init, sdd_explore, sdd_propose, sdd_spec, sdd_design, sdd_tasks, sdd_apply, sdd_verify, sdd_archive, sdd_onboard | 🔄 Planned |
-| **Review (GGA)** | review_risk, review_resilience, review_readability, review_reliability, review_pr, review_staged, review_file, install_hook | 🔄 Planned |
-| **Judgment Day** | jd_judge_a, jd_judge_b, jd_fix | 🔄 Planned |
-| **Scheduling** | cronjob (create, list, update, pause, resume, run, remove) | 🔄 Planned |
-| **Config & System** | config_get, config_set, doctor | ✅ Existing |
+| **File Operations** | read, write, edit, glob, grep, file_info, list_dir | ? Existing |
+| **Terminal & Process** | terminal, process, pty | ? Existing |
+| **Git Operations** | status, diff, commit, branch, log, worktree, blame | ? Existing |
+| **Memory & KG** | memory_save, memory_search, memory_recall, session_search, knowledge_graph | ?? Refactor needed |
+| **Skills** | skills_list, skill_view, skill_manage, skill_search, learn | ?? Redesign needed |
+| **Web & Research** | web_search, web_extract, browser_navigate, browser_snapshot, browser_vision | ?? Planned |
+| **Agent Orchestration** | delegate_task, todo, clarify, execute_code | ?? Planned |
+| **SDD Workflow** | sdd_init, sdd_explore, sdd_propose, sdd_spec, sdd_design, sdd_tasks, sdd_apply, sdd_verify, sdd_archive, sdd_onboard | ?? Planned |
+| **Review (GGA)** | review_risk, review_resilience, review_readability, review_reliability, review_pr, review_staged, review_file, install_hook | ?? Planned |
+| **Judgment Day** | jd_judge_a, jd_judge_b, jd_fix | ?? Planned |
+| **Scheduling** | cronjob (create, list, update, pause, resume, run, remove) | ?? Planned |
+| **Config & System** | config_get, config_set, doctor | ? Existing |
 
 ### 11.2 Tools NOT Included
 
@@ -1003,7 +1003,7 @@ All tools are **language-agnostic** unless marked. ~50 tools total, programming-
 | `text_to_speech` | Not programming-related |
 | `image_generate` | Not programming-related |
 | `video_generate` | Not programming-related |
-| `vision_analyze` | Heavy — optional MCP plugin |
+| `vision_analyze` | Heavy � optional MCP plugin |
 | `ha_*` (Home Assistant) | IoT, not programming |
 | `spotify_*` | Music, not programming |
 | `discord_*` | Messaging (Phase 3+) |
@@ -1087,55 +1087,55 @@ security:
 
 ```
 gaia/
-├── cmd/gaia/
-│   └── main.go                    # Entry point
-├── internal/
-│   ├── agent/                     # Agent system
-│   │   ├── orchestrator/          # Main agent loop + delegation
-│   │   ├── subagents/             # 12 specialized subagents
-│   │   │   ├── explorer/
-│   │   │   ├── proposer/
-│   │   │   ├── specifier/
-│   │   │   ├── designer/
-│   │   │   ├── planner/
-│   │   │   ├── implementer/
-│   │   │   ├── verifier/
-│   │   │   ├── reviewer/
-│   │   │   ├── learner/
-│   │   │   ├── researcher/
-│   │   │   ├── archiver/
-│   │   │   └── debugger/
-│   │   └── base.go                # Base subagent behavior
-│   ├── core/
-│   │   ├── domain/                # Message, ToolCall, Skill, etc.
-│   │   ├── ports/                 # Interface definitions
-│   │   └── kernel.go              # Initialization
-│   ├── modules/
-│   │   ├── executor/              # Tool execution engine
-│   │   ├── llm/                   # Multi-provider LLM client
-│   │   ├── memory/                # Engram integration layer
-│   │   ├── knowledge_graph/       # Topic → Concept → Fact (ogcode)
-│   │   ├── skills/                # Progressive skill system
-│   │   ├── learning/              # Learning loop
-│   │   ├── context/               # Context compactor + assembler
-│   │   ├── review/                # GGA bounded review
-│   │   └── mcp/                   # MCP client
-│   ├── adapters/
-│   │   ├── llm/                   # Provider-specific clients
-│   │   │   ├── anthropic.go
-│   │   │   ├── openai.go
-│   │   │   ├── gemini.go
-│   │   │   ├── ollama.go
-│   │   │   └── copilot.go
-│   │   ├── db/                    # SQLite (existing, extend)
-│   │   ├── tui/                   # Bubbletea TUI
-│   │   └── desktop/               # Wails desktop app
-│   └── config/
-│       └── config.go
-├── skills/                        # User-installed skills (runtime)
-├── pkg/
-├── go.mod
-└── go.sum
++-- cmd/gaia/
+�   +-- main.go                    # Entry point
++-- internal/
+�   +-- agent/                     # Agent system
+�   �   +-- orchestrator/          # Main agent loop + delegation
+�   �   +-- subagents/             # 12 specialized subagents
+�   �   �   +-- explorer/
+�   �   �   +-- proposer/
+�   �   �   +-- specifier/
+�   �   �   +-- designer/
+�   �   �   +-- planner/
+�   �   �   +-- implementer/
+�   �   �   +-- verifier/
+�   �   �   +-- reviewer/
+�   �   �   +-- learner/
+�   �   �   +-- researcher/
+�   �   �   +-- archiver/
+�   �   �   +-- debugger/
+�   �   +-- base.go                # Base subagent behavior
+�   +-- core/
+�   �   +-- domain/                # Message, ToolCall, Skill, etc.
+�   �   +-- ports/                 # Interface definitions
+�   �   +-- kernel.go              # Initialization
+�   +-- modules/
+�   �   +-- executor/              # Tool execution engine
+�   �   +-- llm/                   # Multi-provider LLM client
+�   �   +-- memory/                # Engram integration layer
+�   �   +-- knowledge_graph/       # Topic ? Concept ? Fact (ogcode)
+�   �   +-- skills/                # Progressive skill system
+�   �   +-- learning/              # Learning loop
+�   �   +-- context/               # Context compactor + assembler
+�   �   +-- review/                # GGA bounded review
+�   �   +-- mcp/                   # MCP client
+�   +-- adapters/
+�   �   +-- llm/                   # Provider-specific clients
+�   �   �   +-- anthropic.go
+�   �   �   +-- openai.go
+�   �   �   +-- gemini.go
+�   �   �   +-- ollama.go
+�   �   �   +-- copilot.go
+�   �   +-- db/                    # SQLite (existing, extend)
+�   �   +-- tui/                   # Bubbletea TUI
+�   �   +-- desktop/               # Wails desktop app
+�   +-- config/
+�       +-- config.go
++-- skills/                        # User-installed skills (runtime)
++-- pkg/
++-- go.mod
++-- go.sum
 ```
 
 ---
@@ -1148,7 +1148,7 @@ gaia/
 - [x] SQLite message persistence (basic)
 - [x] Bubbletea TUI with chat + Copilot wizard
 - [x] GitHub Copilot OAuth + API client
-- [x] Brain kernel (message→LLM→tools cycle)
+- [x] Brain kernel (message?LLM?tools cycle)
 - [x] Domain models + Ports/Interfaces
 - [x] 20 Go-specific skills (on disk, no loader)
 
@@ -1157,16 +1157,16 @@ gaia/
 - [x] Multi-provider LLM (Anthropic, OpenAI, Gemini, Ollama, Copilot)
 - [x] Tool execution engine (registry + dispatch)
 - [x] Refactor Copilot into multi-provider architecture
-- [x] Progressive skill loader (Level 0 → Level 1)
+- [x] Progressive skill loader (Level 0 ? Level 1)
 - [x] Engram integration (via MCP)
-- [ ] Knowledge graph store (Topic → Concept → Fact)
-- [ ] Per-turn memory recall from KG
-- [ ] Context compaction (summarize stale history)
-- [x] **Iteration budget** (safety: prevent runaway agents, per-subagent caps) ← from Hermes
-- [x] **Confirmation modes** (always / per-session / per-action / never + /trust commands) ← from Hermes
-- [x] **Onboarding expansion**: language selection + skill recommendation in wizard ← from Hermes
+- [x] Knowledge graph store (Topic ? Concept ? Fact)
+- [x] Per-turn memory recall from KG
+- [x] Context compaction (summarize stale history)
+- [x] **Iteration budget** (safety: prevent runaway agents, per-subagent caps) ? from Hermes
+- [x] **Confirmation modes** (always / per-session / per-action / never + /trust commands) ? from Hermes
+- [x] **Onboarding expansion**: language selection + skill recommendation in wizard ? from Hermes
 - [x] **Session persistence** (save/restore conversations by session ID)
-- [ ] **Undo/Retry commands** (/undo, /retry)
+- [x] **Undo/Retry commands** (/undo, /retry)
 - [x] Tests for core loop
 
 ### Milestone 2: Subagent System (Week 4-6)
@@ -1179,14 +1179,14 @@ gaia/
 - [x] Per-subagent model configuration
 - [x] Per-subagent memory namespaces in Engram
 - [x] Hook into SDD flow (trigger on substantial changes)
-- [x] **Message redaction & sanitization** (redact API keys, tokens, PII) ← from Hermes
-- [x] **Tool guardrails** (path security, URL safety, write approval) ← from Hermes
+- [x] **Message redaction & sanitization** (redact API keys, tokens, PII) ? from Hermes
+- [x] **Tool guardrails** (path security, URL safety, write approval) ? from Hermes
 
 ### Milestone 3: Learning & Skills (Week 7-9)
 
 - [x] Learning loop (nudge, session summary, skill creation)
 - [x] Per-subagent learning (independent nudge + skill creation)
-- [ ] Shared knowledge graph cross-pollination
+- [x] Shared knowledge graph cross-pollination
 - [x] Skills Hub (search, install, activate, deactivate, remove)
 - [x] Wizard: first-run language selection + skill recommendation
 - [x] `gaia skills` commands
@@ -1211,9 +1211,9 @@ gaia/
 - [x] Cron scheduler
 - [x] MCP client
 - [x] Desktop notifications
-- [x] `gaia doctor` — system diagnostics
-- [x] SDD onboard — guided walkthrough
-- [x] **Cron delivery to platforms** (scheduled tasks delivering results) ← from Hermes
+- [x] `gaia doctor` � system diagnostics
+- [x] SDD onboard � guided walkthrough
+- [x] **Cron delivery to platforms** (scheduled tasks delivering results) ? from Hermes
 
 ### Milestone 6: Ecosystem (Week 17+)
 
@@ -1223,8 +1223,8 @@ gaia/
 - [x] LSP integration
 - [x] Community skills taps
 - [x] Plugin API
-- [x] **Webhook subscriptions** (GitHub events triggering automations) ← from Hermes
-- [x] **Script injection** (pre-processing scripts before agent runs) ← from Hermes
+- [x] **Webhook subscriptions** (GitHub events triggering automations) ? from Hermes
+- [x] **Script injection** (pre-processing scripts before agent runs) ? from Hermes
 
 ---
 
@@ -1368,7 +1368,7 @@ require (
 | **Learning Loop** | Single, all domains | No | Per-subagent independent learning |
 | **Skills** | 40+ bundled | Registers for other agents | Per-language, user-installed, progressive |
 | **Skill Creation** | Manual | No | Agent creates + improves skills |
-| **Knowledge Graph** | No | No | Yes (Topic → Concept → Fact) |
+| **Knowledge Graph** | No | No | Yes (Topic ? Concept ? Fact) |
 | **Desktop** | No | No | Wails (Phase 2) |
 | **Multi-Provider** | Yes | No | Yes + per-subagent model config |
 | **Persona** | SOUL.md | Persona system | Persona system |
@@ -1382,13 +1382,13 @@ These are features from Hermes that GAIA does NOT include in the initial milesto
 
 ### 19.1 Mixture of Agents (MoA)
 
-Hermes supports **Mixture of Agents** — running multiple models cooperatively on the same task:
+Hermes supports **Mixture of Agents** � running multiple models cooperatively on the same task:
 - A router model decomposes the task
 - Specialist models execute subtasks in parallel
 - A synthesis model combines results
 - Tracing and debugging for MoA flows
 
-**GAIA status**: ✅ **Implemented** — MoA is built into the Spawner via `moaRunner`. When a subagent has `moa.enabled: true` in its config, the first LLM call fans out to multiple models in parallel (goroutines + 30s timeout), collects responses, and synthesizes them via the primary model. Subsequent tool-calling iterations use a single model for coherence. Configurable per subagent (including dynamic subagents created via `/create-agent`). Orchestrator never uses MoA. See `internal/agent/moa.go`.
+**GAIA status**: ? **Implemented** � MoA is built into the Spawner via `moaRunner`. When a subagent has `moa.enabled: true` in its config, the first LLM call fans out to multiple models in parallel (goroutines + 30s timeout), collects responses, and synthesizes them via the primary model. Subsequent tool-calling iterations use a single model for coherence. Configurable per subagent (including dynamic subagents created via `/create-agent`). Orchestrator never uses MoA. See `internal/agent/moa.go`.
 
 **Config example:**
 ```yaml
@@ -1415,7 +1415,7 @@ Hermes has an extensive credential management system:
 - Cross-process synchronization for shared auth stores
 - Custom provider endpoints (OpenAI-compatible)
 
-**GAIA status**: ✅ **Implemented** — `CredentialPool` wraps any `LLMProvider` with multi-key rotation and cooldown. Configure multiple API keys per provider in `credential_pools` config section. The pool tracks per-key rate limits (429), auth errors (401), and quota errors (402) with configurable cooldown timers. Round-robin selection skips cooldowned keys. Falls back through all keys before returning the error. See `internal/adapters/llm/pool.go`.
+**GAIA status**: ? **Implemented** � `CredentialPool` wraps any `LLMProvider` with multi-key rotation and cooldown. Configure multiple API keys per provider in `credential_pools` config section. The pool tracks per-key rate limits (429), auth errors (401), and quota errors (402) with configurable cooldown timers. Round-robin selection skips cooldowned keys. Falls back through all keys before returning the error. See `internal/adapters/llm/pool.go`.
 
 **Config example:**
 ```yaml
@@ -1447,7 +1447,7 @@ Hermes provides a **live context window breakdown** for the UI:
 - Color-coded categories for visual debugging
 - Percentage of context limit used
 
-**GAIA status**: ✅ **Implemented** — Context usage breakdown via `core.GetUsageStats()` and `core.FormatUsage()`. Shows token estimate per category (system prompt, tools, skills, KG context, conversation), total vs model context window, model/provider name, and iteration budget. Includes known context window sizes for 20+ common models (GPT-4o, Claude, Gemini, Llama, etc.). Unknown models default to 128k. Accessible via `/usage` TUI command. See `internal/core/usage.go`.
+**GAIA status**: ? **Implemented** � Context usage breakdown via `core.GetUsageStats()` and `core.FormatUsage()`. Shows token estimate per category (system prompt, tools, skills, KG context, conversation), total vs model context window, model/provider name, and iteration budget. Includes known context window sizes for 20+ common models (GPT-4o, Claude, Gemini, Llama, etc.). Unknown models default to 128k. Accessible via `/usage` TUI command. See `internal/core/usage.go`.
 
 ### 19.5 Skill Usage Tracking & Analytics
 
@@ -1467,7 +1467,7 @@ Hermes verifies skill origins:
 - AST-level audit of skill code before execution
 - Security guard against dangerous patterns (exfiltration, file access outside scope)
 
-**GAIA status**: ? **Implemented** � Skills track provenance (source, hash, install time). `gaia skills audit` scans all skills for 10 dangerous patterns (credential leaks, shell injection, destructive commands, etc.) with error/warn/info severity. Audit produces SHA256 hashes for integrity verification. See `internal/skills/audit.go`.
+**GAIA status**: ? **Implemented** ? Skills track provenance (source, hash, install time). `gaia skills audit` scans all skills for 10 dangerous patterns (credential leaks, shell injection, destructive commands, etc.) with error/warn/info severity. Audit produces SHA256 hashes for integrity verification. See `internal/skills/audit.go`.
 
 ### 19.7 Message Redaction & Sanitization
 
@@ -1486,7 +1486,7 @@ Hermes checkpoints agent state for recovery:
 - Rollback on subagent failure
 - Recovery from partial execution
 
-**GAIA status**: ? **Implemented** � Before every subagent Delegate, the Brain snapshots the last message ID. If the subagent returns blocked/error, messages from the failed attempt are deleted and state is restored. See `internal/core/kernel.go` Delegate().
+**GAIA status**: ? **Implemented** ? Before every subagent Delegate, the Brain snapshots the last message ID. If the subagent returns blocked/error, messages from the failed attempt are deleted and state is restored. See `internal/core/kernel.go` Delegate().
 
 ### 19.9 Tool Search & Discovery
 
@@ -1496,7 +1496,7 @@ Hermes allows searching available tools by:
 - Recently used
 - Fuzzy matching
 
-**GAIA status**: ? **Implemented** � ToolRegistry.SearchTools() with case-insensitive name/module matching. ListToolInfo() returns all tools sorted by name with module attribution. `/tools` TUI command lists available tools. See `internal/core/registry.go`.
+**GAIA status**: ? **Implemented** ? ToolRegistry.SearchTools() with case-insensitive name/module matching. ListToolInfo() returns all tools sorted by name with module attribution. `/tools` TUI command lists available tools. See `internal/core/registry.go`.
 
 ### 19.10 Prompt Caching
 
@@ -1505,7 +1505,7 @@ Hermes caches LLM responses:
 - Configurable TTL per provider
 - Cache invalidation on context changes
 
-**GAIA status**: ? **Implemented as Tool Output Cache** � Cachea resultados de tools read-only (read, glob, grep, file_info, list_dir) con TTL de 5 segundos. Si un subagente lee el mismo archivo dos veces en el mismo loop, la segunda vez devuelve el resultado cachead sin ejecutar. El cach� se invalida autom�ticamente por TTL. Ver `internal/core/registry.go` ToolCache.
+**GAIA status**: ? **Implemented as Tool Output Cache** ? Cachea resultados de tools read-only (read, glob, grep, file_info, list_dir) con TTL de 5 segundos. Si un subagente lee el mismo archivo dos veces en el mismo loop, la segunda vez devuelve el resultado cachead sin ejecutar. El cach? se invalida autom?ticamente por TTL. Ver `internal/core/registry.go` ToolCache.
 
 ### 19.11 Rate Limiting & Cost Tracking
 
@@ -1515,7 +1515,7 @@ Hermes tracks:
 - Budget alerts and caps
 - Billing views for the user
 
-**GAIA status**: ? **Implemented** � CostTracker records input/output token estimates per LLM call, tracks session total, and estimates cost using known pricing for 8 model families (GPT-4o, Claude, Gemini, etc.). Unknown models default to ~Sonnet pricing. Accessible via `/cost` in TUI. See `internal/core/cost.go`.
+**GAIA status**: ? **Implemented** ? CostTracker records input/output token estimates per LLM call, tracks session total, and estimates cost using known pricing for 8 model families (GPT-4o, Claude, Gemini, etc.). Unknown models default to ~Sonnet pricing. Accessible via `/cost` in TUI. See `internal/core/cost.go`.
 
 ### 19.12 Onboarding & First-Run Experience
 
@@ -1534,7 +1534,7 @@ Hermes supports OAuth-based authentication for MCP servers:
 - Per-server credential management
 - Token refresh for MCP connections
 
-**GAIA status**: ? **Implemented** � MCPServerConfig now supports AccessToken and TokenURL fields. MCP client injects them as environment variables (MCP_ACCESS_TOKEN, ACCESS_TOKEN, MCP_TOKEN_URL) when connecting to server processes. For HTTP-based MCP servers (future), extend client.go to pass token in Authorization header.
+**GAIA status**: ? **Implemented** ? MCPServerConfig now supports AccessToken and TokenURL fields. MCP client injects them as environment variables (MCP_ACCESS_TOKEN, ACCESS_TOKEN, MCP_TOKEN_URL) when connecting to server processes. For HTTP-based MCP servers (future), extend client.go to pass token in Authorization header.
 
 ### 19.14 Tool Guardrails & Security Policies
 
@@ -1554,15 +1554,15 @@ Multiple agents (Claude Code, Codex CLI, Hermes) support running without a TUI:
 
 ```bash
 # Execute a task and return result immediately, then exit
-gaia exec "refactor esta función para usar early returns"
-gaia exec "cuántos TODOs hay?" --json     # Output as JSON for scripting
+gaia exec "refactor esta funci�n para usar early returns"
+gaia exec "cu�ntos TODOs hay?" --json     # Output as JSON for scripting
 gaia exec "arregla este bug" --dry-run     # Show what would be done, don't execute
 gaia exec "commit los cambios" --quiet     # Minimal output
 ```
 
 - No TUI, no streaming, no interactive prompts
 - Useful for CI/CD pipelines, git hooks, editor integration, shell aliases
-- Must respect confirmation mode (see 17.20) — if session says "always ask", headless mode blocks
+- Must respect confirmation mode (see 17.20) � if session says "always ask", headless mode blocks
 - Combine with iteration budget to prevent runaway
 
 **GAIA relevance**: Track for Phase 2 (after core loop is stable).
@@ -1585,15 +1585,15 @@ security:
 
 In-session commands:
 ```
-/trust session      → Trust all actions this session
-/trust once         → Trust only the next action
-/trust always       → Revert to always-ask mode
-/trust never        → YOLO mode — no confirmations
+/trust session      ? Trust all actions this session
+/trust once         ? Trust only the next action
+/trust always       ? Revert to always-ask mode
+/trust never        ? YOLO mode � no confirmations
 ```
 
 Headless mode (`gaia exec`) respects confirmation mode: `always` blocks headless, `never` allows free execution.
 
-**GAIA relevance**: Track for Phase 1 (critical UX — without this, every tool call asks for confirmation and the agent is unusable for real work).
+**GAIA relevance**: Track for Phase 1 (critical UX � without this, every tool call asks for confirmation and the agent is unusable for real work).
 
 ### 19.17 Webhook Subscriptions (Automation Triggers)
 
@@ -1632,12 +1632,12 @@ hermes cron create "every 1h" \
 ### 19.19 Session Restore & Undo
 
 Multiple agents support:
-- `gaia session restore <id>` — resume a previous conversation by session ID
-- `/undo` — undo the last turn (useful when agent goes in wrong direction)
-- `/retry` — re-run the last turn with a different approach
-- Conversation branching — fork a session at any point
+- `gaia session restore <id>` � resume a previous conversation by session ID
+- `/undo` � undo the last turn (useful when agent goes in wrong direction)
+- `/retry` � re-run the last turn with a different approach
+- Conversation branching � fork a session at any point
 
-**GAIA status**: ? **Implemented** � `/undo` and `/retry` available in TUI. `gaia session list` shows recent sessions. `gaia session restore <id>` loads previous conversation messages. See `cmd/gaia/session.go`.
+**GAIA status**: ? **Implemented** ? `/undo` and `/retry` available in TUI. `gaia session list` shows recent sessions. `gaia session restore <id>` loads previous conversation messages. See `cmd/gaia/session.go`.
 
 ### 19.20 Model Reuse Across Subagents with Different Reasoning Effort
 
@@ -1670,22 +1670,22 @@ These Hermes features are **not in GAIA's initial scope**. Some are intentionall
 
 | Feature | Status | Why | Future Path |
 |---|---|---|---|
-| `text_to_speech` | ❌ Out of scope | Not programming-related | Optional MCP plugin |
-| `image_generation` | ❌ Out of scope | Not programming-related | Optional MCP plugin (FAL, etc.) |
-| `video_generation` | ❌ Out of scope | Not programming-related | Optional MCP plugin |
-| `voice_mode` | ❌ Out of scope | Not programming-related | Optional MCP plugin |
-| `transcription` | ❌ Out of scope | Not programming-related | Optional MCP plugin |
-| `homeassistant_*` | ❌ Out of scope | IoT, not programming | Community plugin |
-| `spotify_*` | ❌ Out of scope | Music, not programming | Community plugin |
-| `feishu_*` | ❌ Out of scope | Messaging, defer to platform MCP | Community MCP server |
-| `yuanbao_*` | ❌ Out of scope | Tencent-specific, not programming | Community plugin |
-| `x_search` | ❌ Out of scope | Twitter/X not core to programming | Optional MCP plugin |
-| `computer_use` | ❌ Out of scope | Desktop control, not programming | Optional MCP plugin |
-| `kanban_*` | 🔄 Deferred | Use external MCP (GitHub Issues, Jira, Linear) | MCP server integration (Phase 4) |
-| `project_*` | 🔄 Deferred | Desktop workspace management | Phase 5+ |
-| `read_terminal` | 🔄 Deferred | Desktop GUI specific | Phase 5+ (Desktop app feature) |
-| `discord_*` | 🔄 Deferred | Messaging platform | Phase 3+ via MCP gateway |
-| `messaging_gateway` | 🔄 Deferred | Telegram, Discord, Slack, WhatsApp, Signal | Phase 3+ via MCP |
+| `text_to_speech` | ? Out of scope | Not programming-related | Optional MCP plugin |
+| `image_generation` | ? Out of scope | Not programming-related | Optional MCP plugin (FAL, etc.) |
+| `video_generation` | ? Out of scope | Not programming-related | Optional MCP plugin |
+| `voice_mode` | ? Out of scope | Not programming-related | Optional MCP plugin |
+| `transcription` | ? Out of scope | Not programming-related | Optional MCP plugin |
+| `homeassistant_*` | ? Out of scope | IoT, not programming | Community plugin |
+| `spotify_*` | ? Out of scope | Music, not programming | Community plugin |
+| `feishu_*` | ? Out of scope | Messaging, defer to platform MCP | Community MCP server |
+| `yuanbao_*` | ? Out of scope | Tencent-specific, not programming | Community plugin |
+| `x_search` | ? Out of scope | Twitter/X not core to programming | Optional MCP plugin |
+| `computer_use` | ? Out of scope | Desktop control, not programming | Optional MCP plugin |
+| `kanban_*` | ?? Deferred | Use external MCP (GitHub Issues, Jira, Linear) | MCP server integration (Phase 4) |
+| `project_*` | ?? Deferred | Desktop workspace management | Phase 5+ |
+| `read_terminal` | ?? Deferred | Desktop GUI specific | Phase 5+ (Desktop app feature) |
+| `discord_*` | ?? Deferred | Messaging platform | Phase 3+ via MCP gateway |
+| `messaging_gateway` | ?? Deferred | Telegram, Discord, Slack, WhatsApp, Signal | Phase 3+ via MCP |
 
 ---
 
@@ -1713,3 +1713,16 @@ These Hermes features are **not in GAIA's initial scope**. Some are intentionall
 
 
 
+
+"
+## 22. Remote Server Mode
+
+GAIA can run as an HTTP server for remote access.
+
+### Usage
+gaia serve              # Default port 8080
+gaia serve 9090         # Custom port
+
+### API
+GET  /health           -> {"status": "ok"}
+POST /message          -> {"status": "ok"} (body: {"content": "..."})
