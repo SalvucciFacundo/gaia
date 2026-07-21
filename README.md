@@ -265,6 +265,7 @@ gaia exec "list files" --backend ssh://user@server
 | **Review System** | [docs/review.md](docs/review.md) |
 | **Token Efficiency** | [docs/token-efficiency.md](docs/token-efficiency.md) |
 | **Skills Hub** | [docs/skills.md](docs/skills.md) |
+| **Plugin System** | [docs/plugins.md](docs/plugins.md) |
 | **Security** | [docs/security.md](docs/security.md) |
 | **Configuration** | [docs/configuration.md](docs/configuration.md) |
 | **Persona System** | [docs/persona.md](docs/persona.md) |

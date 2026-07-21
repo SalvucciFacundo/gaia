@@ -46,6 +46,16 @@ gaia skills add-tap github.com/owner/repo
 gaia skills add-tap https://github.com/owner/repo
 ```
 
+## Plugins
+
+| Command | Description |
+|---|---|
+| `gaia plugin list` | List all installed plugins and their status |
+| `gaia plugin enable <name>` | Enable an installed plugin |
+| `gaia plugin disable <name>` | Disable a plugin |
+| `gaia plugin install <path>` | Install a plugin from a local directory |
+| `gaia plugin remove <name>` | Remove an installed plugin |
+
 ## Review
 
 | Command | Description |
