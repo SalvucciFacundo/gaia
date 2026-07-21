@@ -185,6 +185,7 @@ func main() {
 			ui.AppendToken(token)
 		}),
 		core.WithModelInfo(cfg.LLM.Provider, cfg.LLM.Model),
+		core.WithCostTracker(core.NewCostTracker()),
 	)
 
 	// 7b. Initialize Engram namespace manager for per-subagent memory isolation
@@ -552,6 +553,7 @@ func handleSkillsCLI(args []string) {
 		fmt.Println("Run 'gaia skills' for usage.")
 	}
 }
+
 
 
 

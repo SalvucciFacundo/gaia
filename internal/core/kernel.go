@@ -29,6 +29,7 @@ type Brain struct {
 	compactedTo   int                          // messages compacted so far (context compaction)
 	providerName  string                       // e.g. "openai"
 	modelName     string                       // e.g. "gpt-4o"
+	costTracker   *CostTracker                 // tracks LLM call costs
 }
 
 // BrainOption configures the Brain.
@@ -44,6 +45,13 @@ func WithModelInfo(provider, model string) BrainOption {
 	return func(b *Brain) {
 		b.providerName = provider
 		b.modelName = model
+	}
+}
+
+// WithCostTracker wires a cost tracker into the Brain.
+func WithCostTracker(ct *CostTracker) BrainOption {
+	return func(b *Brain) {
+		b.costTracker = ct
 	}
 }
 
@@ -936,4 +944,11 @@ func redactToolOutput(output string) (string, int) {
 	}
 	return result, count
 }
+
+
+
+
+
+
+
 

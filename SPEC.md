@@ -1515,7 +1515,7 @@ Hermes tracks:
 - Budget alerts and caps
 - Billing views for the user
 
-**GAIA relevance**: Important for production users managing API costs. Track for Phase 3.
+**GAIA status**: ? **Implemented** — CostTracker records input/output token estimates per LLM call, tracks session total, and estimates cost using known pricing for 8 model families (GPT-4o, Claude, Gemini, etc.). Unknown models default to ~Sonnet pricing. Accessible via `/cost` in TUI. See `internal/core/cost.go`.
 
 ### 19.12 Onboarding & First-Run Experience
 
@@ -1704,6 +1704,7 @@ These Hermes features are **not in GAIA's initial scope**. Some are intentionall
 
 *Spec version: 2.0*
 *Last updated: 2026-07-20*
+
 
 
 
