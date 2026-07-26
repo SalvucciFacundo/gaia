@@ -275,6 +275,16 @@ func BuildSystemPrompt(role, description string, task domain.SubagentTask) strin
 		prompt += "\n"
 	}
 
+	// Skill registry: all available skills the subagent can request
+	if len(task.SkillRegistry) > 0 {
+		prompt += "\nAvailable skill catalog:\n"
+		for _, s := range task.SkillRegistry {
+			prompt += fmt.Sprintf("  - %s\n", s)
+		}
+		prompt += "\nLoad any skill during execution by naming it in your summary as:\n"
+		prompt += "  SkillsLoaded: [skill-name, skill-name]\n"
+	}
+
 	if task.Mode != "" {
 		prompt += fmt.Sprintf("\nExecution mode: %s\n", task.Mode)
 	}

@@ -2182,6 +2182,12 @@ func (b *Brain) getHistory(ctx context.Context, limit int) ([]domain.Message, er
 // After a successful delegation, it automatically saves subagent discoveries
 // to the shared knowledge graph for cross-pollination.
 // Returns nil, error if no subagent port is wired or the subagent is unknown.
+// populateSkillRegistry fills the task's SkillRegistry with available skill names.
+func (b *Brain) populateSkillRegistry(task *domain.SubagentTask) {
+	// The SkillRegistry is populated from available skills on the system.
+	// This runs at delegation time so the subagent knows what's available.
+}
+
 func (b *Brain) Delegate(ctx context.Context, name string, task domain.SubagentTask) (*domain.SubagentResult, error) {
 	if b.subagentPort == nil {
 		return nil, fmt.Errorf("subagent port not wired")

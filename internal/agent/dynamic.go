@@ -205,6 +205,18 @@ func buildDynamicPrompt(def SubagentDef, task domain.SubagentTask, namespaceInst
 		}
 	}
 
+	// Skill registry: all available skills the subagent can request
+	if len(task.SkillRegistry) > 0 {
+		sb.WriteString("\nAVAILABLE SKILL CATALOG:\n")
+		for _, s := range task.SkillRegistry {
+			sb.WriteString("- ")
+			sb.WriteString(s)
+			sb.WriteString("\n")
+		}
+		sb.WriteString("\nLoad skills during execution by listing them in your summary:\n")
+		sb.WriteString("SkillsLoaded: [skill-name1, skill-name2]\n")
+	}
+
 	// Inject Engram namespace instructions so the dynamic subagent knows
 	// its isolated memory scope and can persist discoveries across sessions.
 	if namespaceInstr != "" {

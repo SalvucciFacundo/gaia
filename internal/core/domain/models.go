@@ -204,6 +204,7 @@ type SubagentTask struct {
 	Description  string   // Human-readable instruction for the subagent
 	KGContext    []string // Relevant knowledge graph facts
 	Skills       []string // Skill names to load before execution
+	SkillRegistry []string // All available skill names (for subagent to choose from)
 	AllowedTools []string // Tool names allowed for this subagent; empty = all
 	Mode         string   // Execution mode: "plan" or "build"
 	IsDirectChat bool     // True when routed via @name syntax; subagent responds directly to user
