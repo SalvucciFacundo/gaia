@@ -13,7 +13,23 @@ import (
 )
 
 type SQLiteRepo struct {
-	db *sql.DB
+	db        *sql.DB
+	sessionID string // active session ID for message operations
+}
+
+// SetSessionID changes the active session for subsequent message operations.
+// Thread-safe: only called from the main Brain goroutine.
+func (r *SQLiteRepo) SetSessionID(id string) {
+	r.sessionID = id
+}
+
+// sessionWhere returns the session filter clause with the current session ID.
+func (r *SQLiteRepo) sessionWhere() string {
+	id := r.sessionID
+	if id == "" {
+		id = "default"
+	}
+	return fmt.Sprintf("session_id = '%s'", id)
 }
 
 // NewSQLiteRepo creates a new SQLite repository at the default path (~/.config/gaia/gaia.db).
@@ -143,26 +159,32 @@ func (r *SQLiteRepo) SaveMessage(ctx context.Context, msg domain.Message) error 
 		id = fmt.Sprintf("msg-%d", time.Now().UnixNano())
 	}
 	
-	// Use a default session if none provided; Brain sets the real session ID.
-	sessID := "default"
+	sessID := r.sessionID
+	if sessID == "" {
+		sessID = "default"
+	}
 	query := `INSERT INTO messages (id, session_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)`
 	_, err := r.db.ExecContext(ctx, query, id, sessID, string(msg.Role), msg.Content, time.Now())
 	return err
 }
 
 func (r *SQLiteRepo) GetHistory(ctx context.Context, limit int) ([]domain.Message, error) {
-	return r.GetMessages(ctx, "default", limit)
+	sessID := r.sessionID
+	if sessID == "" {
+		sessID = "default"
+	}
+	return r.GetMessages(ctx, sessID, limit)
 }
 
 func (r *SQLiteRepo) GetMessageCount(ctx context.Context) (int, error) {
-	query := `SELECT COUNT(*) FROM messages WHERE session_id = 'default'`
+	query := fmt.Sprintf(`SELECT COUNT(*) FROM messages WHERE %s`, r.sessionWhere())
 	var count int
 	err := r.db.QueryRowContext(ctx, query).Scan(&count)
 	return count, err
 }
 
 func (r *SQLiteRepo) GetHistoryFrom(ctx context.Context, limit, offset int) ([]domain.Message, error) {
-	query := `SELECT id, role, content, created_at FROM messages WHERE session_id = 'default' ORDER BY created_at ASC LIMIT ? OFFSET ?`
+	query := fmt.Sprintf(`SELECT id, role, content, created_at FROM messages WHERE %s ORDER BY created_at ASC LIMIT ? OFFSET ?`, r.sessionWhere())
 	rows, err := r.db.QueryContext(ctx, query, limit, offset)
 	if err != nil {
 		return nil, err
@@ -185,7 +207,7 @@ func (r *SQLiteRepo) GetHistoryFrom(ctx context.Context, limit, offset int) ([]d
 }
 
 func (r *SQLiteRepo) GetLastMessages(ctx context.Context, n int) ([]domain.Message, error) {
-	query := `SELECT id, role, content, created_at FROM messages WHERE session_id = 'default' ORDER BY created_at DESC LIMIT ?`
+	query := fmt.Sprintf(`SELECT id, role, content, created_at FROM messages WHERE %s ORDER BY created_at DESC LIMIT ?`, r.sessionWhere())
 	rows, err := r.db.QueryContext(ctx, query, n)
 	if err != nil {
 		return nil, err
@@ -215,8 +237,25 @@ func (r *SQLiteRepo) DeleteMessagesAfter(ctx context.Context, afterID string) er
 		return fmt.Errorf("find message %s: %w", afterID, err)
 	}
 
-	_, err = r.db.ExecContext(ctx, `DELETE FROM messages WHERE session_id = 'default' AND created_at >= ?`, ts)
+	_, err = r.db.ExecContext(ctx, fmt.Sprintf(`DELETE FROM messages WHERE %s AND created_at >= ?`, r.sessionWhere()), ts)
 	return err
+}
+
+func (r *SQLiteRepo) ClearMessages(ctx context.Context) error {
+	_, err := r.db.ExecContext(ctx, fmt.Sprintf(`DELETE FROM messages WHERE %s`, r.sessionWhere()))
+	return err
+}
+
+func (r *SQLiteRepo) RenameSession(ctx context.Context, sessionID, name string) error {
+	result, err := r.db.ExecContext(ctx, `UPDATE sessions SET name = ? WHERE id = ?`, name, sessionID)
+	if err != nil {
+		return err
+	}
+	affected, _ := result.RowsAffected()
+	if affected == 0 {
+		return fmt.Errorf("session %s not found", sessionID)
+	}
+	return nil
 }
 
 func (r *SQLiteRepo) GetMessages(ctx context.Context, sessionID string, limit int) ([]domain.Message, error) {

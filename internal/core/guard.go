@@ -6,6 +6,7 @@ import (
 	"gaia/internal/core/domain"
 )
 
+// Deprecated: replaced by PolicyGuard.
 // ConfirmGuard gates tool execution based on trust mode.
 // Modes: always (prompt every time), per-session (approve once per tool),
 // per-action (prompt every invocation), never (no prompts).

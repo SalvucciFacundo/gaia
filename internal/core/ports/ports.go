@@ -51,6 +51,15 @@ type Repository interface {
 	GetLastMessages(ctx context.Context, n int) ([]domain.Message, error)
 	// DeleteMessagesAfter deletes all messages with created_at >= the given message's timestamp.
 	DeleteMessagesAfter(ctx context.Context, afterID string) error
+
+	// ClearMessages removes all messages in the default session.
+	ClearMessages(ctx context.Context) error
+
+	// ListSessions returns recent session metadata.
+	ListSessions(ctx context.Context) ([]domain.SessionInfo, error)
+
+	// RenameSession updates the name of a session.
+	RenameSession(ctx context.Context, sessionID, name string) error
 }
 
 // UIService handles the terminal interaction.

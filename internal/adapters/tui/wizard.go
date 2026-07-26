@@ -26,6 +26,7 @@ const (
 	StepAuthenticating
 	StepModelSelect
 	StepLanguageSelect
+	StepSecurityMode
 	StepSkillRecommend
 	StepFinishing
 )
@@ -68,6 +69,10 @@ type WizardModel struct {
 
 	// Language preference (added in Milestone 3).
 	languagePref string
+
+	// Security mode preference (added in Milestone 7).
+	securityMode bool
+	secIndex     int // 0 = No (default), 1 = Yes
 
 	// Skills Hub and recommendation (added in Milestone 3).
 	hub              *skills.Hub
@@ -122,6 +127,10 @@ func (m *WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "enter":
 			return m.handleEnter()
 		case "up", "k":
+			if m.step == StepSecurityMode {
+				m.secIndex = 0
+				return m, nil
+			}
 			if m.step == StepSkillRecommend && len(m.recommendedSkills) > 0 {
 				if m.selIndex > 0 {
 					m.selIndex--
@@ -129,6 +138,10 @@ func (m *WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 		case "down", "j":
+			if m.step == StepSecurityMode {
+				m.secIndex = 1
+				return m, nil
+			}
 			if m.step == StepSkillRecommend && len(m.recommendedSkills) > 0 {
 				if m.selIndex < len(m.recommendedSkills)-1 {
 					m.selIndex++
@@ -196,7 +209,14 @@ func (m *WizardModel) handleEnter() (tea.Model, tea.Cmd) {
 		}
 
 	case StepLanguageSelect:
-		// Move to skill recommendation.
+		// Move to security mode selection.
+		m.step = StepSecurityMode
+		m.secIndex = 0 // default: No
+		return m, nil
+
+	case StepSecurityMode:
+		m.securityMode = m.secIndex == 1
+		// Detect project type and move to skill recommendations.
 		m.detectProjectType()
 		m.step = StepSkillRecommend
 		return m, nil
@@ -250,6 +270,26 @@ func (m *WizardModel) View() string {
 		doc.WriteString("     ES  Spanish (Español)\n")
 		doc.WriteString("     PT  Portuguese (Português)\n\n")
 		doc.WriteString("Use " + lipgloss.NewStyle().Bold(true).Render("UP/DOWN") + " arrows to select, " + lipgloss.NewStyle().Bold(true).Render("ENTER") + " to confirm.\n")
+
+	case StepSecurityMode:
+		doc.WriteString(titleStyle.Render(" SECURITY MODE ") + "\n\n")
+		doc.WriteString("GAIA can restrict the agent to prevent dangerous operations.\n")
+		doc.WriteString("When enabled, the agent uses tier-based permissions:\n")
+		doc.WriteString("  • Read-only tools (read, glob, grep) — always allowed\n")
+		doc.WriteString("  • Write/edit tools — allowed in project\n")
+		doc.WriteString("  • Destructive commands (rm, docker, git push --force) — blocked by default\n")
+		doc.WriteString("  • You can always override from the /permisos panel\n\n")
+		doc.WriteString("When disabled, GAIA runs in basic mode with only a hardcoded blocklist\n")
+		doc.WriteString("for catastrophic commands (rm -rf /, fork bombs).\n\n")
+		optStyle := lipgloss.NewStyle().Bold(true)
+		for i, opt := range []string{"No — Basic mode (default)", "Yes — Security mode"} {
+			cursor := "  "
+			if i == m.secIndex {
+				cursor = "➤ "
+			}
+			doc.WriteString(cursor + optStyle.Render(opt) + "\n")
+		}
+		doc.WriteString("\nUse " + lipgloss.NewStyle().Bold(true).Render("UP/DOWN") + " arrows, " + lipgloss.NewStyle().Bold(true).Render("ENTER") + " to confirm.\n")
 
 	case StepSkillRecommend:
 		doc.WriteString(titleStyle.Render(" SKILL RECOMMENDATIONS ") + "\n\n")
@@ -408,12 +448,12 @@ func openBrowser(url string) {
 }
 
 // GetResults returns the configuration obtained from the wizard.
-// Returns: copilot token, selected model, language preference, selected skill names.
-func (m *WizardModel) GetResults() (token, model, language string, skills []string) {
+// Returns: copilot token, selected model, language preference, security mode, selected skill names.
+func (m *WizardModel) GetResults() (token, model, language string, security bool, skills []string) {
 	names := make([]string, 0, len(m.selectedSkills))
 	for name := range m.selectedSkills {
 		names = append(names, name)
 	}
 	sort.Strings(names)
-	return m.cpToken, m.selectedModel, m.languagePref, names
+	return m.cpToken, m.selectedModel, m.languagePref, m.securityMode, names
 }

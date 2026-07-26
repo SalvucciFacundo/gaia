@@ -19,6 +19,8 @@ type SpawnerConfig struct {
 	Namespace    *memory.NamespaceManager // Engram namespace wrapper
 	TaskManager  *TaskManager             // Async task lifecycle tracking (nil = sync-only mode)
 	MoAProviders map[string]ports.LLMProvider // providers for MoA fan-out, keyed by name
+	Policy       *core.PolicyGuard        // policy evaluation guard (nil = no policy enforcement)
+	AuditFunc    func(name string, args map[string]interface{}, allowed bool) // audit trail callback
 }
 
 // Spawner implements ports.SubagentPort. It creates isolated execution
@@ -195,6 +197,20 @@ func (s *Spawner) RunLoop(ctx context.Context, task domain.SubagentTask, systemP
 				default:
 				}
 
+				// Evaluate policy before execution
+				if s.cfg.Policy != nil {
+					result := s.cfg.Policy.Evaluate(tc.Name, tc.Arguments)
+					if !result.Allowed {
+						deniedOutput := fmt.Sprintf("Policy denied: %s (reason: %s, action: %s)",
+							tc.Name, result.Reason, result.SuggestedAction)
+						messages = append(messages, domain.Message{
+							Role:    domain.RoleTool,
+							Content: deniedOutput,
+						})
+						continue
+					}
+				}
+
 				toolResult, execErr := filtered.Execute(ctx, tc.Name, tc.Arguments)
 				if execErr != nil {
 					toolResult = &domain.ToolResult{
@@ -202,6 +218,12 @@ func (s *Spawner) RunLoop(ctx context.Context, task domain.SubagentTask, systemP
 						Error:   execErr.Error(),
 					}
 				}
+
+				// Audit trail
+				if s.cfg.AuditFunc != nil {
+					s.cfg.AuditFunc(tc.Name, tc.Arguments, toolResult.Success)
+				}
+
 				output := toolResult.Output
 				if !toolResult.Success {
 					output = fmt.Sprintf("Error: %s", toolResult.Error)

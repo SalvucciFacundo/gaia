@@ -68,6 +68,12 @@ func (r *stubRepo) GetLastMessages(ctx context.Context, n int) ([]domain.Message
 func (r *stubRepo) DeleteMessagesAfter(ctx context.Context, afterID string) error {
 	return nil
 }
+func (r *stubRepo) ClearMessages(ctx context.Context) error {
+	return nil
+}
+func (r *stubRepo) RenameSession(ctx context.Context, sessionID, name string) error {
+	return nil
+}
 
 // stubUI records Display calls.
 type stubUI struct {

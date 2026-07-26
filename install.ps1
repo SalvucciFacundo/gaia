@@ -91,7 +91,12 @@ if ($Mode -eq "full") {
 
     # 4. Default config
     $configPath = "$InstallDir\config.yaml"
+    $enableSecurity = $false
     if (-not (Test-Path $configPath)) {
+        $secResp = Read-Host "  Enable Security Mode? (y/N)"
+        $enableSecurity = $secResp -eq "y" -or $secResp -eq "Y"
+        $policyTier = "full"
+        if ($enableSecurity) { $policyTier = "sandbox" }
 @"
 api_keys:
   openai: ""
@@ -100,13 +105,16 @@ api_keys:
 llm:
   provider: copilot
   model: claude-sonnet-4-20250514
-  trust_mode: always
+  trust_mode: never
+policy:
+  tier: $policyTier
 budget:
   max_iterations: 25
   compaction_threshold: 50
   keep_recent_messages: 20
 "@ | Set-Content -Path $configPath -Encoding UTF8
         Write-OK "Created $configPath"
+        if ($enableSecurity) { Write-OK "Security mode enabled (sandbox tier)" }
     } else {
         Write-Warn "Config exists, skipping"
     }

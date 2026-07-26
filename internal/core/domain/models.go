@@ -89,6 +89,21 @@ type BudgetConfig struct {
 	KeepRecentMessages  int `yaml:"keep_recent_messages"`  // messages to keep verbatim after compaction
 }
 
+// PolicyConfig is the YAML-serializable policy configuration for the domain layer.
+// It mirrors core.PolicyConfig but uses plain types to avoid circular imports.
+type PolicyConfig struct {
+	Tier      string            `yaml:"tier"`
+	Overrides map[string]string `yaml:"overrides,omitempty"`
+	DenyRules []string          `yaml:"deny_rules,omitempty"`
+	PathRules []PathRule        `yaml:"path_rules,omitempty"`
+}
+
+// PathRule defines a glob-based access rule for filesystem paths.
+type PathRule struct {
+	Pattern string `yaml:"pattern"` // glob pattern, e.g. "/etc/**"
+	Policy  string `yaml:"policy"`  // "allow" | "deny" | "skip"
+}
+
 // Config represents the application configuration.
 type Config struct {
 	APIKeys map[string]string `yaml:"api_keys"`
@@ -99,6 +114,7 @@ type Config struct {
 		TrustMode     string   `yaml:"trust_mode"`
 	} `yaml:"llm"`
 	Budget   BudgetConfig   `yaml:"budget"`
+	Policy   PolicyConfig   `yaml:"policy"`
 	Telegram struct {
 		Token          string  `yaml:"token"`
 		AllowedUserIDs []int64 `yaml:"allowed_user_ids"`

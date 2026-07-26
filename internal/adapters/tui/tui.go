@@ -3,11 +3,14 @@ package tui
 import (
 	"context"
 	"fmt"
+	"os/exec"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
 
 	"gaia/internal/agent"
+	"gaia/internal/core"
 	"gaia/internal/core/domain"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -95,6 +98,19 @@ type Model struct {
 	dynamicCreator func(def agent.SubagentDef) error // nil if not configured
 	toolNames      []string                          // available tool names for interview
 	interview      *InterviewModel                   // nil when not in interview mode
+
+	// Policy guard and panel
+	policyGuard *core.PolicyGuard        // policy evaluation guard (nil if not configured)
+	policyPanel *PolicyPanelModel        // nil when not in policy panel mode
+	sessionMgr  *core.SessionManager     // session routing (nil if not in unified mode)
+
+	// Display preferences (set via slash commands)
+	showTimestamps bool   // /timestamps toggle
+	showStatusbar  bool   // /statusbar toggle
+	showFooter     bool   // /footer toggle
+	verboseLevel   int    // /verbose: 0=off, 1=results, 2=tool calls, 3=all
+	spinnerIdx     int    // /indicator: which spinner style
+	themeName      string // /skin: theme name
 }
 
 func NewTUI() *Model {
@@ -127,10 +143,25 @@ func (m *Model) SetDynamicCreator(creator func(def agent.SubagentDef) error) {
 }
 
 // SetToolNames sets the available tool names for the interview multi-select step.
-func (m *Model) SetToolNames(names []string) {
+func (m *Model) SetToolNames(tools []string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.toolNames = names
+	m.toolNames = tools
+}
+
+// SetPolicyGuard wires the policy guard for /permisos command support.
+// Pass nil to disable the /permisos panel.
+func (m *Model) SetPolicyGuard(pg *core.PolicyGuard) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.policyGuard = pg
+}
+
+// SetSessionManager wires the session manager for multi-platform message routing.
+func (m *Model) SetSessionManager(sm *core.SessionManager) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.sessionMgr = sm
 }
 
 // SetTaskManager wires the TaskManager for async task display and control.
@@ -184,6 +215,28 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	}
 
+	// Route to policy panel when active
+	if m.policyPanel != nil {
+		newModel, cmd := m.policyPanel.Update(msg)
+		if updated, ok := newModel.(*PolicyPanelModel); ok {
+			m.policyPanel = updated
+		}
+		if m.policyPanel.done {
+			tier := "full"
+			if m.policyGuard != nil {
+				tier = string(m.policyGuard.Tier())
+			}
+			m.history = append(m.history, domain.Message{
+				Role:    domain.RoleSystem,
+				Content: fmt.Sprintf("Policy updated. Current tier: %s", tier),
+			})
+			m.policyPanel = nil
+			m.viewport.SetContent(m.renderHistory())
+			m.viewport.GotoBottom()
+		}
+		return m, cmd
+	}
+
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.Type {
@@ -211,12 +264,27 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 
-			// Handle /trust slash commands
+			// Handle /clear — clear screen (TUI-local, no Brain involved)
+			if input == "/clear" {
+				m.mu.Lock()
+				m.history = nil
+				m.streaming = ""
+				m.viewport.SetContent("")
+				m.viewport.GotoBottom()
+				m.textInput.SetValue("")
+				m.mu.Unlock()
+				return m, nil
+			}
+
+			// Handle /trust slash commands — delegates to PolicyGuard
 			if strings.HasPrefix(input, "/trust") {
 				parts := strings.Fields(input)
 				mode := "always"
 				if len(parts) > 1 {
 					mode = parts[1]
+				}
+				if m.policyGuard != nil {
+					m.policyGuard.SetTier(modeToTier(mode))
 				}
 				m.mu.Lock()
 				m.history = append(m.history, domain.Message{
@@ -227,6 +295,308 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.viewport.SetContent(m.renderHistory())
 				m.viewport.GotoBottom()
 				m.mu.Unlock()
+				return m, nil
+			}
+
+			// Handle /steer — inject mid-loop guidance (bypasses ProcessMessage)
+			if strings.HasPrefix(input, "/steer") {
+				guidance := strings.TrimSpace(input[6:])
+				if guidance == "" {
+					m.mu.Lock()
+					m.history = append(m.history, domain.Message{
+						Role:    domain.RoleSystem,
+						Content: "Usage: /steer <message> — inject guidance mid-execution",
+					})
+					m.textInput.SetValue("")
+					m.viewport.SetContent(m.renderHistory())
+					m.viewport.GotoBottom()
+					m.mu.Unlock()
+					return m, nil
+				}
+				// Try to send via Steer() method if brain supports it
+				if brain, ok := m.brain.(interface{ Steer(ctx context.Context, msg string) error }); ok {
+					brain.Steer(context.Background(), guidance)
+					m.mu.Lock()
+					m.history = append(m.history, domain.Message{
+						Role:    domain.RoleSystem,
+						Content: fmt.Sprintf("Steer sent: %s", guidance),
+					})
+					m.viewport.SetContent(m.renderHistory())
+					m.viewport.GotoBottom()
+				} else {
+					// Fallback: just add to history
+					m.mu.Lock()
+					m.history = append(m.history, domain.Message{
+						Role:    domain.RoleSystem,
+						Content: fmt.Sprintf("/steer queued: %s (will be processed when current task completes)", guidance),
+					})
+				}
+				m.textInput.SetValue("")
+				m.mu.Unlock()
+				return m, nil
+			}
+
+			// Handle /timestamps — toggle timestamps on messages
+			if input == "/timestamps" {
+				m.mu.Lock()
+				m.showTimestamps = !m.showTimestamps
+				status := "OFF"
+				if m.showTimestamps { status = "ON" }
+				m.textInput.SetValue("")
+				m.viewport.SetContent(m.renderHistory())
+				m.viewport.GotoBottom()
+				m.mu.Unlock()
+				m.addSystemMsg(fmt.Sprintf("Timestamps: %s", status))
+				return m, nil
+			}
+
+			// Handle /statusbar — toggle status bar display
+			if input == "/statusbar" || input == "/sb" {
+				m.mu.Lock()
+				m.showStatusbar = !m.showStatusbar
+				status := "OFF"
+				if m.showStatusbar { status = "ON" }
+				m.textInput.SetValue("")
+				m.mu.Unlock()
+				m.addSystemMsg(fmt.Sprintf("Status bar: %s", status))
+				return m, nil
+			}
+
+			// Handle /footer — toggle metadata footer on responses
+			if input == "/footer" {
+				m.mu.Lock()
+				m.showFooter = !m.showFooter
+				status := "OFF"
+				if m.showFooter { status = "ON" }
+				m.textInput.SetValue("")
+				m.mu.Unlock()
+				m.addSystemMsg(fmt.Sprintf("Footer: %s", status))
+				return m, nil
+			}
+
+			// Handle /verbose — cycle tool output display level
+			if input == "/verbose" {
+				m.mu.Lock()
+				m.verboseLevel = (m.verboseLevel + 1) % 4
+				levels := []string{"OFF", "results", "tool calls", "all"}
+				m.textInput.SetValue("")
+				m.mu.Unlock()
+				m.addSystemMsg(fmt.Sprintf("Verbose: %s", levels[m.verboseLevel]))
+				return m, nil
+			}
+
+			// Handle /yolo — toggle auto-approve (sets policy to full)
+			if input == "/yolo" {
+				m.mu.Lock()
+				if m.policyGuard != nil {
+					if string(m.policyGuard.Tier()) == "full" {
+						m.policyGuard.SetTier(core.TierSandbox)
+						m.textInput.SetValue("")
+						m.mu.Unlock()
+						m.addSystemMsg("YOLO mode OFF — returning to sandbox tier.")
+					} else {
+						m.policyGuard.SetTier(core.TierFull)
+						m.textInput.SetValue("")
+						m.mu.Unlock()
+						m.addSystemMsg("⚠️ YOLO mode ON — all commands auto-approved, hardline blocklist still active.")
+					}
+				} else {
+					m.textInput.SetValue("")
+					m.mu.Unlock()
+					m.addSystemMsg("Policy guard not configured. Use --policy-tier to enable.")
+				}
+				return m, nil
+			}
+
+			// Handle /indicator — change spinner style
+			if input == "/indicator" {
+				m.mu.Lock()
+				m.spinnerIdx = (m.spinnerIdx + 1) % 4
+				styles := []string{"dots", "line", "pipe", "circle"}
+				m.textInput.SetValue("")
+				m.mu.Unlock()
+				m.addSystemMsg(fmt.Sprintf("Indicator: %s", styles[m.spinnerIdx]))
+				return m, nil
+			}
+
+			// Handle /reasoning — change reasoning effort
+			if input == "/reasoning" || strings.HasPrefix(input, "/reasoning ") {
+				level := "medium"
+				if strings.HasPrefix(input, "/reasoning ") {
+					level = strings.TrimSpace(input[11:])
+				}
+				valid := map[string]bool{"low": true, "medium": true, "high": true}
+				if !valid[level] {
+					m.addSystemMsg("Usage: /reasoning <low|medium|high>")
+					return m, nil
+				}
+				// Store in brain if accessible
+				if brain, ok := m.brain.(interface{ SetReasoningEffort(level string) }); ok {
+					brain.SetReasoningEffort(level)
+				}
+				m.addSystemMsg(fmt.Sprintf("Reasoning effort: %s", level))
+				return m, nil
+			}
+
+			// Handle /personality — switch agent personality
+			if strings.HasPrefix(input, "/personality ") {
+				name := strings.TrimSpace(input[13:])
+				if name == "" {
+					m.addSystemMsg("Usage: /personality <name>\nAvailable: teacher, professional, strict, friendly")
+					return m, nil
+				}
+				if brain, ok := m.brain.(interface{ SetPersona(name string) }); ok {
+					brain.SetPersona(name)
+				}
+				m.addSystemMsg(fmt.Sprintf("Personality set to: %s", name))
+				return m, nil
+			}
+
+			// Handle /skin — change TUI theme
+			if strings.HasPrefix(input, "/skin ") {
+				theme := strings.TrimSpace(input[6:])
+				if theme == "" {
+					m.addSystemMsg("Usage: /skin <name>\nAvailable: default, rose-pine, dark, light")
+					return m, nil
+				}
+				m.mu.Lock()
+				m.themeName = theme
+				m.textInput.SetValue("")
+				m.mu.Unlock()
+				m.addSystemMsg(fmt.Sprintf("Theme set to: %s (restart to apply fully)", theme))
+				return m, nil
+			}
+
+			// Handle /reload-mcp — reload MCP servers from config
+			if input == "/reload-mcp" {
+				m.addSystemMsg("MCP server reload requested. Restart the gateway to pick up config changes:\n  gaia gateway stop && gaia gateway start")
+				return m, nil
+			}
+
+			// Handle /reload-skills — rescan skills directory
+			if input == "/reload-skills" {
+				m.addSystemMsg("Skills reload requested. Skills are loaded from disk on next subagent spawn.\nTo force reload, run: gaia skills list")
+				return m, nil
+			}
+
+			// Handle /plugins — list installed plugins
+			if input == "/plugins" {
+				m.addSystemMsg("Plugins are managed via the CLI:\n  gaia plugin list    — Show installed plugins\n  gaia plugin install — Install a plugin\n  gaia plugin remove  — Remove a plugin")
+				return m, nil
+			}
+
+			// Handle /browser — browser connection status
+			if input == "/browser" || input == "/browser connect" {
+				m.addSystemMsg("Browser tools are configured in config.yaml under browser_tools.\n" +
+					"  browser_tools.command points to the browser MCP server.\n" +
+					"  To enable: set browser_tools.enabled: true in config.yaml\n" +
+					"  Browser automation is available when the MCP server is running.")
+				return m, nil
+			}
+
+			// Handle /skills — skill management
+			if strings.HasPrefix(input, "/skills") {
+				args := strings.TrimSpace(input[7:])
+				if args == "" {
+					m.addSystemMsg("Skill management:\n" +
+						"  /skills list             — List installed skills\n" +
+						"  /skills search <query>   — Search available skills\n" +
+						"  /skills install <name>   — Install a skill\n" +
+						"  /skills remove <name>    — Remove a skill\n" +
+						"  /skills stats            — Show skill usage\n" +
+						"  /skills audit            — Security audit of skills")
+				} else {
+					// For now, redirect to CLI
+					m.addSystemMsg(fmt.Sprintf("Use the CLI for detailed output:\n  gaia skills %s", args))
+				}
+				return m, nil
+			}
+
+			// Handle /cron — scheduled task management
+			if strings.HasPrefix(input, "/cron") {
+				args := strings.TrimSpace(input[5:])
+				if args == "" {
+					m.addSystemMsg("Cron job management:\n" +
+						"  /cron list              — List scheduled jobs\n" +
+						"  /cron add <schedule> <task> — Add a job (cron syntax)\n" +
+						"  /cron remove <id>       — Remove a job\n" +
+						"  /cron pause <id>        — Pause a job\n" +
+						"  /cron resume <id>       — Resume a job\n" +
+						"  /cron run <id>          — Run a job immediately\n\n" +
+						"  Example: /cron add \"0 2 * * *\" run daily backup\n" +
+						"  Use the CLI for full control: gaia cron")
+				} else {
+					m.addSystemMsg(fmt.Sprintf("Use the CLI for cron management:\n  gaia cron %s", args))
+				}
+				return m, nil
+			}
+
+			// Handle /help — show available commands
+			if input == "/help" || input == "/h" {
+				help := `Available Commands:
+
+  Session:     /new, /clear, /history, /save, /resume, /sessions, /title, /compress, /undo, /retry
+  State:       /branch, /branches, /snapshot save, /snapshot load
+  Goals:       /goal, /subgoal, /goals, /goal clear
+  Queue/Steer: /queue, /q, /steer
+  Background:  /background, /moa, /tasks, /cancel
+  Handoff:     /handoff telegram, /handoff discord, /handoff cli
+  Config:      /model, /reasoning, /personality, /yolo, /verbose, /timestamps, /statusbar, /footer, /indicator, /skin
+  Permissions: /permisos, /trust
+  Skills:      /skills, /learn, /suggestions, /blueprint, /curator
+  Cron:        /cron list, /cron add, /cron remove
+  Memory:      /memory pending, /memory approve, /memory reject
+  Info:        /help, /version, /platforms, /copy, /insights, /debug
+  Tools:       /reload-mcp, /reload-skills, /plugins, /browser
+
+For details: gaia help or check the README.`
+				m.addSystemMsg(help)
+				return m, nil
+			}
+
+			// Handle /version — show build info
+			if input == "/version" {
+				m.addSystemMsg("GAIA — Go Autonomous Intelligence Agent\nVersion: development build\nGo: " + runtime.Version() + "\nLicense: MIT")
+				return m, nil
+			}
+
+			// Handle /platforms — show gateway adapter status
+			if input == "/platforms" || input == "/gateway" {
+				m.addSystemMsg("Gateway platform status:\n" +
+					"  Use 'gaia gateway status' for full adapter status.\n" +
+					"  Configured in config.yaml under telegram/discord/slack sections.\n" +
+					"  Start the gateway: gaia gateway start")
+				return m, nil
+			}
+
+			// Handle /copy — copy last response to clipboard
+			if input == "/copy" || strings.HasPrefix(input, "/copy ") {
+				n := 1
+				if strings.HasPrefix(input, "/copy ") {
+					fmt.Sscanf(input[6:], "%d", &n)
+				}
+				if n < 1 {
+					n = 1
+				}
+				m.mu.Lock()
+				var lastContent string
+				for i := len(m.history) - 1; i >= 0 && n > 0; i-- {
+					if m.history[i].Role == domain.RoleAssistant {
+						lastContent = m.history[i].Content
+						n--
+					}
+				}
+				m.mu.Unlock()
+				if lastContent == "" {
+					m.addSystemMsg("No AI response found to copy.")
+				} else {
+					// Try clipboard write
+					if err := clipboardWrite(lastContent); err != nil {
+						m.addSystemMsg("Response ready for copy (clipboard not available in this environment):\n" + lastContent[:min(len(lastContent), 200)])
+					} else {
+						m.addSystemMsg("Last response copied to clipboard.")
+					}
+				}
 				return m, nil
 			}
 
@@ -343,6 +713,27 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, m.interview.Init()
 		}
 
+		// Handle /permisos — open policy panel for tier and override management
+		if input == "/permisos" {
+			m.mu.Lock()
+			pg := m.policyGuard
+			if pg == nil {
+				m.history = append(m.history, domain.Message{
+					Role:    domain.RoleSystem,
+					Content: "Policy guard is not configured. Use --policy-tier when launching, or configure policy in config.yaml.",
+				})
+				m.viewport.SetContent(m.renderHistory())
+				m.viewport.GotoBottom()
+				m.textInput.SetValue("")
+				m.mu.Unlock()
+				return m, nil
+			}
+			m.policyPanel = NewPolicyPanelModel(pg, m.toolNames)
+			m.textInput.SetValue("")
+			m.mu.Unlock()
+			return m, m.policyPanel.Init()
+		}
+
 		// Normal message — append user message and dispatch Brain call.
 			m.mu.Lock()
 			m.history = append(m.history, domain.Message{
@@ -353,12 +744,18 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.viewport.SetContent(m.renderHistory())
 			m.viewport.GotoBottom()
 			brainCopy := m.brain
+			sessionMgr := m.sessionMgr
 			m.mu.Unlock()
 
 			// Return a command that runs ProcessMessage asynchronously.
 			if brainCopy != nil {
 				return m, tea.Batch(tiCmd, vpCmd, func() tea.Msg {
 					ctx := context.Background()
+					// Use SessionManager if available (unified mode)
+					if sessionMgr != nil {
+						err := sessionMgr.Route(ctx, "tui", input, "")
+						return processDoneMsg{err: err}
+					}
 					err := brainCopy.ProcessMessage(ctx, input)
 					return processDoneMsg{err: err}
 				})
@@ -459,6 +856,11 @@ func (m *Model) View() string {
 	// Render interview when active
 	if m.interview != nil {
 		return m.interview.View()
+	}
+
+	// Render policy panel when active
+	if m.policyPanel != nil {
+		return m.policyPanel.View()
 	}
 
 	if !m.ready {
@@ -588,6 +990,19 @@ func (m *Model) renderTaskPane() string {
 	return sb.String()
 }
 
+// addSystemMsg appends a system message to the TUI history and refreshes the viewport.
+// Must NOT be called with the mutex already held.
+func (m *Model) addSystemMsg(content string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.history = append(m.history, domain.Message{
+		Role:    domain.RoleSystem,
+		Content: content,
+	})
+	m.viewport.SetContent(m.renderHistory())
+	m.viewport.GotoBottom()
+}
+
 func (m *Model) renderHistory() string {
 	var sb strings.Builder
 	for _, msg := range m.history {
@@ -610,6 +1025,46 @@ func (m *Model) Run() error {
 		return err
 	}
 	return nil
+}
+
+// modeToTier maps legacy trust mode names to PolicyGuard tiers.
+func modeToTier(mode string) core.PolicyTier {
+	switch strings.ToLower(mode) {
+	case "never":
+		return core.TierRead
+	case "per-session", "per-action":
+		return core.TierSandbox
+	case "always", "full":
+		return core.TierFull
+	default:
+		return core.TierSandbox
+	}
+}
+
+// clipboardWrite copies text to the system clipboard using platform-specific commands.
+func clipboardWrite(text string) error {
+	switch runtime.GOOS {
+	case "windows":
+		return execCommand("clip", text)
+	case "darwin":
+		return execCommand("pbcopy", text)
+	default: // linux
+		return execCommand("wl-copy", text) // Wayland
+	}
+}
+
+// execCommand pipes text into a command's stdin.
+func execCommand(name string, text string) error {
+	cmd := exec.Command(name)
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		return err
+	}
+	go func() {
+		defer stdin.Close()
+		stdin.Write([]byte(text))
+	}()
+	return cmd.Run()
 }
 
 

@@ -17,7 +17,7 @@ import (
 )
 
 // handleExec implements the "gaia exec" headless subcommand.
-// Usage: gaia exec "task" [--json] [--quiet] [--verbose] [--dry-run] [--yes]
+// Usage: gaia exec "task" [--json] [--quiet] [--verbose] [--dry-run] [--yes] [--policy-tier=<tier>]
 func handleExec(args []string) {
 	fs := flag.NewFlagSet("exec", flag.ExitOnError)
 	jsonOut := fs.Bool("json", false, "Output as structured JSON")
@@ -25,6 +25,7 @@ func handleExec(args []string) {
 	verbose := fs.Bool("verbose", false, "Show detailed execution trace")
 	dryRun := fs.Bool("dry-run", false, "Plan only, don't execute tool calls")
 	yes := fs.Bool("yes", false, "Auto-confirm all tool executions")
+	policyTier := fs.String("policy-tier", "", "Policy tier: read, sandbox, or full (default: full)")
 
 	fs.Parse(args)
 
@@ -104,8 +105,40 @@ func handleExec(args []string) {
 	headless := *yes || trustMode != domain.TrustAlways
 	guard := core.NewConfirmGuard(trustMode, headless)
 
+	// Determine policy tier from flags and config.
+	// Precedence: --policy-tier flag > --dry-run/--yes mappings > config.
+	var tier core.PolicyTier
+	switch {
+	case *policyTier != "":
+		tier = core.PolicyTier(*policyTier)
+	case *dryRun:
+		tier = core.TierRead
+	case *yes:
+		tier = core.TierFull
+	case cfg.Policy.Tier != "":
+		tier = core.PolicyTier(cfg.Policy.Tier)
+	default:
+		tier = core.TierFull
+	}
+
+	// Build overrides from domain config.
+	overrides := make(map[string]core.OverridePolicy)
+	for k, v := range cfg.Policy.Overrides {
+		overrides[k] = core.OverridePolicy(v)
+	}
+
+	// Create PolicyGuard.
+	policyGuard := core.NewPolicyGuard(tier, overrides, nil)
+	// If there are deny rules from config, apply them (stored in store if needed)
+	if len(cfg.Policy.DenyRules) > 0 {
+		// Apply deny rules via store (create a transient store)
+		store := core.NewYAMLPolicyStore(".")
+		policyGuard.SetStore(store)
+	}
+
 	// Build Brain without token streaming callback.
 	brain := core.NewBrain(router, repo, nullUI, guard, cfg.Budget)
+	brain.SetPolicyGuard(policyGuard)
 
 	// Process the user's message.
 	ctx := context.Background()

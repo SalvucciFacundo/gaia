@@ -23,6 +23,8 @@ import (
 	"gaia/internal/core"
 	"gaia/internal/core/domain"
 	"gaia/internal/core/ports"
+	"gaia/internal/cron"
+	"gaia/internal/gateway"
 	"gaia/internal/modules/fileops"
 	"gaia/internal/modules/gitops"
 	"gaia/internal/modules/shell"
@@ -76,6 +78,9 @@ func main() {
 		case "tracker":
 			handleTrackerCLI(os.Args[2:])
 			return
+		case "policy":
+			handlePolicyCLI(os.Args[2:])
+			return
 		}
 	}
 
@@ -113,7 +118,7 @@ func main() {
 			log.Fatalf("Wizard error: %v", err)
 		}
 
-		token, model, language, selectedSkills := wizard.GetResults()
+		token, model, language, securityOn, selectedSkills := wizard.GetResults()
 		if token == "" {
 			log.Fatal("Wizard cancelled or failed.")
 		}
@@ -124,6 +129,9 @@ func main() {
 		if language != "" {
 			cfg.System.Language = language
 		}
+		if securityOn {
+			cfg.Policy.Tier = "sandbox"
+		}
 		if err := config.Save(cfg); err != nil {
 			log.Fatalf("Error saving config: %v", err)
 		}
@@ -131,6 +139,9 @@ func main() {
 		fmt.Printf("Configuration saved successfully!")
 		if len(selectedSkills) > 0 {
 			fmt.Printf(" Installed %d skills.", len(selectedSkills))
+		}
+		if securityOn {
+			fmt.Printf(" Security mode enabled.")
 		}
 		fmt.Println()
 	}
@@ -251,6 +262,9 @@ func main() {
 
 	brain.SetSubagentPort(subagentSpawner)
 
+	// 7f. Wire MoA providers into Brain for /moa command.
+	brain.SetMoAProviders(moaProviders)
+
 	// 8. Register tool modules
 	brain.RegisterModule(shell.NewModule(projectRoot))
 	brain.RegisterModule(fileops.NewModule(projectRoot))
@@ -296,10 +310,150 @@ func main() {
 	})
 	ui.SetToolNames(availableTools)
 
-	// 9. Run main Chat UI
+	// 9. Start gateway adapters if configured (unified mode).
+	// Gateway adapters run in the same process as the TUI, sharing the same Brain.
+	// Enable with --unify flag or when gateway tokens are configured in config.yaml.
+	gatewayCtx, gatewayCancel := context.WithCancel(ctx)
+	if hasGatewayConfig(cfg) {
+		if gw := startUnifiedGateway(gatewayCtx, cfg, repo, projectRoot, brain, ui); gw != nil {
+			defer func() {
+				fmt.Println("Stopping gateway adapters...")
+				gw.Stop()
+				gatewayCancel()
+			}()
+			fmt.Println("Gateway adapters started alongside TUI.")
+		}
+	}
+
+	// 10. Run main Chat UI
 	if err := ui.Run(); err != nil {
 		log.Fatalf("TUI error: %v", err)
 	}
+}
+
+// hasGatewayConfig checks if any gateway adapters are configured.
+func hasGatewayConfig(cfg *domain.Config) bool {
+	return cfg.Telegram.Token != "" ||
+		cfg.Discord.Token != "" ||
+		cfg.Slack.Token != "" ||
+		cfg.WhatsApp.Command != "" ||
+		cfg.Signal.Command != ""
+}
+
+// startUnifiedGateway creates gateway adapters and starts them with the existing Brain.
+// Returns the Gateway instance so the caller can stop it on shutdown.
+func startUnifiedGateway(ctx context.Context, cfg *domain.Config, repo *db.SQLiteRepo, projectRoot string, brain *core.Brain, tuiUI *tui.Model) *gateway.Gateway {
+	gw := gateway.NewGateway()
+
+	// Register Telegram adapter if configured.
+	if cfg.Telegram.Token != "" {
+		tgCfg := domain.TelegramGatewayConfig{
+			Token:          cfg.Telegram.Token,
+			AllowedUserIDs: cfg.Telegram.AllowedUserIDs,
+		}
+		adapter, err := gateway.NewTelegramAdapter(tgCfg)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error creating Telegram adapter: %v\n", err)
+		} else {
+			gw.Register(adapter)
+			fmt.Println("Telegram adapter registered.")
+		}
+	}
+
+	// Register Discord adapter if configured.
+	if cfg.Discord.Token != "" {
+		dCfg := domain.DiscordGatewayConfig{
+			Enabled: true,
+			Token:   cfg.Discord.Token,
+		}
+		adapter, err := gateway.NewDiscordAdapter(dCfg)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error creating Discord adapter: %v\n", err)
+		} else {
+			gw.Register(adapter)
+			fmt.Println("Discord adapter registered.")
+		}
+	}
+
+	// Register Slack adapter if configured.
+	if cfg.Slack.Token != "" {
+		sCfg := domain.SlackGatewayConfig{
+			Enabled: true,
+			Token:   cfg.Slack.Token,
+		}
+		adapter, err := gateway.NewSlackAdapter(sCfg)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error creating Slack adapter: %v\n", err)
+		} else {
+			gw.Register(adapter)
+			fmt.Println("Slack adapter registered.")
+		}
+	}
+
+	// Register WhatsApp MCP adapter if configured.
+	if cfg.WhatsApp.Command != "" {
+		wCfg := domain.MCPGatewayConfig{
+			Enabled: true,
+			Command: cfg.WhatsApp.Command,
+		}
+		adapter, err := gateway.NewWhatsAppMCPAdapter(wCfg)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error creating WhatsApp adapter: %v\n", err)
+		} else {
+			gw.Register(adapter)
+			fmt.Println("WhatsApp adapter registered.")
+		}
+	}
+
+	// Register Signal MCP adapter if configured.
+	if cfg.Signal.Command != "" {
+		sCfg := domain.MCPGatewayConfig{
+			Enabled: true,
+			Command: cfg.Signal.Command,
+		}
+		adapter, err := gateway.NewSignalMCPAdapter(sCfg)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error creating Signal adapter: %v\n", err)
+		} else {
+			gw.Register(adapter)
+			fmt.Println("Signal adapter registered.")
+		}
+	}
+
+	if len(gw.ListAdapters()) == 0 {
+		return nil
+	}
+
+	// Create SessionManager for routing messages across platforms
+	sessionMgr := core.NewSessionManager(core.SessionUnify, brain, repo)
+	brain.SetSessionManager(sessionMgr)
+
+	// Wire SessionManager into TUI too
+	tuiUI.SetSessionManager(sessionMgr)
+
+	// Message handler: routes incoming gateway messages through SessionManager.
+	handler := func(ctx context.Context, msg ports.IncomingMessage) (string, error) {
+		log.Printf("[gateway:%s] %s", msg.Platform, msg.Content)
+
+		// Use SessionManager to route to the correct session
+		if err := sessionMgr.Route(ctx, msg.Platform, msg.Content, msg.SenderName); err != nil {
+			return "", fmt.Errorf("brain error: %w", err)
+		}
+		return "OK", nil
+	}
+
+	// Set up delivery service for cron jobs.
+	delivery := cron.NewDeliveryService()
+	delivery.SetGatewaySender(gw.Send)
+
+	// Start gateway in background
+	go func() {
+		if err := gw.Start(ctx, handler); err != nil {
+			log.Printf("Gateway error: %v", err)
+		}
+	}()
+
+	return gw
 }
 
 // handleSkillsCLI implements the "gaia skills" subcommand family.
