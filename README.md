@@ -512,8 +512,7 @@ GAIA stands on the shoulders of several open-source projects:
 MIT — see [LICENSE](LICENSE).
 
 ---
-
-*Built with Go in Rosario, Argentina.*
+
 
 
 
