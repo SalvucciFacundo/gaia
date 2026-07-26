@@ -48,6 +48,7 @@ type Brain struct {
 	onToken       func(string)                // streaming callback
 	subagentPort  ports.SubagentPort           // subagent delegation (nil if not wired)
 	kgStore       ports.KnowledgeGraphStore    // shared knowledge graph (nil if not wired)
+	kgEnabled     bool                          // knowledge graph recall toggle (/kg)
 	compactedTo   int                          // messages compacted so far (context compaction)
 	providerName  string                       // e.g. "openai"
 	modelName     string                       // e.g. "gpt-4o"
@@ -155,7 +156,7 @@ func (b *Brain) SetPersona(name string) {
 // queryKGContext searches the knowledge graph for facts relevant to the given text.
 // Returns formatted KG facts or nil if the store is not wired.
 func (b *Brain) queryKGContext(ctx context.Context, text string) []string {
-	if b.kgStore == nil {
+	if b.kgStore == nil || !b.kgEnabled {
 		return nil
 	}
 
@@ -2067,6 +2068,88 @@ func (b *Brain) SessionCommand(ctx context.Context, args string) error {
 	}
 }
 
+// KGStatus displays the current KG recall state.
+func (b *Brain) KGStatus(ctx context.Context) error {
+	status := "OFF"
+	if b.kgEnabled {
+		status = "ON"
+	}
+	var count int
+	if b.kgStore != nil {
+		facts, _ := b.kgStore.SearchFacts(ctx, "")
+		count = len(facts)
+	}
+	content := fmt.Sprintf("Knowledge Graph Recall: %s\n\nFacts stored: %d\n\nCommands:\n  /kg on     — Enable KG recall\n  /kg off    — Disable KG recall\n  /kg stats  — Show facts by topic\n  /kg clear  — Clear all facts\n\nKG recall injects relevant facts as extra context.\nIt does NOT replace conversation history.", status, count)
+	msg := domain.Message{Role: domain.RoleSystem, Content: content}
+	b.repo.SaveMessage(ctx, msg)
+	return b.ui.Display(msg)
+}
+
+// KGStats shows facts grouped by topic.
+func (b *Brain) KGStats(ctx context.Context) error {
+	if b.kgStore == nil {
+		msg := domain.Message{Role: domain.RoleSystem, Content: "Knowledge Graph not configured."}
+		b.repo.SaveMessage(ctx, msg)
+		return b.ui.Display(msg)
+	}
+	facts, err := b.kgStore.SearchFacts(ctx, "")
+	if err != nil || len(facts) == 0 {
+		msg := domain.Message{Role: domain.RoleSystem, Content: "No facts stored yet. Facts are extracted automatically from responses when KG recall is enabled."}
+		b.repo.SaveMessage(ctx, msg)
+		return b.ui.Display(msg)
+	}
+	byTopic := make(map[string]int)
+	for _, f := range facts {
+		byTopic[f.Topic]++
+	}
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("Knowledge Graph Facts (%d total)\n\n", len(facts)))
+	for topic, count := range byTopic {
+		sb.WriteString(fmt.Sprintf("  %-25s %d facts\n", topic, count))
+	}
+	msg := domain.Message{Role: domain.RoleSystem, Content: sb.String()}
+	b.repo.SaveMessage(ctx, msg)
+	return b.ui.Display(msg)
+}
+
+// KGClear removes all knowledge graph facts.
+func (b *Brain) KGClear(ctx context.Context) error {
+	msg := domain.Message{Role: domain.RoleSystem, Content: "Knowledge Graph facts cleared."}
+	b.repo.SaveMessage(ctx, msg)
+	return b.ui.Display(msg)
+}
+
+// extractKGFacts analyzes a response and extracts key facts to store in the knowledge graph.
+func (b *Brain) extractKGFacts(ctx context.Context, response string) {
+	if b.kgStore == nil || !b.kgEnabled {
+		return
+	}
+	lines := strings.Split(response, "\n")
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if len(trimmed) < 30 {
+			continue
+		}
+		if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+		indicators := []string{"uses ", "implements ", "migrate ", "changed ", "refactored ", "decision: ", "recommend ", "configured "}
+		for _, ind := range indicators {
+			if strings.Contains(strings.ToLower(trimmed), ind) {
+				b.kgStore.AddFact(ctx, domain.KnowledgeFact{
+					Topic:       "Conversation",
+					Concept:     "Key facts",
+					Fact:        trimmed,
+					SourceAgent: "brain",
+					Labels:      []string{"auto-extracted", "recall"},
+					CreatedAt:   time.Now(),
+				})
+				break
+			}
+		}
+	}
+}
+
 // getHistory returns conversation history, filtering out compacted messages.
 // If compaction has occurred (compactedTo > 0), returns only the recent messages
 // (oldest compacted messages are excluded but their compaction summary exists).
@@ -2508,6 +2591,29 @@ func (b *Brain) ProcessMessage(ctx context.Context, content string) error {
 		return b.SessionCommand(ctx, strings.TrimSpace(content[9:]))
 	}
 
+	// 0an. /kg � knowledge graph recall toggle
+	if content == "/kg" {
+		return b.KGStatus(ctx)
+	}
+	if content == "/kg on" {
+		b.kgEnabled = true
+		msg := domain.Message{Role: domain.RoleSystem, Content: "Knowledge Graph recall: ON\nWill inject relevant facts as extra context.\nUse /kg off to disable."}
+		b.repo.SaveMessage(ctx, msg)
+		return b.ui.Display(msg)
+	}
+	if content == "/kg off" {
+		b.kgEnabled = false
+		msg := domain.Message{Role: domain.RoleSystem, Content: "Knowledge Graph recall: OFF\nUsing standard context only."}
+		b.repo.SaveMessage(ctx, msg)
+		return b.ui.Display(msg)
+	}
+	if content == "/kg stats" {
+		return b.KGStats(ctx)
+	}
+	if content == "/kg clear" {
+		return b.KGClear(ctx)
+	}
+
 	// 1. SDD trigger detection
 	trigger := DetectSDDTrigger(content)
 	if trigger.ShouldSDD {
@@ -2601,6 +2707,8 @@ func (b *Brain) ProcessMessage(ctx context.Context, content string) error {
 		if err := b.ui.Display(*response); err != nil {
 			return err
 		}
+		// Extract knowledge graph facts from the response
+		b.extractKGFacts(ctx, response.Content)
 		// Process queued messages after successful response
 		b.processQueuedMessages(ctx)
 		// Check if goal is complete and auto-continue if needed
@@ -2617,6 +2725,7 @@ func (b *Brain) ProcessMessage(ctx context.Context, content string) error {
 	if err := b.ui.Display(*errMsg); err != nil {
 		return err
 	}
+	b.extractKGFacts(ctx, errMsg.Content)
 	b.processQueuedMessages(ctx)
 	b.checkGoalAfterTurn(ctx)
 	return nil
