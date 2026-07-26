@@ -63,6 +63,7 @@ type Brain struct {
 	availableProviders map[string]ports.LLMProvider // named providers for /model switching
 	auditLog      []AuditEntry                // audit trail for policy-audited tools (/audit)
 	sessionMgr    *SessionManager             // routes messages across platforms
+	skillLister   func() []string             // returns available skill names for progressive loading
 }
 
 // BrainOption configures the Brain.
@@ -138,6 +139,11 @@ func (b *Brain) SetMoAProviders(providers map[string]ports.LLMProvider) {
 // SetSessionManager wires the session manager into the Brain.
 func (b *Brain) SetSessionManager(sm *SessionManager) {
 	b.sessionMgr = sm
+}
+
+// SetSkillLister wires a function that returns available skill names.
+func (b *Brain) SetSkillLister(lister func() []string) {
+	b.skillLister = lister
 }
 
 // SetReasoningEffort changes the reasoning effort level for the current provider.
@@ -2184,8 +2190,10 @@ func (b *Brain) getHistory(ctx context.Context, limit int) ([]domain.Message, er
 // Returns nil, error if no subagent port is wired or the subagent is unknown.
 // populateSkillRegistry fills the task's SkillRegistry with available skill names.
 func (b *Brain) populateSkillRegistry(task *domain.SubagentTask) {
-	// The SkillRegistry is populated from available skills on the system.
-	// This runs at delegation time so the subagent knows what's available.
+	if b.skillLister == nil {
+		return
+	}
+	task.SkillRegistry = b.skillLister()
 }
 
 func (b *Brain) Delegate(ctx context.Context, name string, task domain.SubagentTask) (*domain.SubagentResult, error) {
