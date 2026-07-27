@@ -2,6 +2,7 @@ package llm
 
 import (
 	"context"
+	"net/http"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -17,6 +18,7 @@ import (
 type AnthropicAdapter struct {
 	client anthropic.Client
 	model  string
+	apiKey string
 }
 
 // NewAnthropic creates an Anthropic adapter from config.
@@ -32,6 +34,7 @@ func NewAnthropic(cfg *domain.Config) (ports.LLMProvider, error) {
 	return &AnthropicAdapter{
 		client: anthropic.NewClient(option.WithAPIKey(key)),
 		model:  model,
+		apiKey: key,
 	}, nil
 }
 
@@ -47,13 +50,33 @@ func (a *AnthropicAdapter) Chat(ctx context.Context, messages []domain.Message, 
 
 // Stream sends a streaming request; returns an io.ReadCloser of normalized tokens.
 func (a *AnthropicAdapter) ListModels(ctx context.Context) ([]string, error) {
-	return []string{
-		"claude-sonnet-4-20250514",
-		"claude-opus-4-20250514",
-		"claude-haiku-3-5-20241022",
-		"claude-opus-5",
-		"claude-sonnet-5",
-	}, nil
+	req, err := http.NewRequestWithContext(ctx, "GET", "https://api.anthropic.com/v1/models", nil)
+	if err != nil {
+		return nil, fmt.Errorf("list models request: %w", err)
+	}
+	req.Header.Set("x-api-key", a.apiKey)
+	req.Header.Set("anthropic-version", "2023-06-01")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("list models: %w", err)
+	}
+	defer resp.Body.Close()
+
+	var result struct {
+		Data []struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("parse models: %w", err)
+	}
+
+	models := make([]string, 0, len(result.Data))
+	for _, m := range result.Data {
+		models = append(models, m.ID)
+	}
+	return models, nil
 }
 
 func (a *AnthropicAdapter) Stream(ctx context.Context, messages []domain.Message, opts ...ports.ChatOpt) (ports.TokenStream, error) {
