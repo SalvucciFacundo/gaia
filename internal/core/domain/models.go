@@ -1,6 +1,8 @@
 package domain
 
 import (
+	"encoding/base64"
+	"errors"
 	"fmt"
 	"time"
 )
@@ -15,13 +17,57 @@ const (
 	RoleTool      Role = "tool"
 )
 
+// ImageContent holds a base64-encoded image for vision-capable models.
+type ImageContent struct {
+	MIMEType string `json:"mime_type"` // "image/png", "image/jpeg", "image/webp"
+	Data     string `json:"data"`      // base64-encoded
+}
+
+// validImageMIMEs are the supported MIME types for vision.
+var validImageMIMEs = map[string]bool{
+	"image/png":  true,
+	"image/jpeg": true,
+	"image/webp": true,
+}
+
+// maxImageSize is 20MB decoded bytes.
+const maxImageSize = 20 * 1024 * 1024
+
+// ValidateImageContent checks that an ImageContent meets size, format,
+// and encoding requirements. Returns nil if valid, or an error with
+// a clear message describing the issue.
+func ValidateImageContent(img ImageContent) error {
+	if img.MIMEType == "" {
+		return errors.New("MIME type is required")
+	}
+	if !validImageMIMEs[img.MIMEType] {
+		return fmt.Errorf("unsupported MIME type: %s (supported: png, jpeg, webp)", img.MIMEType)
+	}
+	if img.Data == "" {
+		return errors.New("image data is required")
+	}
+
+	// Verify valid base64 by attempting to decode.
+	decoded, err := base64.StdEncoding.DecodeString(img.Data)
+	if err != nil {
+		return fmt.Errorf("invalid base64 encoding: %w", err)
+	}
+
+	if len(decoded) > maxImageSize {
+		return fmt.Errorf("image exceeds maximum size of 20 MB (got %.1f MB)", float64(len(decoded))/(1024*1024))
+	}
+
+	return nil
+}
+
 // Message represents a single chat message.
 type Message struct {
-	ID        string     `json:"id"`
-	Role      Role       `json:"role"`
-	Content   string     `json:"content"`
-	CreatedAt time.Time  `json:"created_at"`
-	ToolCalls []ToolCall `json:"tool_calls,omitempty"`
+	ID        string         `json:"id"`
+	Role      Role           `json:"role"`
+	Content   string         `json:"content"`
+	CreatedAt time.Time      `json:"created_at"`
+	ToolCalls []ToolCall     `json:"tool_calls,omitempty"`
+	Images    []ImageContent `json:"images,omitempty"`
 }
 
 // ToolCall represents a request from the LLM to execute a tool.

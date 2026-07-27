@@ -86,7 +86,18 @@ func (a *AnthropicAdapter) buildParams(messages []domain.Message, opts []ports.C
 		case domain.RoleSystem:
 			systemPrompt += m.Content + "\n"
 		case domain.RoleUser:
-			msgParams = append(msgParams, anthropic.NewUserMessage(anthropic.NewTextBlock(m.Content)))
+			// Build content blocks: text first, then images.
+			var blocks []anthropic.ContentBlockParamUnion
+			if m.Content != "" {
+				blocks = append(blocks, anthropic.NewTextBlock(m.Content))
+			}
+			for _, img := range m.Images {
+				blocks = append(blocks, anthropic.NewImageBlockBase64(img.MIMEType, img.Data))
+			}
+			msgParams = append(msgParams, anthropic.MessageParam{
+				Role:    anthropic.MessageParamRoleUser,
+				Content: blocks,
+			})
 		case domain.RoleAssistant:
 			var content []anthropic.ContentBlockParamUnion
 			if m.Content != "" {

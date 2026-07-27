@@ -12,6 +12,15 @@ import (
 	"gaia/internal/core/ports"
 )
 
+// supportedImageMIMEs lists the MIME types accepted
+// by OpenAI vision endpoints.
+var supportedImageMIMEs = map[string]bool{
+	"image/png":  true,
+	"image/jpeg": true,
+	"image/webp": true,
+	"image/gif":  true, // GIF supported but converted to single frame by API
+}
+
 // OpenAIAdapter wraps the go-openai client.
 type OpenAIAdapter struct {
 	client *openai.Client
@@ -89,9 +98,31 @@ func (a *OpenAIAdapter) buildRequest(messages []domain.Message, opts []ports.Cha
 	msgs := make([]openai.ChatCompletionMessage, 0, len(messages))
 	for _, m := range messages {
 		omsg := openai.ChatCompletionMessage{
-			Role:    string(m.Role),
-			Content: m.Content,
+			Role: string(m.Role),
 		}
+
+		// Build MultiContent when images are present (user messages only).
+		if len(m.Images) > 0 && m.Role == domain.RoleUser {
+			parts := make([]openai.ChatMessagePart, 0, 1+len(m.Images))
+			if m.Content != "" {
+				parts = append(parts, openai.ChatMessagePart{
+					Type: openai.ChatMessagePartTypeText,
+					Text: m.Content,
+				})
+			}
+			for _, img := range m.Images {
+				parts = append(parts, openai.ChatMessagePart{
+					Type: openai.ChatMessagePartTypeImageURL,
+					ImageURL: &openai.ChatMessageImageURL{
+						URL: "data:" + img.MIMEType + ";base64," + img.Data,
+					},
+				})
+			}
+			omsg.MultiContent = parts
+		} else {
+			omsg.Content = m.Content
+		}
+
 		for _, tc := range m.ToolCalls {
 			args, _ := json.Marshal(tc.Arguments)
 			omsg.ToolCalls = append(omsg.ToolCalls, openai.ToolCall{
