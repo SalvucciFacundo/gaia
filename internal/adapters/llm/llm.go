@@ -25,4 +25,10 @@ var Registry = map[string]ProviderConstructor{
 	"fireworks":  NewOpenAICompatible("fireworks", "https://api.fireworks.ai/inference/v1", "fireworks", "accounts/fireworks/models/llama-v3p1-70b-instruct"),
 	"opencode-go": NewOpenAICompatible("opencode-go", "https://api.opencode.ai/v1", "opencode-go", "grok-4.5"),
 	"opencode-zen": NewOpenAICompatible("opencode-zen", "https://api.opencode.ai/v1", "opencode-zen", "claude-sonnet-4"),
+	"kimi":       NewOpenAICompatible("kimi", "https://api.moonshot.cn/v1", "kimi", "kimi-k3"),
+	"glm":        NewOpenAICompatible("glm", "https://open.bigmodel.cn/api/paas/v4", "glm", "glm-4-plus"),
+	"nvidia":     NewOpenAICompatible("nvidia", "https://integrate.api.nvidia.com/v1", "nvidia", "nvidia/llama-3.1-nemotron-70b-instruct"),
+	"huggingface": NewOpenAICompatible("huggingface", "https://router.huggingface.co/v1", "huggingface", "openai/gpt-oss-120b"),
+	"deepinfra":  NewOpenAICompatible("deepinfra", "https://api.deepinfra.com/v1/openai", "deepinfra", "meta-llama/Llama-3.3-70B-Instruct"),
+	"cerebras":   NewOpenAICompatible("cerebras", "https://api.cerebras.ai/v1", "cerebras", "llama-3.3-70b"),
 }
