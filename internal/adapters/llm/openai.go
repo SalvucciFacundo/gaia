@@ -43,6 +43,26 @@ func NewOpenAI(cfg *domain.Config) (ports.LLMProvider, error) {
 	}, nil
 }
 
+// NewOpenAICompatible creates an OpenAI-compatible adapter with custom base URL and API key.
+func NewOpenAICompatible(name string, baseURL string, apiKeyName string, defaultModel string) ProviderConstructor {
+	return func(cfg *domain.Config) (ports.LLMProvider, error) {
+		key := cfg.APIKeys[apiKeyName]
+		if key == "" {
+			return nil, fmt.Errorf("%s: missing api key", name)
+		}
+		config := openai.DefaultConfig(key)
+		config.BaseURL = baseURL
+		model := cfg.LLM.Model
+		if model == "" {
+			model = defaultModel
+		}
+		return &OpenAIAdapter{
+			client: openai.NewClientWithConfig(config),
+			model:  model,
+		}, nil
+	}
+}
+
 // Chat sends a non-streaming request.
 func (a *OpenAIAdapter) Chat(ctx context.Context, messages []domain.Message, opts ...ports.ChatOpt) (*domain.Message, error) {
 	req := a.buildRequest(messages, opts, false)
