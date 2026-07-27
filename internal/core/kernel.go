@@ -18,6 +18,7 @@ import (
 
 	"gaia/internal/core/domain"
 	"gaia/internal/core/ports"
+	"gaia/internal/mcp"
 )
 
 const (
@@ -64,6 +65,7 @@ type Brain struct {
 	auditLog      []AuditEntry                // audit trail for policy-audited tools (/audit)
 	sessionMgr    *SessionManager             // routes messages across platforms
 	skillLister   func() []string             // returns available skill names for progressive loading
+	mcpMgr        *mcp.Manager                 // MCP server connection manager
 }
 
 // BrainOption configures the Brain.
@@ -2179,6 +2181,46 @@ func (b *Brain) createSkillFromProposal(name string, content string) error {
 		return fmt.Errorf("create skill dir: %w", err)
 	}
 	return os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte(content), 0644)
+}
+
+// MCPStatus displays MCP server status.
+func (b *Brain) MCPStatus(ctx context.Context) error {
+	if b.mcpMgr == nil {
+		msg := domain.Message{Role: domain.RoleSystem, Content: "MCP manager not configured. Servers are configured in config.yaml under mcp.servers."}
+		b.repo.SaveMessage(ctx, msg)
+		return b.ui.Display(msg)
+	}
+	msg := domain.Message{Role: domain.RoleSystem, Content: b.mcpMgr.StatusText()}
+	b.repo.SaveMessage(ctx, msg)
+	return b.ui.Display(msg)
+}
+
+func (b *Brain) MCPConnect(ctx context.Context, name string) error {
+	if b.mcpMgr == nil {
+		return b.MCPStatus(ctx)
+	}
+	if err := b.mcpMgr.Connect(ctx, name); err != nil {
+		msg := domain.Message{Role: domain.RoleSystem, Content: fmt.Sprintf("Failed to connect %q: %v", name, err)}
+		b.repo.SaveMessage(ctx, msg)
+		return b.ui.Display(msg)
+	}
+	msg := domain.Message{Role: domain.RoleSystem, Content: fmt.Sprintf("MCP server %q connected", name)}
+	b.repo.SaveMessage(ctx, msg)
+	return b.ui.Display(msg)
+}
+
+func (b *Brain) MCPDisconnect(ctx context.Context, name string) error {
+	if b.mcpMgr == nil {
+		return b.MCPStatus(ctx)
+	}
+	if err := b.mcpMgr.Disconnect(name); err != nil {
+		msg := domain.Message{Role: domain.RoleSystem, Content: fmt.Sprintf("Failed to disconnect %q: %v", name, err)}
+		b.repo.SaveMessage(ctx, msg)
+		return b.ui.Display(msg)
+	}
+	msg := domain.Message{Role: domain.RoleSystem, Content: fmt.Sprintf("MCP server %q disconnected", name)}
+	b.repo.SaveMessage(ctx, msg)
+	return b.ui.Display(msg)
 }
 
 // getHistory returns conversation history, filtering out compacted messages.
