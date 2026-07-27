@@ -110,6 +110,21 @@ func (p *CredentialPool) Stream(ctx context.Context, messages []domain.Message, 
 }
 
 // Tools returns the tool definitions from the first available provider.
+func (p *CredentialPool) ListModels(ctx context.Context) ([]string, error) {
+	p.mu.Lock()
+	if len(p.creds) == 0 {
+		p.mu.Unlock()
+		return nil, fmt.Errorf("no credentials available")
+	}
+	cfg := &domain.Config{APIKeys: map[string]string{p.providerName: p.creds[0].entry.Key}}
+	p.mu.Unlock()
+	prov, err := p.constructor(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("create provider: %w", err)
+	}
+	return prov.ListModels(ctx)
+}
+
 func (p *CredentialPool) Tools() []domain.ToolDef {
 	p.mu.Lock()
 	defer p.mu.Unlock()

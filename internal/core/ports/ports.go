@@ -35,6 +35,7 @@ type LLMProvider interface {
 	Chat(ctx context.Context, messages []domain.Message, opts ...ChatOpt) (*domain.Message, error)
 	Stream(ctx context.Context, messages []domain.Message, opts ...ChatOpt) (TokenStream, error)
 	Tools() []domain.ToolDef
+	ListModels(ctx context.Context) ([]string, error)
 }
 
 // Repository handles persistence of conversations and brain data.

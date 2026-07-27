@@ -46,6 +46,16 @@ func (a *AnthropicAdapter) Chat(ctx context.Context, messages []domain.Message, 
 }
 
 // Stream sends a streaming request; returns an io.ReadCloser of normalized tokens.
+func (a *AnthropicAdapter) ListModels(ctx context.Context) ([]string, error) {
+	return []string{
+		"claude-sonnet-4-20250514",
+		"claude-opus-4-20250514",
+		"claude-haiku-3-5-20241022",
+		"claude-opus-5",
+		"claude-sonnet-5",
+	}, nil
+}
+
 func (a *AnthropicAdapter) Stream(ctx context.Context, messages []domain.Message, opts ...ports.ChatOpt) (ports.TokenStream, error) {
 	params := a.buildParams(messages, opts)
 

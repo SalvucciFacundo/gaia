@@ -50,6 +50,13 @@ func (r *Router) Stream(ctx context.Context, messages []domain.Message, opts ...
 }
 
 // Tools delegates to the primary provider's Tools.
+func (r *Router) ListModels(ctx context.Context) ([]string, error) {
+	if len(r.providers) > 0 {
+		return r.providers[0].ListModels(ctx)
+	}
+	return nil, nil
+}
+
 func (r *Router) Tools() []domain.ToolDef {
 	if len(r.providers) > 0 {
 		return r.providers[0].Tools()

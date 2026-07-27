@@ -43,6 +43,7 @@ func (s *stubProvider) Stream(ctx context.Context, msgs []domain.Message, opts .
 }
 
 func (s *stubProvider) Tools() []domain.ToolDef { return nil }
+func (s *stubProvider) ListModels(ctx context.Context) ([]string, error) { return nil, nil }
 
 // stubRepo is a no-op repository for tests.
 type stubRepo struct{}

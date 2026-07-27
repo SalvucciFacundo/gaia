@@ -74,6 +74,18 @@ func (a *OpenAIAdapter) Chat(ctx context.Context, messages []domain.Message, opt
 }
 
 // Stream sends a streaming request; returns an io.ReadCloser of normalized tokens.
+func (a *OpenAIAdapter) ListModels(ctx context.Context) ([]string, error) {
+	resp, err := a.client.ListModels(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list models: %w", err)
+	}
+	models := make([]string, 0, len(resp.Models))
+	for _, m := range resp.Models {
+		models = append(models, m.ID)
+	}
+	return models, nil
+}
+
 func (a *OpenAIAdapter) Stream(ctx context.Context, messages []domain.Message, opts ...ports.ChatOpt) (ports.TokenStream, error) {
 	req := a.buildRequest(messages, opts, true)
 	stream, err := a.client.CreateChatCompletionStream(ctx, req)

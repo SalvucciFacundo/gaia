@@ -73,6 +73,10 @@ func (a *OllamaAdapter) Chat(ctx context.Context, messages []domain.Message, opt
 }
 
 // Stream sends a streaming request to Ollama; returns an io.ReadCloser of normalized tokens.
+func (a *OllamaAdapter) ListModels(ctx context.Context) ([]string, error) {
+	return []string{"llama3", "mistral", "codellama", "qwen2.5"}, nil
+}
+
 func (a *OllamaAdapter) Stream(ctx context.Context, messages []domain.Message, opts ...ports.ChatOpt) (ports.TokenStream, error) {
 	payload := a.buildPayload(messages, true)
 	body, _ := json.Marshal(payload)

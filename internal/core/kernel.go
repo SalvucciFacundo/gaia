@@ -2321,6 +2321,34 @@ func (b *Brain) MCPDisconnect(ctx context.Context, name string) error {
 	return b.ui.Display(msg)
 }
 
+// ListProviderModels shows all available models from the current provider.
+func (b *Brain) ListProviderModels(ctx context.Context) error {
+	models, err := b.provider.ListModels(ctx)
+	if err != nil {
+		msg := domain.Message{Role: domain.RoleSystem, Content: fmt.Sprintf("Failed to list models: %v", err)}
+		b.repo.SaveMessage(ctx, msg)
+		return b.ui.Display(msg)
+	}
+	if len(models) == 0 {
+		msg := domain.Message{Role: domain.RoleSystem, Content: "No models available from the current provider."}
+		b.repo.SaveMessage(ctx, msg)
+		return b.ui.Display(msg)
+	}
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("Models available for %s (%d total):\n\n", b.providerName, len(models)))
+	for _, m := range models {
+		mark := "  "
+		if m == b.modelName {
+			mark = "➤ "
+		}
+		sb.WriteString(fmt.Sprintf("%s%s\n", mark, m))
+	}
+	sb.WriteString(fmt.Sprintf("\nUse /model <name> to switch, or set llm.model in config.yaml."))
+	msg := domain.Message{Role: domain.RoleSystem, Content: sb.String()}
+	b.repo.SaveMessage(ctx, msg)
+	return b.ui.Display(msg)
+}
+
 // getHistory returns conversation history, filtering out compacted messages.
 // If compaction has occurred (compactedTo > 0), returns only the recent messages
 // (oldest compacted messages are excluded but their compaction summary exists).
