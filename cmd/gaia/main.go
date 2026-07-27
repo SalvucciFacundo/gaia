@@ -27,6 +27,7 @@ import (
 	"gaia/internal/gateway"
 	"gaia/internal/modules/fileops"
 	"gaia/internal/modules/gitops"
+	"gaia/internal/browser"
 	"gaia/internal/modules/shell"
 	"gaia/internal/skills"
 	tea "github.com/charmbracelet/bubbletea"
@@ -269,6 +270,14 @@ func main() {
 	brain.RegisterModule(shell.NewModule(projectRoot))
 	brain.RegisterModule(fileops.NewModule(projectRoot))
 	brain.RegisterModule(gitops.NewModule(projectRoot))
+	// Register browser module if configured
+	if cfg.Browser.Enabled {
+		browserMod, berr := browser.NewModule(cfg.Browser)
+		if berr == nil {
+			brain.RegisterModule(browserMod)
+			fmt.Println("Browser automation registered")
+		}
+	}
 
 	// Wire brain into the TUI so Enter key dispatches ProcessMessage.
 	ui.SetBrain(brain)

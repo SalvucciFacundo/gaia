@@ -141,6 +141,7 @@ type Config struct {
 	} `yaml:"system"`
 	Terminal TerminalConfig `yaml:"terminal"`
 	MCP     MCPConfig     `yaml:"mcp"`
+	Browser BrowserToolsConfig `yaml:"browser"`
 }
 
 // MCPConfig defines MCP (Model Context Protocol) client settings.
