@@ -314,6 +314,34 @@ These commands are designed for gateway mode (Telegram, Discord, Slack) but also
 | `/restart` | Shows restart instructions for the current mode. In gateway/daemon mode, use with a process manager (systemd, supervisord) for auto-restart on exit. Automatic restart is not built-in â€” the process must be managed externally. |
 | `/update` | Shows update instructions. GAIA can be updated by rebuilding from source (`git pull && go build`), downloading a new release, or re-running the installer. Automatic in-place update is planned for a future release. |
 | `/topic` | Shows help for multi-session DM mode. `/topic new <name>` starts a new conversation topic, `/topic switch <name>` switches between topics, `/topic list` shows active topics. Each topic has its own independent conversation history â€” useful for parallel conversations in one chat. |
+### ğŸ”Œ MCP Server Management
+
+GAIA can connect to MCP (Model Context Protocol) servers to extend its toolset with external capabilities like GitHub, databases, or browsers.
+
+```
+/mcp                â†’ List all servers with status
+/mcp connect <name> â†’ Connect a server
+/mcp disconnect <name> â†’ Disconnect a server
+```
+
+**Status indicators:**
+
+| Icon | Meaning |
+|------|---------|
+| â— connected | Server is online and tools are available |
+| â—‹ disconnected | Server is configured but not connected |
+| âœ• error | Server failed to connect â€” error message shown |
+
+**Auto-management:** Servers configured in `config.yaml` under `mcp.servers` are automatically connected on startup and disconnected on shutdown. No manual intervention needed.
+
+```yaml
+# ~/.config/gaia/config.yaml
+mcp:
+  servers:
+    - name: github
+      command: npx
+      args: ["-y", "@modelcontextprotocol/server-github"]
+```
 
 ### ğŸš€ Remote Server Mode
 
@@ -402,17 +430,17 @@ gaia policy init --tier=read       # Lock to read-only tools
 ---
 
 
-### ?? Context Layers — 3 niveles de memoria
+### ?? Context Layers ï¿½ 3 niveles de memoria
 
-GAIA gestiona el contexto de la conversación en tres capas para balancear costo y fidelidad:
+GAIA gestiona el contexto de la conversaciï¿½n en tres capas para balancear costo y fidelidad:
 
-| Capa | Qué hace | Default |
+| Capa | Quï¿½ hace | Default |
 |------|----------|---------|
-| **1. Mensajes recientes** | Últimos N mensajes íntegros (sin pérdida) | ? Siempre activo |
-| **2. Compactación** | Resumen automático de mensajes viejos vía LLM | ? Siempre activo |
-| **3. Knowledge Graph Recall** | Facts extraídos automáticamente + búsqueda | ? Opt-in via /kg on |
+| **1. Mensajes recientes** | ï¿½ltimos N mensajes ï¿½ntegros (sin pï¿½rdida) | ? Siempre activo |
+| **2. Compactaciï¿½n** | Resumen automï¿½tico de mensajes viejos vï¿½a LLM | ? Siempre activo |
+| **3. Knowledge Graph Recall** | Facts extraï¿½dos automï¿½ticamente + bï¿½squeda | ? Opt-in via /kg on |
 
-Las capas 1 y 2 siempre están activas. La capa 3 es opt-in para sesiones largas donde querés ahorrar tokens.
+Las capas 1 y 2 siempre estï¿½n activas. La capa 3 es opt-in para sesiones largas donde querï¿½s ahorrar tokens.
 
 ```
 /kg          ? Estado del KG recall
@@ -422,29 +450,29 @@ Las capas 1 y 2 siempre están activas. La capa 3 es opt-in para sesiones largas 
 /kg clear    ? Limpiar facts
 ```
 
-Ver [docs/context-layers.md](docs/context-layers.md) para la explicación completa.
+Ver [docs/context-layers.md](docs/context-layers.md) para la explicaciï¿½n completa.
 
 ### ?? Progressive Skill Loading
 
-Los subagentes cargan skills **bajo demanda** según su tarea, no todos al inicio:
+Los subagentes cargan skills **bajo demanda** segï¿½n su tarea, no todos al inicio:
 
-1. El orquestador pasa un **catálogo de skills disponibles** a cada subagente
-2. El subagente **decide qué skills cargar** según su dominio y tarea
-3. Solo los skills necesarios se cargan en contexto (~3k tokens de índice + skill specific)
+1. El orquestador pasa un **catï¿½logo de skills disponibles** a cada subagente
+2. El subagente **decide quï¿½ skills cargar** segï¿½n su dominio y tarea
+3. Solo los skills necesarios se cargan en contexto (~3k tokens de ï¿½ndice + skill specific)
 
-**Auto-learning**: después de 5 ejecuciones de un subagente, el sistema crea automáticamente un skill con los patrones observados:
+**Auto-learning**: despuï¿½s de 5 ejecuciones de un subagente, el sistema crea automï¿½ticamente un skill con los patrones observados:
 
 ```bash
-# Se crea automáticamente en ~/.gaia/skills/:
-#   explorer-patterns/    — patrones de exploración
-#   implementer-patterns/ — patrones de implementación
-#   verifier-patterns/    — patrones de verificación
+# Se crea automï¿½ticamente en ~/.gaia/skills/:
+#   explorer-patterns/    ï¿½ patrones de exploraciï¿½n
+#   implementer-patterns/ ï¿½ patrones de implementaciï¿½n
+#   verifier-patterns/    ï¿½ patrones de verificaciï¿½n
 
 # El usuario puede editarlos para refinar los patrones:
 gaia skills list          # Ver skills instalados
 ```
 
-El Learner subagente también analiza el código y propone skills nuevos vía `@learner analyze`.
+El Learner subagente tambiï¿½n analiza el cï¿½digo y propone skills nuevos vï¿½a `@learner analyze`.
 
 ---
 
