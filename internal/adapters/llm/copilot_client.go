@@ -142,7 +142,7 @@ func (c *CopilotClient) Stream(ctx context.Context, history []domain.Message, op
 
 // Tools returns the provider's tool definitions.
 func (c *CopilotClient) ListModels(ctx context.Context) ([]string, error) {
-	return []string{"claude-sonnet-4", "gpt-4o"}, nil
+	return c.FetchModels(ctx)
 }
 
 func (c *CopilotClient) Tools() []domain.ToolDef {
