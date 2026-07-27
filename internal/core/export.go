@@ -12,7 +12,8 @@ import (
 )
 
 // MemoryExport exports knowledge graph facts to Obsidian-compatible markdown files.
-func (b *Brain) MemoryExport(ctx context.Context) error {
+// Usage: /memory export [path] — defaults to ./gaia-memory-export/
+func (b *Brain) MemoryExport(ctx context.Context, exportPath ...string) error {
 	if b.kgStore == nil {
 		msg := domain.Message{Role: domain.RoleSystem, Content: "No knowledge graph store configured."}
 		b.repo.SaveMessage(ctx, msg)
@@ -24,7 +25,10 @@ func (b *Brain) MemoryExport(ctx context.Context) error {
 		return fmt.Errorf("memory export: %w", err)
 	}
 
-	exportDir := filepath.Join(".", "gaia-memory-export")
+	exportDir := "./gaia-memory-export"
+	if len(exportPath) > 0 && exportPath[0] != "" {
+		exportDir = exportPath[0]
+	}
 	os.MkdirAll(exportDir, 0755)
 
 	count := 0
