@@ -401,6 +401,53 @@ gaia policy init --tier=read       # Lock to read-only tools
 
 ---
 
+
+### ?? Context Layers — 3 niveles de memoria
+
+GAIA gestiona el contexto de la conversación en tres capas para balancear costo y fidelidad:
+
+| Capa | Qué hace | Default |
+|------|----------|---------|
+| **1. Mensajes recientes** | Últimos N mensajes íntegros (sin pérdida) | ? Siempre activo |
+| **2. Compactación** | Resumen automático de mensajes viejos vía LLM | ? Siempre activo |
+| **3. Knowledge Graph Recall** | Facts extraídos automáticamente + búsqueda | ? Opt-in via /kg on |
+
+Las capas 1 y 2 siempre están activas. La capa 3 es opt-in para sesiones largas donde querés ahorrar tokens.
+
+```
+/kg          ? Estado del KG recall
+/kg on       ? Activar (inyecta facts relevantes antes de cada mensaje)
+/kg off      ? Desactivar
+/kg stats    ? Facts por tema
+/kg clear    ? Limpiar facts
+```
+
+Ver [docs/context-layers.md](docs/context-layers.md) para la explicación completa.
+
+### ?? Progressive Skill Loading
+
+Los subagentes cargan skills **bajo demanda** según su tarea, no todos al inicio:
+
+1. El orquestador pasa un **catálogo de skills disponibles** a cada subagente
+2. El subagente **decide qué skills cargar** según su dominio y tarea
+3. Solo los skills necesarios se cargan en contexto (~3k tokens de índice + skill specific)
+
+**Auto-learning**: después de 5 ejecuciones de un subagente, el sistema crea automáticamente un skill con los patrones observados:
+
+```bash
+# Se crea automáticamente en ~/.gaia/skills/:
+#   explorer-patterns/    — patrones de exploración
+#   implementer-patterns/ — patrones de implementación
+#   verifier-patterns/    — patrones de verificación
+
+# El usuario puede editarlos para refinar los patrones:
+gaia skills list          # Ver skills instalados
+```
+
+El Learner subagente también analiza el código y propone skills nuevos vía `@learner analyze`.
+
+---
+
 ## ðŸš€ Quick Start
 
 ### Windows
