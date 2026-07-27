@@ -331,6 +331,49 @@ func main() {
 	}
 }
 
+// autoCreateSkill generates a SKILL.md for a subagent that reached the learning threshold.
+func autoCreateSkill(subagentName string) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return
+	}
+	skillsDir := filepath.Join(home, ".gaia", "skills")
+	skillName := subagentName + "-patterns"
+	skillDir := filepath.Join(skillsDir, skillName)
+
+	if _, err := os.Stat(skillDir); err == nil {
+		return
+	}
+
+	content := fmt.Sprintf(`---
+name: %s
+description: "Auto-generated patterns from %s subagent"
+tags: [auto-generated, learned, %s]
+category: learned
+---
+
+# %s Patterns
+
+Auto-generated after %d executions of the %s subagent.
+
+## Purpose
+
+Capture recurring patterns from the %s subagent in this project.
+
+## Usage
+
+Load when working with the %s subagent or reviewing its output.
+
+## Patterns
+
+- (Edit this file to add specific patterns)
+`, skillName, subagentName, subagentName, subagentName, 5, subagentName, subagentName, subagentName)
+
+	os.MkdirAll(skillDir, 0755)
+	os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte(content), 0644)
+	fmt.Printf("[learn] Created skill: %s\n", skillDir)
+}
+
 // hasGatewayConfig checks if any gateway adapters are configured.
 func hasGatewayConfig(cfg *domain.Config) bool {
 	return cfg.Telegram.Token != "" ||
