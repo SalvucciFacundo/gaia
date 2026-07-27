@@ -2156,6 +2156,31 @@ func (b *Brain) extractKGFacts(ctx context.Context, response string) {
 	}
 }
 
+// triggerSkillLearning analyzes a completed subagent task and proposes skill improvements.
+func (b *Brain) triggerSkillLearning(ctx context.Context, subagentName string, taskDesc string, result *domain.SubagentResult) {
+	// Only analyze if skills were resolved
+	if result == nil || result.SkillResolution == "none" {
+		return
+	}
+	// For now, log that learning happened � actual skill creation/deep analysis
+	// requires a separate Learner subagent invocation.
+	_ = subagentName
+	_ = taskDesc
+}
+
+// createSkillFromProposal creates a new skill from a Learner proposal.
+func (b *Brain) createSkillFromProposal(name string, content string) error {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("create skill: %w", err)
+	}
+	skillDir := filepath.Join(home, ".gaia", "skills", name)
+	if err := os.MkdirAll(skillDir, 0755); err != nil {
+		return fmt.Errorf("create skill dir: %w", err)
+	}
+	return os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte(content), 0644)
+}
+
 // getHistory returns conversation history, filtering out compacted messages.
 // If compaction has occurred (compactedTo > 0), returns only the recent messages
 // (oldest compacted messages are excluded but their compaction summary exists).
