@@ -232,6 +232,8 @@ GAIA has a full session management system. Commands are available both as in-cha
 |---------|-------------|
 | `/steer <message>` | Injects a guidance message that the agent sees **before its next tool call**, without waiting for the current turn to finish. Unlike a normal message (which is processed after the current turn completes), `/steer` is sent directly to the agent's active loop via a buffered channel. The agent receives it as "MID-EXECUTION GUIDANCE" at the start of the next iteration and adjusts its approach immediately. Useful for real-time corrections: if you see the agent heading in the wrong direction, `/steer "use JWT instead of sessions"` redirects it before it writes more code. |
 
+| /models | Lists all available models from the current provider. Queries the provider's API dynamically (for OpenAI-compatible and Anthropic) or shows known models (Ollama, Copilot). The active model is marked with ➤. Use /model <name> to switch to any model in the list. |
+
 #### CLI Equivalents
 
 ```bash
