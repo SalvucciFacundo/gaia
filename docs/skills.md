@@ -154,3 +154,24 @@ The orchestrator only keeps Level 0 in context. When a subagent is spawned:
 1. The orchestrator passes matching skill names
 2. The subagent loads Level 1 content as needed
 3. Reference files (Level 2) are loaded on explicit request
+
+---
+
+## 🧠 Auto-Learning & Skill Creation
+
+To keep skills up-to-date and tailored to your development flow, GAIA features automated learning mechanisms:
+
+### Subagent Auto-Learning
+After a subagent executes 5 times, the background learning loop automatically aggregates observed execution patterns and generates a corresponding patterns skill. These are stored locally under `~/.gaia/skills/`:
+- `explorer-patterns/` — Patterns observed during codebase exploration.
+- `implementer-patterns/` — Coding and refactoring patterns.
+- `verifier-patterns/` — Testing and verification habits.
+
+You can audit and edit these skills at any time to refine GAIA's behavior. Use `gaia skills list` to view them.
+
+### Learner Subagent
+You can actively ask the `@learner` subagent to analyze your codebase and propose new skills by invoking:
+```bash
+@learner analyze
+```
+The subagent will scan the project, identify repetitive patterns, and generate a new `SKILL.md` template proposal.

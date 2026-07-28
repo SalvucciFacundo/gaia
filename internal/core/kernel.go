@@ -2262,7 +2262,7 @@ func (b *Brain) triggerSkillLearning(ctx context.Context, subagentName string, t
 	if result == nil || result.SkillResolution == "none" {
 		return
 	}
-	// For now, log that learning happened � actual skill creation/deep analysis
+	// For now, log that learning happened — actual skill creation/deep analysis
 	// requires a separate Learner subagent invocation.
 	_ = subagentName
 	_ = taskDesc
@@ -2798,7 +2798,7 @@ func (b *Brain) ProcessMessage(ctx context.Context, content string) error {
 		return b.SessionCommand(ctx, strings.TrimSpace(content[9:]))
 	}
 
-	// 0an. /kg � knowledge graph recall toggle
+	// 0an. /kg — knowledge graph recall toggle
 	if content == "/kg" {
 		return b.KGStatus(ctx)
 	}

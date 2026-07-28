@@ -115,13 +115,19 @@ gaia skills add-tap https://github.com/owner/repo
 
 Servers with OAuth can pass tokens via config:
 
-\\\yaml
+```yaml
 mcp:
   servers:
     - name: discord
       command: ./discord-mcp
       access_token: "your-oauth-token"
       token_url: "https://discord.com/api/oauth2/token"
-\\\
+```
 
-Tokens are injected as environment variables \MCP_ACCESS_TOKEN\, \ACCESS_TOKEN\, and \MCP_TOKEN_URL\.
+Tokens are injected as environment variables `MCP_ACCESS_TOKEN`, `ACCESS_TOKEN`, and `MCP_TOKEN_URL`.
+
+---
+
+## TUI Commands Reference
+
+For a complete and detailed reference of all in-session interactive commands, see [TUI Commands Reference](tui-commands.md).
