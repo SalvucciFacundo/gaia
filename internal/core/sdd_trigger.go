@@ -4,15 +4,15 @@ import (
 	"strings"
 )
 
-// SDDKeywords contains words that signal a substantial code change
-// and should trigger the SDD pipeline (Explorer → Proposer → Specifier →
-// Implementer → Verifier).
+// SDDKeywords contains phrases that signal a major architectural or breaking change
+// requiring the full SDD pipeline (Explorer → Proposer → Specifier →
+// Designer → Tasks → Implementer → Verifier).
 var SDDKeywords = []string{
-	"feature", "implement", "refactor", "add",
-	"create", "build", "rewrite", "migrate",
-	"redesign", "architecture", "restructure",
-	"new endpoint", "new service", "new module",
 	"breaking change", "api change", "schema change",
+	"architectural redesign", "architecture redesign",
+	"system migration", "database migration",
+	"rediseño de arquitectura", "cambio de arquitectura",
+	"cambio disruptivo", "migracion de sistema",
 }
 
 // SDDCommandPrefix forces SDD pipeline routing regardless of keyword detection.

@@ -4,82 +4,40 @@ import (
 	"testing"
 )
 
-// TestDetectSDDTrigger_KeywordFeature verifies "feature" triggers SDD.
-func TestDetectSDDTrigger_KeywordFeature(t *testing.T) {
-	tr := DetectSDDTrigger("implement a new feature for user authentication")
-	if !tr.ShouldSDD {
-		t.Error("'feature' keyword should trigger SDD")
-	}
-	if tr.ForceDirect {
-		t.Error("should not be force-direct")
-	}
-	if tr.Reason == "" {
-		t.Error("reason should not be empty")
-	}
-}
-
-// TestDetectSDDTrigger_KeywordImplement verifies "implement" triggers SDD.
-func TestDetectSDDTrigger_KeywordImplement(t *testing.T) {
-	tr := DetectSDDTrigger("implement the login endpoint")
-	if !tr.ShouldSDD {
-		t.Error("'implement' keyword should trigger SDD")
-	}
-}
-
-// TestDetectSDDTrigger_KeywordRefactor verifies "refactor" triggers SDD.
-func TestDetectSDDTrigger_KeywordRefactor(t *testing.T) {
-	tr := DetectSDDTrigger("refactor the database layer to use connection pooling")
-	if !tr.ShouldSDD {
-		t.Error("'refactor' keyword should trigger SDD")
-	}
-}
-
-// TestDetectSDDTrigger_KeywordAdd verifies "add" triggers SDD.
-func TestDetectSDDTrigger_KeywordAdd(t *testing.T) {
-	tr := DetectSDDTrigger("add rate limiting to the API gateway")
-	if !tr.ShouldSDD {
-		t.Error("'add' keyword should trigger SDD")
-	}
-}
-
-// TestDetectSDDTrigger_KeywordCreate verifies "create" triggers SDD.
-func TestDetectSDDTrigger_KeywordCreate(t *testing.T) {
-	tr := DetectSDDTrigger("create a new microservice for payments")
-	if !tr.ShouldSDD {
-		t.Error("'create' keyword should trigger SDD")
-	}
-}
-
-// TestDetectSDDTrigger_KeywordArchitecture verifies "architecture" triggers.
-func TestDetectSDDTrigger_KeywordArchitecture(t *testing.T) {
-	tr := DetectSDDTrigger("redesign the architecture to use event sourcing")
-	if !tr.ShouldSDD {
-		t.Error("'architecture' keyword should trigger SDD")
-	}
-}
-
-// TestDetectSDDTrigger_KeywordNewModule verifies multi-word keywords work.
-func TestDetectSDDTrigger_KeywordNewModule(t *testing.T) {
-	tr := DetectSDDTrigger("create a new module for report generation")
-	if !tr.ShouldSDD {
-		t.Error("'new module' keyword should trigger SDD")
-	}
-}
-
-// TestDetectSDDTrigger_NoKeyword verifies normal messages don't trigger.
-func TestDetectSDDTrigger_NoKeyword(t *testing.T) {
-	tests := []string{
-		"how do I check git status?",
-		"what does this error mean?",
-		"show me the current logs",
-		"help me understand this code",
+// TestDetectSDDTrigger_GenericKeywordsNotSDD verifies simple action words do NOT trigger SDD.
+func TestDetectSDDTrigger_GenericKeywordsNotSDD(t *testing.T) {
+	genericMessages := []string{
+		"add a comment to line 50",
+		"create a test file for login",
+		"build the binary",
+		"implement a quick fix",
+		"refactor this helper function",
 	}
 
-	for _, msg := range tests {
+	for _, msg := range genericMessages {
 		t.Run(msg, func(t *testing.T) {
 			tr := DetectSDDTrigger(msg)
 			if tr.ShouldSDD {
-				t.Errorf("message %q should not trigger SDD", msg)
+				t.Errorf("generic message %q should NOT trigger SDD pipeline", msg)
+			}
+		})
+	}
+}
+
+// TestDetectSDDTrigger_ArchitecturalKeywordsTriggerSDD verifies breaking/architectural change phrases trigger SDD.
+func TestDetectSDDTrigger_ArchitecturalKeywordsTriggerSDD(t *testing.T) {
+	archMessages := []string{
+		"this change causes a breaking change in auth",
+		"we need an architectural redesign of the event bus",
+		"perform a database migration for the user table",
+		"requerimos un rediseño de arquitectura completo",
+	}
+
+	for _, msg := range archMessages {
+		t.Run(msg, func(t *testing.T) {
+			tr := DetectSDDTrigger(msg)
+			if !tr.ShouldSDD {
+				t.Errorf("architectural message %q SHOULD trigger SDD pipeline", msg)
 			}
 		})
 	}
@@ -112,7 +70,7 @@ func TestDetectSDDTrigger_SDDOverride(t *testing.T) {
 
 // TestDetectSDDTrigger_CaseInsensitive verifies keyword matching is case-insensitive.
 func TestDetectSDDTrigger_CaseInsensitive(t *testing.T) {
-	tr := DetectSDDTrigger("IMPLEMENT the new FEATURE")
+	tr := DetectSDDTrigger("this involves a BREAKING CHANGE in auth")
 	if !tr.ShouldSDD {
 		t.Error("case-insensitive keyword matching should trigger SDD")
 	}
@@ -131,7 +89,7 @@ func TestDetectSDDTrigger_EmptyInput(t *testing.T) {
 
 // TestDetectSDDTrigger_ReasonHasContent verifies reason is informative.
 func TestDetectSDDTrigger_ReasonHasContent(t *testing.T) {
-	tr := DetectSDDTrigger("implement user auth")
+	tr := DetectSDDTrigger("this causes a breaking change")
 	if tr.Reason == "" {
 		t.Error("reason should not be empty for triggered SDD")
 	}
@@ -152,9 +110,9 @@ func TestDetectSDDTrigger_ReasonHasContent(t *testing.T) {
 
 // TestDetectSDDTrigger_Substring_Match verifies partial keyword matching works.
 func TestDetectSDDTrigger_SubstringMatch(t *testing.T) {
-	tr := DetectSDDTrigger("we should refactor that")
+	tr := DetectSDDTrigger("we need a system migration for this service")
 	if !tr.ShouldSDD {
-		t.Error("'refactor' as substring should trigger SDD")
+		t.Error("'system migration' as substring should trigger SDD")
 	}
 }
 
