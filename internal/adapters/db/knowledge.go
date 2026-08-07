@@ -38,7 +38,7 @@ func (k *SQLiteKnowledgeGraph) AddFact(ctx context.Context, fact domain.Knowledg
 	}
 
 	query := `INSERT INTO knowledge_facts (id, topic, concept, fact, source_agent, labels, created_at, project, language, scope)
-		VALUES (?, ?, ?, ?, ?, ?, ?)`
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	_, err = k.db.ExecContext(ctx, query,
 		fact.ID, fact.Topic, fact.Concept, fact.Fact,
 		fact.SourceAgent, string(labelsJSON), fact.CreatedAt, fact.Project, fact.Language, fact.Scope)
@@ -59,14 +59,14 @@ func (k *SQLiteKnowledgeGraph) AddFact(ctx context.Context, fact domain.Knowledg
 
 // GetFactsByTopic returns all facts for a given topic, newest first.
 func (k *SQLiteKnowledgeGraph) GetFactsByTopic(ctx context.Context, topic string) ([]domain.KnowledgeFact, error) {
-	query := `SELECT id, topic, concept, fact, source_agent, labels, created_at
+	query := `SELECT id, topic, concept, fact, source_agent, labels, project, language, scope, created_at
 		FROM knowledge_facts WHERE topic = ? ORDER BY created_at DESC`
 	return k.queryFacts(ctx, query, topic)
 }
 
 // GetFactsByConcept returns all facts under a specific topic+concept, newest first.
 func (k *SQLiteKnowledgeGraph) GetFactsByConcept(ctx context.Context, topic, concept string) ([]domain.KnowledgeFact, error) {
-	query := `SELECT id, topic, concept, fact, source_agent, labels, created_at
+	query := `SELECT id, topic, concept, fact, source_agent, labels, project, language, scope, created_at
 		FROM knowledge_facts WHERE topic = ? AND concept = ? ORDER BY created_at DESC`
 	return k.queryFacts(ctx, query, topic, concept)
 }
@@ -79,7 +79,7 @@ func (k *SQLiteKnowledgeGraph) SearchFacts(ctx context.Context, queryStr string)
 		return nil, nil
 	}
 
-	ftsQuery := `SELECT k.id, k.topic, k.concept, k.fact, k.source_agent, k.labels, k.created_at
+	ftsQuery := `SELECT k.id, k.topic, k.concept, k.fact, k.source_agent, k.labels, k.project, k.language, k.scope, k.created_at
 		FROM knowledge_facts k
 		JOIN knowledge_facts_fts fts ON k.rowid = fts.rowid
 		WHERE knowledge_facts_fts MATCH ?
@@ -90,7 +90,7 @@ func (k *SQLiteKnowledgeGraph) SearchFacts(ctx context.Context, queryStr string)
 
 // GetRecentFacts returns the most recent N facts across all topics.
 func (k *SQLiteKnowledgeGraph) GetRecentFacts(ctx context.Context, limit int) ([]domain.KnowledgeFact, error) {
-	query := `SELECT id, topic, concept, fact, source_agent, labels, created_at
+	query := `SELECT id, topic, concept, fact, source_agent, labels, project, language, scope, created_at
 		FROM knowledge_facts ORDER BY created_at DESC LIMIT ?`
 	return k.queryFacts(ctx, query, limit)
 }

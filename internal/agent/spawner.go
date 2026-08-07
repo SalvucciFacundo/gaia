@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"gaia/internal/agent/learn"
 	"gaia/internal/agent/memory"
@@ -21,6 +22,7 @@ type SpawnerConfig struct {
 	MoAProviders map[string]ports.LLMProvider // providers for MoA fan-out, keyed by name
 	Policy       *core.PolicyGuard        // policy evaluation guard (nil = no policy enforcement)
 	AuditFunc    func(name string, args map[string]interface{}, allowed bool) // audit trail callback
+	DefaultTimeout time.Duration                                              // optional timeout for Spawn execution
 }
 
 // Spawner implements ports.SubagentPort. It creates isolated execution
@@ -111,6 +113,14 @@ func (s *Spawner) Spawn(ctx context.Context, name string, task domain.SubagentTa
 	factory, ok := s.registry.Get(name)
 	if !ok {
 		return nil, fmt.Errorf("unknown subagent: %s", name)
+	}
+
+	if s.cfg.DefaultTimeout > 0 {
+		if _, hasDeadline := ctx.Deadline(); !hasDeadline {
+			var cancel context.CancelFunc
+			ctx, cancel = context.WithTimeout(ctx, s.cfg.DefaultTimeout)
+			defer cancel()
+		}
 	}
 
 	sub := factory(s)

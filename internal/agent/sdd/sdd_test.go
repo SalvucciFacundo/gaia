@@ -38,6 +38,8 @@ func (s *sddStubProvider) Stream(ctx context.Context, msgs []domain.Message, opt
 
 func (s *sddStubProvider) Tools() []domain.ToolDef { return nil }
 
+func (s *sddStubProvider) ListModels(ctx context.Context) ([]string, error) { return nil, nil }
+
 // newSDDSpawner creates a Spawner with a stub provider and tool registry.
 func newSDDSpawner() *agent.Spawner {
 	cfg := agent.SpawnerConfig{

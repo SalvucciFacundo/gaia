@@ -45,6 +45,8 @@ func (m *mockProvider) Tools() []domain.ToolDef {
 	return nil
 }
 
+func (m *mockProvider) ListModels(ctx context.Context) ([]string, error) { return nil, nil }
+
 func TestRouter_PrimarySucceeds(t *testing.T) {
 	primary := &mockProvider{name: "primary"}
 	fallback := &mockProvider{name: "fallback"}

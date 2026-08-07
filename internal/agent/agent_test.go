@@ -43,6 +43,8 @@ func (s *stubProvider) Stream(ctx context.Context, msgs []domain.Message, opts .
 
 func (s *stubProvider) Tools() []domain.ToolDef { return nil }
 
+func (s *stubProvider) ListModels(ctx context.Context) ([]string, error) { return nil, nil }
+
 // --- Test helpers ---
 
 func newTestSpawner(prov ports.LLMProvider) *Spawner {

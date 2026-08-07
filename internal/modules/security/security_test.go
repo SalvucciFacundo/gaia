@@ -38,8 +38,9 @@ func TestValidatePath_TraversalBlocked(t *testing.T) {
 func TestValidatePath_AbsoluteOutsideBlocked(t *testing.T) {
 	root := t.TempDir()
 
-	// On Windows, /etc is not absolute; use a path that escapes via traversal.
-	_, err := ValidatePath(root, "..\\..\\..\\Windows\\System32")
+	// Use filepath.Join with ".." to construct a path outside root on any OS.
+	outside := filepath.Join(root, "..", "..", "..", "outside_root_test")
+	_, err := ValidatePath(root, outside)
 	if err == nil {
 		t.Fatal("expected absolute outside path to be blocked")
 	}

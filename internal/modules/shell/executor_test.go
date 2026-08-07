@@ -295,7 +295,7 @@ func TestNewModuleWithConfig_ShellExecUsesExecutor(t *testing.T) {
 	m := NewModuleWithConfig(root, cfg)
 
 	result, err := m.Execute(context.Background(), "shell_exec", map[string]interface{}{
-		"command": "where where",
+		"command": "echo hello",
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -303,8 +303,8 @@ func TestNewModuleWithConfig_ShellExecUsesExecutor(t *testing.T) {
 	if !result.Success {
 		t.Fatalf("expected success, got: %s", result.Error)
 	}
-	if !strings.Contains(strings.ToLower(result.Output), "where") {
-		t.Errorf("expected 'where' in output, got: %s", result.Output)
+	if !strings.Contains(strings.ToLower(result.Output), "hello") {
+		t.Errorf("expected 'hello' in output, got: %s", result.Output)
 	}
 }
 

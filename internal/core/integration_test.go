@@ -57,6 +57,8 @@ func (p *loopMockProvider) Stream(ctx context.Context, msgs []domain.Message, op
 
 func (p *loopMockProvider) Tools() []domain.ToolDef { return nil }
 
+func (p *loopMockProvider) ListModels(ctx context.Context) ([]string, error) { return nil, nil }
+
 // echoModule is a simple module that echoes back its arguments.
 type echoModule struct{}
 

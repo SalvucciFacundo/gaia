@@ -38,6 +38,8 @@ func (s *opsStubProvider) Stream(ctx context.Context, msgs []domain.Message, opt
 
 func (s *opsStubProvider) Tools() []domain.ToolDef { return nil }
 
+func (s *opsStubProvider) ListModels(ctx context.Context) ([]string, error) { return nil, nil }
+
 // newOpsSpawner creates a Spawner with a stub provider and tool registry.
 func newOpsSpawner() *agent.Spawner {
 	cfg := agent.SpawnerConfig{

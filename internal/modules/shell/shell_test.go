@@ -12,9 +12,9 @@ func TestShellExec_AllowedCommand(t *testing.T) {
 	root := t.TempDir()
 	mod := NewModule(root)
 
-	// where.exe is in the allowlist and is a real executable on Windows.
+	// echo is in the allowlist and works on all platforms.
 	result, err := mod.Execute(context.Background(), "shell_exec", map[string]interface{}{
-		"command": "where where",
+		"command": "echo hello",
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -22,8 +22,8 @@ func TestShellExec_AllowedCommand(t *testing.T) {
 	if !result.Success {
 		t.Fatalf("expected success, got error: %s", result.Error)
 	}
-	if !strings.Contains(strings.ToLower(result.Output), "where") {
-		t.Errorf("expected 'where' in output, got: %s", result.Output)
+	if !strings.Contains(strings.ToLower(result.Output), "hello") {
+		t.Errorf("expected 'hello' in output, got: %s", result.Output)
 	}
 }
 
@@ -103,18 +103,15 @@ func TestShellExec_SecretsRedacted(t *testing.T) {
 	root := t.TempDir()
 	mod := NewModule(root)
 
-	// Use find to echo a string containing an API key pattern.
 	result, err := mod.Execute(context.Background(), "shell_exec", map[string]interface{}{
-		"command": "find /?",
+		"command": "echo hello",
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	// find /? should succeed and produce output without secrets.
 	if !result.Success {
 		t.Fatalf("expected success, got: %s", result.Error)
 	}
-	// Verify no redaction when there's no secret to redact.
 	t.Logf("output: %s", result.Output)
 }
 
