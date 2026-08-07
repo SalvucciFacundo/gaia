@@ -318,10 +318,10 @@ Each SDD subagent has specific rules inherited from the corresponding Gentle-AI 
 
 **Delta Spec Structure:**
 ```
-## ADDED Requirements  ? Append to main spec at archive time
-## MODIFIED Requirements ? Replace matching requirement in main spec (FULL block copy-then-edit)
-## REMOVED Requirements ? Delete from main spec (with Reason + Migration)
-## RENAMED Requirements ? Rename in main spec (old name ? new name)
+## ADDED Requirements  — Append to main spec at archive time
+## MODIFIED Requirements — Replace matching requirement in main spec (FULL block copy-then-edit)
+## REMOVED Requirements — Delete from main spec (with Reason + Migration)
+## RENAMED Requirements — Rename in main spec (old name ? new name)
 ```
 
 #### 4.5.4 Designer (sdd-design)
@@ -394,7 +394,7 @@ Each SDD subagent has specific rules inherited from the corresponding Gentle-AI 
 - **Graceful handling**:
   - Tasks only ? verify task completion only (spec/design: SKIPPED)
   - Tasks + specs ? verify completeness + correctness (design: SKIPPED)
-  - All artifacts ? verify all dimensions
+  - All artifacts → verify all dimensions
 - **Severity**:
   - Test command exits non-zero ? CRITICAL
   - Spec scenario has no passing test ? CRITICAL
@@ -412,8 +412,8 @@ Each SDD subagent has specific rules inherited from the corresponding Gentle-AI 
 - **Native Review Receipt Gate**: Before any operation, require a valid review receipt. Missing, pending, scope-changed, invalidated, or escalated blocks archive.
 - **Task Completion Gate**: If any implementation task is unchecked (`- [ ]`), STOP and block archive. Only proceed if orchestrator explicitly approves stale-checkbox reconciliation with proof from `apply-progress` and `verify-report`.
 - **Delta merge**:
-  - ADDED ? Append to main spec
-  - MODIFIED ? Replace matching requirement (full block)
+  - ADDED — Append to main spec
+  - MODIFIED — Replace matching requirement (full block)
   - REMOVED ? Delete (require Reason + Migration notes)
   - RENAMED ? Rename (require explicit old/new names)
 - **Move to archive**: `openspec/changes/{change-name}/ ? openspec/changes/archive/YYYY-MM-DD-{change-name}/`
@@ -1150,7 +1150,7 @@ gaia/
 - [x] GitHub Copilot OAuth + API client
 - [x] Brain kernel (message?LLM?tools cycle)
 - [x] Domain models + Ports/Interfaces
-- [x] 20 Go-specific skills (on disk, no loader)
+- [x] Language-neutral skill architecture (zero pre-installed skills, install on demand)
 
 ### Milestone 1: Core Agent Loop (Week 1-3)
 
@@ -1727,8 +1727,8 @@ GAIA detects the project language from build files (go.mod, pom.xml, package.jso
 
 ### Knowledge Flow
 1. Subagent completes a task
-2. Implementation facts ? **project scope**
-3. Language patterns ? **language scope**  
+2. Implementation facts → **project scope**
+3. Language patterns → **language scope**  
 4. User preferences ? **user scope**
 
 See \`internal/core/language.go\` for language detection.
