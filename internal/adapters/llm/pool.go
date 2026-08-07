@@ -73,40 +73,59 @@ func (p *CredentialPool) Name() string {
 }
 
 // Chat selects the next available credential and delegates the call.
-// On credential-specific errors (429, 401, 402), marks the credential for
-// cooldown and retries with the next available credential.
+// On credential-specific or transient errors, marks the credential for
+// cooldown and retries with the next available credential up to len(creds) times.
 func (p *CredentialPool) Chat(ctx context.Context, messages []domain.Message, opts ...ports.ChatOpt) (*domain.Message, error) {
-	provider, release, err := p.acquire(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer release()
+	p.mu.Lock()
+	maxAttempts := len(p.creds)
+	p.mu.Unlock()
 
-	msg, err := provider.Chat(ctx, messages, opts...)
-	if err != nil {
-		if p.handleCredentialError(err) {
-			// Retry with next credential
-			return p.Chat(ctx, messages, opts...)
+	var lastErr error
+	for attempt := 0; attempt < maxAttempts; attempt++ {
+		provider, release, err := p.acquire(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		msg, err := provider.Chat(ctx, messages, opts...)
+		release()
+		if err == nil {
+			return msg, nil
+		}
+
+		lastErr = err
+		if !p.handleCredentialError(err) {
+			return nil, err
 		}
 	}
-	return msg, err
+	return nil, fmt.Errorf("credential pool %q exhausted after %d attempts: %w", p.providerName, maxAttempts, lastErr)
 }
 
 // Stream selects the next available credential and delegates the streaming call.
 func (p *CredentialPool) Stream(ctx context.Context, messages []domain.Message, opts ...ports.ChatOpt) (ports.TokenStream, error) {
-	provider, release, err := p.acquire(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer release()
+	p.mu.Lock()
+	maxAttempts := len(p.creds)
+	p.mu.Unlock()
 
-	stream, err := provider.Stream(ctx, messages, opts...)
-	if err != nil {
-		if p.handleCredentialError(err) {
-			return p.Stream(ctx, messages, opts...)
+	var lastErr error
+	for attempt := 0; attempt < maxAttempts; attempt++ {
+		provider, release, err := p.acquire(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		stream, err := provider.Stream(ctx, messages, opts...)
+		release()
+		if err == nil {
+			return stream, nil
+		}
+
+		lastErr = err
+		if !p.handleCredentialError(err) {
+			return nil, err
 		}
 	}
-	return stream, err
+	return nil, fmt.Errorf("credential pool %q exhausted after %d attempts: %w", p.providerName, maxAttempts, lastErr)
 }
 
 // Tools returns the tool definitions from the first available provider.
@@ -202,10 +221,10 @@ func (p *CredentialPool) lazyInitLocked(c *credentialState) error {
 	return nil
 }
 
-// handleCredentialError checks if the error is credential-specific and marks
-// the current credential for cooldown. Returns true if retryable.
+// handleCredentialError checks if the error is credential-specific or network-transient
+// and marks the current credential for cooldown. Returns true if retryable.
 func (p *CredentialPool) handleCredentialError(err error) bool {
-	errStr := err.Error()
+	errStr := strings.ToLower(err.Error())
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -222,8 +241,11 @@ func (p *CredentialPool) handleCredentialError(err error) bool {
 		cooldown = c.entry.Cooldown401
 	case strings.Contains(errStr, "402") || strings.Contains(errStr, "quota") || strings.Contains(errStr, "insufficient_quota"):
 		cooldown = c.entry.Cooldown402
+	case strings.Contains(errStr, "500") || strings.Contains(errStr, "502") || strings.Contains(errStr, "503") || strings.Contains(errStr, "504") ||
+		strings.Contains(errStr, "connection reset") || strings.Contains(errStr, "timeout") || strings.Contains(errStr, "bad gateway"):
+		cooldown = 30 * time.Second // short cooldown for transient errors
 	default:
-		return false // non-credential error
+		return false // non-retryable error
 	}
 
 	c.cooldownUntil = time.Now().Add(cooldown)
