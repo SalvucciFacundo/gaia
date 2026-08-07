@@ -1,31 +1,31 @@
-# Token Efficiency
+# Token Efficiency & Hybrid Search
 
-GAIA uses a **knowledge graph** to recall only relevant context per turn, saving **70%+ tokens** on long sessions compared to traditional agent replay.
+GAIA uses a **Knowledge Graph + FTS5 & Vector Hybrid Search** to recall only relevant context per turn, saving **70%+ tokens** on long sessions compared to traditional agent prompt replay.
 
 ---
 
 ## The Problem
 
-Traditional agents replay the **entire conversation** every turn:
+Traditional agents replay the **entire conversation history** every turn, creating exponential token cost growth:
 
-| Session Length | Traditional | GAIA |
+| Session Length | Traditional Agent | GAIA (Fixed Budget) |
 |---|---|---|
 | 10 messages | ~5k tokens | ~8.5k tokens |
 | 50 messages | ~25k tokens | ~8.5k tokens |
 | 100 messages | ~50k tokens | ~8.5k tokens |
-| 500 messages | ~200k+ tokens (overflow) | ~8.5k tokens |
+| 500 messages | ~200k+ tokens (overflow / crash) | ~8.5k tokens |
 
-At 500 messages, traditional agents hit context limits. GAIA stays within a fixed budget.
+At 500 messages, traditional agents overflow their context windows. GAIA stays within a strict, predictable budget per turn.
 
 ---
 
 ## Per-Turn Context Budget
 
-```
+```text
 System Prompt (fixed)               ~2k tokens
 + Active Skills Index (Level 0)     ~3k tokens
-+ Knowledge Graph Recall            ~500 tokens
-+ Recent Messages (last 5)          ~2k tokens
++ Knowledge Graph & Hybrid Recall   ~500 tokens
++ Recent Messages (last 5 verbatim) ~2k tokens
 + Compacted Summary                 ~1k tokens
 ─────────────────────────────────────────
 TOTAL per turn:                    ~8.5k tokens
@@ -33,51 +33,43 @@ TOTAL per turn:                    ~8.5k tokens
 
 ---
 
-## Mechanisms
+## Context Optimization Mechanisms
 
-### Knowledge Graph Recall
+### 1. Hybrid Search (FTS5 + Vector Embeddings)
 
-**Cost**: ~500 tokens per turn
-**Saving**: Grows with session length
+**Cost**: 0 LLM Tokens (Executed locally via SQLite)  
+**Benefit**: Precise context extraction without expensive filtering LLM calls.
 
-Before each LLM call, GAIA:
-1. Extracts key concepts from the current context
-2. Queries the knowledge graph for related facts
-3. Injects relevant facts into the system prompt
+GAIA combines **SQLite FTS5 full-text keyword search** with **semantic vector embeddings** to retrieve historical facts, decisions, and codebase observations. This hybrid approach guarantees that relevant memories are retrieved even if exact keywords differ, without consuming LLM budget for context discovery.
 
-### Context Compaction
+### 2. Knowledge Graph Recall
 
-**Cost**: ~1k tokens per turn
-**Saving**: Caps prompt size on long sessions
+**Cost**: ~500 tokens per turn  
+**Saving**: Scales context efficiency on long-running sessions.
 
-When messages exceed the compaction threshold (default 50):
-1. Stale messages are summarized into a compacted history
-2. Only the last 5 messages remain verbatim
-3. The compacted summary is injected instead of replaying all history
+Before each turn, GAIA:
+1. Extracts active concepts from the user message.
+2. Queries the Knowledge Graph using hybrid search.
+3. Injects relevant semantic facts directly into the system prompt.
 
-### Progressive Skills
+### 3. Context Compaction
 
-**Cost**: ~3k tokens (Level 0 index)
-**Saving**: Only loads what's needed
+**Cost**: ~1k tokens per turn (on compaction execution)  
+**Saving**: Caps prompt size permanently on long sessions.
 
-Skills are loaded in levels:
-- **Level 0** (always in context): `[{name, description, tags}, ...]` — ~3k tokens
-- **Level 1** (on demand): Full `SKILL.md` content
-- **Level 2** (on demand): Specific reference files
+When conversation length crosses the compaction threshold (default: 50 messages):
+1. Older messages are summarized into a structured executive summary.
+2. Only the last 5 messages are kept verbatim.
+3. The compacted summary replaces raw message history in context.
 
-### Memory Recall
+### 4. Progressive Skill Loading
 
-**Cost**: ~0 tokens (no LLM involved)
-**Saving**: Fewer exploration turns
+**Cost**: ~3k tokens (Level 0 index)  
+**Saving**: Prevents loading unused instructions into memory.
 
-FTS5 search across past observations retrieves relevant decisions and facts. No LLM call needed.
-
-### Session Search
-
-**Cost**: ~0 tokens (FTS5, no LLM)
-**Saving**: Fast recall without context cost
-
-Search past sessions for similar problems or solutions.
+- **Level 0** (always in context): Short skill manifests `[{name, description, tags}]` (~3k tokens).
+- **Level 1** (on demand): Full `SKILL.md` content loaded only when triggered.
+- **Level 2** (on demand): Specific reference files.
 
 ---
 
@@ -94,20 +86,20 @@ Topic (e.g., "Authentication System")
 │   └── Fact (e.g., "Sessions invalidated on password change")
 ```
 
-Each fact has:
-- Labels (semantic tags)
-- Summary (LLM-generated)
-- Embedding vector (for semantic search)
-- Edges to related concepts
+Each fact contains:
+- **Labels**: Semantic tags.
+- **Summary**: Concise description.
+- **FTS5 Index**: Fast keyword lookup.
+- **Embedding Vector**: Dense vector representation for semantic similarity.
 
 ---
 
 ## Token Budget Per Subagent
 
-Each subagent has a configured token budget for its LLM calls. When the budget is low:
+Subagents operate under isolated token budgets. When a subagent's token budget approaches its threshold:
 
-1. **Compact** oldest messages in the subagent's context
-2. **Fall back** to a cheaper model (if configured)
-3. **Return** partial results with a summary of remaining work
+1. **Compacts** older messages in the subagent's local conversation.
+2. **Falls back** to a lighter/cheaper model if configured.
+3. **Returns** intermediate results and a structured summary back to the orchestrator.
 
-This prevents any single subagent from consuming the entire API budget.
+This guarantees that no single subagent can exhaust the global API token budget.
