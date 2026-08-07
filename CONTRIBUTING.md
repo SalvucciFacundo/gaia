@@ -1,29 +1,27 @@
 # Contributing to GAIA
 
-Thanks for your interest in contributing to GAIA! This project follows a structured workflow to keep changes safe, reviewable, and well-documented.
+Thanks for your interest in contributing to GAIA! We welcome contributions from the community.
 
 ## How to contribute
 
-1. **Fork the repository** and create a branch from `main`.
-2. **Open an issue first** for substantial changes — describe what you want to do and why. Small fixes (typos, docs, bug fixes) can go straight to a PR.
-3. **Follow the SDD workflow** for substantial changes: the project uses Spec-Driven Development. See [docs/sdd.md](docs/sdd.md) for the full pipeline (`explore → propose → spec → design → tasks → apply → verify → archive`).
-4. **Run the tests** before submitting:
+1. **Fork the repository** and create your feature branch from `main`.
+2. **Open an issue first** for substantial features or architectural changes — describe what you plan to build so we can align on design early.
+3. **Run tests & verification** before submitting your pull request:
    ```bash
    go build ./cmd/gaia
    go test ./...
    ```
-5. **Submit a pull request** with a clear description of the change and the problem it solves.
+4. **Submit a pull request** with a clear description of the problem solved and changes made.
 
-## Code style
+## Code style & guidelines
 
-- Go 1.22+, standard formatting (`gofmt`), linting via `.golangci.yml`.
-- Keep the single-binary, zero-external-dependency philosophy: no runtime dependencies outside the Go toolchain.
-- New features should follow the existing hexagonal architecture (ports & adapters). See [docs/architecture.md](docs/architecture.md).
+- **Go 1.23+**: Ensure your code is compatible with Go 1.23+ and formatted using `gofmt`.
+- **Zero external runtime dependencies**: Preserve the single-binary philosophy (no CGO requirements or external non-Go library dependencies).
+- **Architecture**: Follow the existing hexagonal architecture (ports & adapters). See [docs/unified-architecture.md](docs/unified-architecture.md).
 
 ## Security
 
-- Report security vulnerabilities privately — do **not** open a public issue for them. Open a [security advisory](https://github.com/SalvucciFacundo/gaia/security/advisories/new) or contact the maintainer directly.
-- If you add or modify skills, they are scanned by GAIA's AST Security Audit before installation. Make sure your code doesn't execute obfuscated commands or leak credentials.
+- Report security vulnerabilities privately. Do **not** open a public issue for zero-days or sensitive security bugs. Contact the maintainer directly or use GitHub Security Advisories.
 
 ## License
 
