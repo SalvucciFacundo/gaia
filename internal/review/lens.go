@@ -3,10 +3,14 @@ package review
 import (
 	"context"
 	"fmt"
+	"regexp"
+	"strconv"
 	"strings"
 
 	"gaia/internal/core/domain"
 )
+
+var fileLineRegex = regexp.MustCompile(`^((?:[a-zA-Z]:[/\\]|[/\\])?[^:\s]+(?::[^:\s]+)*):(\d+)(?:\s+(.*))?$`)
 
 // Lens is the interface that all review lenses must implement.
 type Lens interface {
@@ -221,7 +225,15 @@ func parseFindings(response, lens string) []domain.ReviewFinding {
 		parts := strings.SplitN(message, " ", 2)
 		if len(parts) >= 1 {
 			fileLine := parts[0]
-			if colonIdx := strings.LastIndex(fileLine, ":"); colonIdx >= 0 {
+			if match := fileLineRegex.FindStringSubmatch(fileLine); match != nil {
+				file = match[1]
+				if l, err := strconv.Atoi(match[2]); err == nil {
+					lineNum = l
+				}
+				if len(parts) > 1 {
+					message = parts[1]
+				}
+			} else if colonIdx := strings.LastIndex(fileLine, ":"); colonIdx >= 0 {
 				file = fileLine[:colonIdx]
 				if n, err := fmt.Sscanf(fileLine[colonIdx+1:], "%d", &lineNum); err == nil && n == 1 {
 					if len(parts) > 1 {

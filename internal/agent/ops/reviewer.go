@@ -68,10 +68,10 @@ func (r *reviewer) Execute(ctx context.Context, task domain.SubagentTask) *domai
 
 	// Phase 2: Classify risk.
 	diff := task.Description // Use task description as diff context
-	riskCodes, riskLevel := engine.ClassifyRisk(diff)
+	riskCodes, riskLevel := engine.ClassifyRisk(diff, tx.Files)
 
 	// Phase 3: Select and run lenses.
-	lensNames := engine.SelectLenses(riskLevel)
+	lensNames := engine.SelectLenses(riskLevel, tx.Files)
 
 	var findings []domain.ReviewFinding
 	if len(lensNames) > 0 {

@@ -79,16 +79,16 @@ func (e *Engine) Start(files []string) (*Transaction, error) {
 }
 
 // ClassifyRisk analyzes the diff and files to determine risk codes and level.
-func (e *Engine) ClassifyRisk(diff string) ([]RiskCode, string) {
-	codes := ClassifyRisk(diff, e.listReviewFiles())
+func (e *Engine) ClassifyRisk(diff string, files []string) ([]RiskCode, string) {
+	codes := ClassifyRisk(diff, files)
 	level := DetermineRiskLevel(codes)
 	return codes, level
 }
 
 // SelectLenses determines which lenses to run based on the risk level
 // and file types.
-func (e *Engine) SelectLenses(riskLevel string) []string {
-	return SelectLenses(riskLevel, e.listReviewFiles())
+func (e *Engine) SelectLenses(riskLevel string, files []string) []string {
+	return SelectLenses(riskLevel, files)
 }
 
 // listReviewFiles lists all staged files (to be set by the caller or
