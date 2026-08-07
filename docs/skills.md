@@ -1,19 +1,20 @@
 # Skills Hub
 
-Skills are procedural memory for GAIA — they teach the agent how to handle specific tasks, languages, and frameworks. Skills are **not bundled** with GAIA; you install what you need for your stack.
+Skills are procedural memory for GAIA — they teach the agent how to handle specific tasks, languages, and frameworks. GAIA is designed as a **language-neutral autonomous coding agent** and ships with **zero pre-installed skills**. You install only what your stack needs.
 
 ---
 
 ## Philosophy
 
-```
-GAIA ships with NO pre-installed skills.
-You install only what your stack needs.
+```text
+GAIA ships with NO pre-installed skills (100% Neutral core).
+You install only what your specific stack requires.
 
-This keeps:
+This guarantees:
   • Context lean (only relevant skills in index)
-  • Prompts focused (no irrelevant instructions)
-  • Agent fast (less to load per turn)
+  • Language agnostic (no bias towards any specific framework)
+  • Prompts focused (no unused instructions clogging memory)
+  • Agent fast (minimal footprint per execution turn)
 ```
 
 ---
@@ -30,7 +31,7 @@ gaia skills install go
 gaia skills install typescript-react
 
 # Manage installed skills
-gaia skills list                         # See what's installed
+gaia skills list                         # See what is installed
 gaia skills activate go-testing          # Enable a skill
 gaia skills deactivate go-linting        # Disable without uninstalling
 gaia skills remove go-testing            # Delete permanently
@@ -40,18 +41,18 @@ gaia skills remove go-testing            # Delete permanently
 
 ## First-Run Wizard
 
-On first run, GAIA's wizard:
-1. Detects your project language (from go.mod, package.json, Cargo.toml, etc.)
+On first run, GAIA setup wizard:
+1. Detects your project language and framework (from go.mod, package.json, Cargo.toml, pyproject.toml, etc.)
 2. Queries the Skills Hub for popular matching skills
 3. Shows recommendations with descriptions
-4. Installs your selections
-5. Activates them by default
+4. Installs your selections to ~/.gaia/skills/
+5. Activates them for the workspace
 
 ---
 
 ## Skill Format
 
-Skills are `SKILL.md` files with YAML frontmatter:
+Skills are SKILL.md files with YAML frontmatter:
 
 ```yaml
 ---
@@ -76,34 +77,30 @@ When writing or reviewing Go test code.
 
 ## Procedure
 1. Use table-driven tests with descriptive names
-2. Use `t.Run()` for subtests
-3. Use `t.Parallel()` for independent tests
-4. Use `cmp.Diff()` for complex comparisons
+2. Use t.Run() for subtests
+3. Use t.Parallel() for independent tests
+4. Use cmp.Diff() for complex comparisons
 
 ## Pitfalls
-- Don't use `require` in goroutines (panics)
-- Don't ignore `t.Cleanup` for resource cleanup
-- Don't use `ioutil` (deprecated since Go 1.16)
+- Do not use require in goroutines (panics)
+- Do not ignore t.Cleanup for resource cleanup
+- Do not use ioutil (deprecated since Go 1.16)
 
 ## Verification
-Run `go test ./... -count=1` and check all tests pass.
+Run go test ./... -count=1 and check all tests pass.
 ```
 
 ---
 
 ## Skill Sources
 
-Skills come from multiple sources, checked in order:
+Skills are discovered and loaded from the following locations:
 
 | Source | Path | Priority | Read-only |
 |---|---|---|---|
-| Bundled | `skills/` (in GAIA binary) | Fallback | Yes |
 | User-installed | `~/.gaia/skills/` | Primary | No |
 | Community taps | `~/.gaia/taps/{name}/` | Extended | No |
-
-### Bundled Skills
-
-GAIA ships with a set of **Go-specific reference skills** in the `skills/` directory. These are read-only and version-locked with the binary.
+| Project-local | `.gaia/skills/` (in project repo) | Workspace-specific | No |
 
 ### Community Taps
 
@@ -114,18 +111,14 @@ gaia skills add-tap github.com/user/gaia-skills
 gaia skills add-tap https://github.com/community/awesome-skills
 ```
 
-Taps are git-cloned into `~/.gaia/taps/` and scanned for `SKILL.md` files. Update with:
-
-```bash
-gaia skills add-tap my-tap  # Re-adds to update (git pull)
-```
+Taps are git-cloned into `~/.gaia/taps/` and scanned for `SKILL.md` files.
 
 ### Creating Your Own Skills
 
-Skills are just markdown files. Create one in `~/.gaia/skinks/custom/`:
+Skills are markdown files with YAML frontmatter. Create custom skills in `~/.gaia/skills/custom/`:
 
 ```bash
-mkdir -p ~/.gaia/skills/custom
+mkdir -p ~/.gaia/skills/custom/my-skill
 cat > ~/.gaia/skills/custom/my-skill/SKILL.md << 'EOF'
 ---
 name: my-skill
@@ -144,7 +137,7 @@ EOF
 
 ## Progressive Loading
 
-```
+```text
 Level 0 (always in context):   [{name, description, tags}, ...]   ~3k tokens
 Level 1 (on demand):           Full SKILL.md content               varies
 Level 2 (on demand):           Reference files                    varies
@@ -167,7 +160,7 @@ After a subagent executes 5 times, the background learning loop automatically ag
 - `implementer-patterns/` — Coding and refactoring patterns.
 - `verifier-patterns/` — Testing and verification habits.
 
-You can audit and edit these skills at any time to refine GAIA's behavior. Use `gaia skills list` to view them.
+You can audit and edit these skills at any time to refine GAIA behavior. Use `gaia skills list` to view them.
 
 ### Learner Subagent
 You can actively ask the `@learner` subagent to analyze your codebase and propose new skills by invoking:
