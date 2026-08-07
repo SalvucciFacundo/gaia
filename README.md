@@ -11,9 +11,7 @@
 [![CI](https://github.com/SalvucciFacundo/gaia/actions/workflows/release.yml/badge.svg)](https://github.com/SalvucciFacundo/gaia/actions)
 
 <p align="center">
-  <a href="https://github.com/sponsors/SalvucciFacundo"><b>💖 Sponsor GAIA</b></a>
   ·
-  <a href="https://ko-fi.com/"><b>☕ Buy a coffee</b></a>
 </p>
 
 **GAIA is a programming-first autonomous agent** written in Go.  
