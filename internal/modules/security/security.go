@@ -16,8 +16,9 @@ import (
 var secretPatterns = []*regexp.Regexp{
 	// OpenAI / Anthropic API keys
 	regexp.MustCompile(`sk-[a-zA-Z0-9]{20,}`),
-	// GitHub personal access tokens
+	// GitHub personal access tokens (classic and fine-grained)
 	regexp.MustCompile(`ghp_[a-zA-Z0-9]{36}`),
+	regexp.MustCompile(`github_pat_[a-zA-Z0-9_]{22,}`),
 	// Bearer tokens
 	regexp.MustCompile(`Bearer\s+[a-zA-Z0-9\-_\.\+]+`),
 	// PEM private keys (multiline)

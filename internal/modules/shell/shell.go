@@ -115,7 +115,7 @@ func (m *Module) execShell(ctx context.Context, args map[string]interface{}) (*d
 		return &domain.ToolResult{Success: false, Error: "command argument is required"}, nil
 	}
 
-	parts := strings.Fields(cmdStr)
+	parts := splitCommandLine(cmdStr)
 	if len(parts) == 0 {
 		return &domain.ToolResult{Success: false, Error: "empty command"}, nil
 	}
@@ -170,4 +170,34 @@ func (m *Module) execShell(ctx context.Context, args map[string]interface{}) (*d
 // looksLikeURL is a fast heuristic to identify arguments that may be URLs.
 func looksLikeURL(s string) bool {
 	return strings.HasPrefix(s, "http://") || strings.HasPrefix(s, "https://")
+}
+
+// splitCommandLine splits a command line string into arguments while respecting
+// single and double quotes.
+func splitCommandLine(cmd string) []string {
+	var args []string
+	var current strings.Builder
+	inDouble := false
+	inSingle := false
+
+	for i := 0; i < len(cmd); i++ {
+		r := rune(cmd[i])
+		switch {
+		case r == '"' && !inSingle:
+			inDouble = !inDouble
+		case r == '\'' && !inDouble:
+			inSingle = !inSingle
+		case (r == ' ' || r == '\t') && !inDouble && !inSingle:
+			if current.Len() > 0 {
+				args = append(args, current.String())
+				current.Reset()
+			}
+		default:
+			current.WriteRune(r)
+		}
+	}
+	if current.Len() > 0 {
+		args = append(args, current.String())
+	}
+	return args
 }

@@ -143,10 +143,21 @@ func TestRedactSecrets_OpenAIKey(t *testing.T) {
 }
 
 func TestRedactSecrets_GitHubToken(t *testing.T) {
-	input := "ghp_1234567890abcdefghijklmnopqrstuvwxyzAB"
+	input := "token is ghp_123456789012345678901234567890123456"
 	result := RedactSecrets(input)
-	if strings.Contains(result, "ghp_") {
+	if strings.Contains(result, "ghp_1234") {
 		t.Errorf("GitHub token not redacted: %s", result)
+	}
+}
+
+func TestRedactSecrets_GitHubPAT(t *testing.T) {
+	input := "token is github_pat_11AAAAAAA0000000000000_1234567890abcdefghijklmnopqrstuvwxyz1234"
+	result := RedactSecrets(input)
+	if strings.Contains(result, "github_pat_") {
+		t.Errorf("GitHub PAT token not redacted: %s", result)
+	}
+	if !strings.Contains(result, "[REDACTED]") {
+		t.Errorf("expected [REDACTED] in output, got: %s", result)
 	}
 }
 
