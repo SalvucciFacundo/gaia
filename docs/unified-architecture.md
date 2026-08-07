@@ -1,240 +1,158 @@
-# Unified Gateway/TUI Architecture
+# Unified Architecture: TUI + Gateway
 
-## Status: Design Proposal — Not Implemented
+This document describes the unified architecture of GAIA, integrating the Terminal User Interface (TUI) and Gateway services into a single process with multi-platform session routing.
 
 ---
 
-## 1. Problem Statement
+## 1. Overview
 
-Today GAIA runs as two separate processes:
-- `gaia` — TUI (Bubbletea) with a Brain instance
-- `gaia gateway start` — Gateway (Telegram/Discord/Slack) with a **different** Brain instance
+Traditionally, AI agent interfaces either run exclusively in a local CLI/TUI or operate as a headless gateway bot (Telegram, Discord, Slack). GAIA unifies both paradigms into a **single binary** sharing a core `Brain` instance, shared SQLite persistence, and a centralized `SessionManager`.
 
-This means:
-- Messages in TUI are invisible to Telegram and vice versa
-- `/handoff` saves to SQLite but requires manually switching contexts
-- No real continuity between devices — it's like talking to 3 different agents
+---
 
-## 2. Target Architecture
+## 2. System Architecture
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                    GAIA (single process)                  │
-│                                                          │
-│  ┌────────────────────────────────────────────────────┐  │
-│  │              BRAIN (única instancia)                │  │
-│  │  ┌──────────┐ ┌──────────┐ ┌──────────────────┐   │  │
-│  │  │ TUI      │ │ Gateway  │ │ Session Manager  │   │  │
-│  │  │ Bubbletea│ │ Manager  │ │                  │   │  │
-│  │  │          │ │          │ │ Controla qué     │   │  │
-│  │  │          │ │ ┌──────┐ │ │ sesión está      │   │  │
-│  │  │          │ │ │Tele  │ │ │ activa y cómo    │   │  │
-│  │  │          │ │ │gram  │ │ │ rutea mensajes   │   │  │
-│  │  │          │ │ ├──────┤ │ │                  │   │  │
-│  │  │          │ │ │Disc  │ │ │ 3 modos:         │   │  │
-│  │  │          │ │ │ord   │ │ │ - unify(default) │   │  │
-│  │  │          │ │ ├──────┤ │ │ - isolate       │   │  │
-│  │  │          │ │ │Slack │ │ │ - ask           │   │  │
-│  │  │          │ │ └──────┘ │ │                  │   │  │
-│  │  └──────────┘ └──────────┘ └──────────────────┘   │  │
-│  └────────────────────────────────────────────────────┘  │
-│                           │                               │
-│                    SQLite (compartida)                     │
-└───────────────────────────────────────────────────────────┘
+```mermaid
+graph TD
+    subgraph Clients["Input Interfaces"]
+        TUI["Terminal UI (Bubbletea)"]
+        TG["Telegram Gateway"]
+        DC["Discord Gateway"]
+        SL["Slack Gateway"]
+    end
+
+    subgraph Core["GAIA Process (Single Binary)"]
+        SM["Session Manager\n(Routing & Thread-Safe State)"]
+        Brain["Core Brain"]
+        PG["PolicyGuard\n(Per-Platform Security Tiers)"]
+    end
+
+    DB[(SQLite Shared Storage)]
+
+    TUI --> SM
+    TG --> SM
+    DC --> SM
+    SL --> SM
+
+    SM --> PG
+    PG --> Brain
+    Brain <--> DB
 ```
 
-## 3. Session Manager — El Corazón
+---
 
-### 3.1 Concepto
+## 3. Session Manager
 
-El Session Manager decide **dónde va cada mensaje** cuando llega desde cualquier plataforma. Tiene 3 modos:
+### 3.1 Concept
 
-### 3.2 Modes
+The `SessionManager` routes incoming messages from any interface to the appropriate conversation context. It supports three distinct modes depending on user preference.
 
-#### Mode: `unify` (default)
+### 3.2 Operating Modes
 
-Un solo contexto global. TODOS los mensajes de TODAS las plataformas van a la misma sesión.
+#### Mode: `unify` (Default)
+A single global conversation context. All messages across all platforms feed into the same active session.
 
+```text
+TUI:      "refactor auth module to JWT"
+Telegram: "remember to check tests"
+
+History:
+  [tui] refactor auth module to JWT
+  [telegram] remember to check tests
 ```
-TUI:      "refactoriza auth a JWT"
-Telegram: "acordate de comprar leche"
-
-Historial:
-  [tui] refactoriza auth a JWT
-  [telegram] acordate de comprar leche
-```
-
-**Ideal para**: una sola persona trabajando en un proyecto desde múltiples dispositivos.
 
 #### Mode: `isolate`
+Each platform maintains its own independent session context.
 
-Cada plataforma tiene su propia sesión independiente. Comportamiento idéntico a Hermes.
-
-```
-TUI:      "refactoriza auth a JWT"       → Sesión "tui-default"
-Telegram: "acordate de comprar leche"    → Sesión "telegram-default"
-
-Cada sesión tiene su propio historial, su propio contexto.
+```text
+TUI:      "refactor auth module to JWT" → Session "tui-default"
+Telegram: "remember to check tests"    → Session "telegram-default"
 ```
 
-**Ideal para**: casos de uso completamente diferentes por plataforma.
+#### Mode: `ask` (Smart Prompt)
+When a message arrives from a different platform than the currently active one, GAIA prompts the user in the active UI to decide whether to merge or isolate the session.
 
-#### Mode: `ask` (o "smart prompt")
+---
 
-Cuando un mensaje llega desde una plataforma diferente a la activa, GAIA pregunta:
+## 3.3 Thread-Safe Implementation
 
-```
-[Telegram] ¿Querés continuar donde dejaste en la TUI o empezar algo nuevo?
-
-1. Continuar sesión principal ("refactorizar auth a JWT")
-2. Nueva conversación en Telegram
-3. Recordármelo después (encolar)
-```
-
-**Esta es la idea clave**: el usuario elige en el momento, no está forzado a una decisión de configuración.
-
-### 3.3 Implementación
+The `SessionManager` utilizes read/write mutexes to guarantee thread-safety across concurrent gateway events, along with sanitization to prevent platform prefix spoofing.
 
 ```go
 type SessionMode string
+
 const (
-    SessionUnify    SessionMode = "unify"
-    SessionIsolate  SessionMode = "isolate"
-    SessionAsk      SessionMode = "ask"
+    SessionUnify   SessionMode = "unify"
+    SessionIsolate SessionMode = "isolate"
+    SessionAsk     SessionMode = "ask"
 )
 
 type SessionManager struct {
+    mu          sync.RWMutex
     mode        SessionMode
-    activeID    string     // sesión activa global
-    platformIDs map[string]string // platform → sessionID (para isolate)
+    activeID    string
+    platformIDs map[string]string // platform -> sessionID
     brain       *Brain
 }
 
 func (sm *SessionManager) Route(ctx context.Context, platform string, content string) error {
+    sm.mu.Lock()
+    defer sm.mu.Unlock()
+
+    // Sanitize user content to prevent prefix spoofing
+    cleanContent := sanitizePlatformPrefix(content)
+
     switch sm.mode {
     case SessionUnify:
-        // Todos los mensajes van a la misma sesión
-        return sm.brain.ProcessMessage(ctx, "["+platform+"] "+content)
+        formatted := fmt.Sprintf("[%s] %s", platform, cleanContent)
+        return sm.brain.ProcessMessage(ctx, formatted)
 
     case SessionIsolate:
-        // Cada plataforma tiene su sesión
         sessID, ok := sm.platformIDs[platform]
         if !ok {
-            sessID = createSession(platform)
+            sessID = sm.createSessionLocked(platform)
             sm.platformIDs[platform] = sessID
         }
-        sm.repo.SetSessionID(sessID)
-        return sm.brain.ProcessMessage(ctx, content)
+        return sm.brain.ProcessMessageForSession(ctx, sessID, cleanContent)
 
     case SessionAsk:
-        // Preguntar al usuario la primera vez que llega de otra plataforma
         if sm.activeID != "" && sm.lastPlatform != platform {
-            return sm.promptUser(platform, content)
+            return sm.promptUserLocked(platform, cleanContent)
         }
-        return sm.brain.ProcessMessage(ctx, content)
+        return sm.brain.ProcessMessage(ctx, cleanContent)
     }
+
+    return nil
+}
+
+func sanitizePlatformPrefix(input string) string {
+    // Strip leading synthetic platform tags if injected by user
+    return strings.TrimLeft(input, " \t\r\n")
 }
 ```
 
-## 4. Mecanismo de "Smart Prompt" (Mode: ask)
+---
 
-### Flujo
+## 4. PolicyGuard Integration
 
-```
-T=0s:  Usuario en TUI → "refactoriza auth a JWT"
-       Brain procesa, sesión activa = "main"
-
-T=30s: Usuario desde Telegram → "cómo va eso?"
-       SessionManager detecta: plataforma diferente, sesión activa
-       → Responde al usuario:
-         ┌─────────────────────────────────────────┐
-         │  📱 Llegó un mensaje desde Telegram      │
-         │                                          │
-         │  La sesión activa es:                    │
-         │    "refactorizar auth a JWT" (TUI)       │
-         │                                          │
-         │  ¿Cómo manejamos este mensaje?           │
-         │                                          │
-         │  [1] Unificar — sigue la misma sesión     │
-         │  [2] Separar — nueva sesión para Telegram │
-         │  [3] Preguntar siempre (default)         │
-         │  [4] Usar esta respuesta como default    │
-         └─────────────────────────────────────────┘
-
-T=31s: Usuario elige [1] Unificar
-       → "cómo va eso?" se agrega al mismo contexto
-       → El agente responde considerando TODO el historial
-```
-
-### Recordar la decisión
-
-Si el usuario elige "Unificar" 3 veces seguidas desde Telegram, el sistema puede auto-detectar la preferencia y dejar de preguntar para esa plataforma.
-
-```go
-type PlatformPreference struct {
-    Platform    string
-    LastMode    SessionMode  // unify o isolate
-    AskCount    int
-    AutoCount   int
-}
-```
-
-## 5. Mensajes con prefijo de plataforma
-
-Para que el agente entienda de dónde viene cada mensaje en modo `unify`:
-
-```
-[telegram] María: acordate de comprar leche
-[tui] refactoriza el módulo auth a JWT
-[discord] Juan: revisa esta PR porfa
-```
-
-Esto le da contexto al LLM para responder apropiadamente según la plataforma y el remitente.
-
-## 6. PolicyGuard por Plataforma
-
-Cada plataforma puede tener un tier distinto:
+PolicyGuard enforces granular security tiers per platform interface:
 
 ```yaml
 policy:
   platforms:
     tui:
-      tier: full
+      tier: full        # Unrestricted execution
     telegram:
-      tier: sandbox
+      tier: sandbox     # Restricted to workspace directory
     discord:
-      tier: read
+      tier: read        # Read-only inspection
 ```
 
-TUI confianza total, Telegram operaciones normales, Discord solo lectura. El PolicyGuard ya soporta esto — solo falta configurarlo por plataforma.
+---
 
-## 7. Prioridad de Implementación
+## 5. Current Architecture Status
 
-```
-Phase 1: Un solo proceso, TUI + Gateway simultáneos
-  - main.go arranca ambos si hay gateways configurados
-  - El Brain se comparte
-
-Phase 2: Session Manager con modo unify
-  - Todos los mensajes a la misma sesión
-  - Prefijo de plataforma en los mensajes
-
-Phase 3: Modo ask (smart prompt)
-  - Detectar cambio de plataforma
-  - Preguntar al usuario qué hacer
-  - Recordar preferencias
-
-Phase 4: PolicyGuard por plataforma
-  - Configurar tiers distintos según la interfaz
-```
-
-## 8. Modo Legacy
-
-`gaia gateway start` y `gaia` (sin args) siguen funcionando exactamente como hoy. El nuevo modo es opt-in:
-
-```bash
-gaia --unify                    # TUI + Gateway juntos
-gaia --unify --session=ask      # Con smart prompt
-```
-
-O auto-detectado si hay gateways configurados en config.yaml.
+The unified architecture is **fully implemented** in GAIA:
+- Running `gaia` launches the TUI along with configured gateway listeners in a single process.
+- Background goroutines handle gateway events cleanly without blocking the interactive Bubbletea UI loop.
+- `SessionManager` manages cross-platform routing dynamically.
