@@ -1,6 +1,6 @@
 # Spec-Driven Development (SDD) Workflow
 
-SDD is the structured planning layer for substantial changes. It transforms vague requests into tested, reviewed, and archived deliverables — with each phase handled by a specialized subagent that learns from experience.
+SDD is the structured planning layer for substantial changes in GAIA. It transforms vague requests into tested, reviewed, and archived deliverables — with each phase handled by specialized subagent capabilities that learn from experience.
 
 ---
 
@@ -18,25 +18,32 @@ The orchestrator detects substantial changes automatically and triggers SDD. You
 
 ---
 
-## The 10 SDD Phases
+## The 10 SDD Phases Pipeline
 
+```mermaid
+graph TD
+    A[1. init] --> B[2. explore]
+    B --> C[3. propose]
+    C --> D[4. spec]
+    D --> E[5. design]
+    E --> F[6. tasks]
+    F --> G[7. apply]
+    G --> H[8. verify]
+    H -->|PASS| I[9. archive]
+    H -->|FAIL / Re-work| G
+    
+    subgraph Onboarding
+        J[10. onboard] --> A
+    end
 ```
-1. init      → Bootstrap SDD context in a project
-2. explore   → Investigate ideas before committing
-3. propose   → Create change proposals
-4. spec      → Write specifications + scenarios
-5. design    → Technical design + architecture
-6. tasks     → Break down into implementation tasks
-7. apply     → Implement code following specs
-8. verify    → Validate implementation vs specs
-9. archive   → Archive completed changes
-10. onboard  → Guided walkthrough (for new users)
-```
 
-### 1. Init (sdd-init)
+---
 
+## SDD Phase Breakdown
+
+### 1. Init (`sdd-init`)
 Bootstraps SDD in the current project:
-- Detects stack, conventions, architecture
+- Detects stack, conventions, and architecture
 - Identifies testing tools and test runner
 - Sets up persistence (Engram, OpenSpec, or hybrid)
 - Builds the skill registry
@@ -46,16 +53,14 @@ Run once per project:
 gaia sdd-init
 ```
 
-### 2. Explore (sdd-explore)
-
+### 2. Explore (`sdd-explore`)
 Investigates the codebase before committing to a change:
 - Reads relevant source code
 - Identifies patterns and conventions
 - Assesses scope and complexity
 - Reports findings to the orchestrator
 
-### 3. Propose (sdd-propose)
-
+### 3. Propose (`sdd-propose`)
 Creates a structured change proposal:
 - **Intent**: What problem are we solving?
 - **Scope**: What's in and out of scope
@@ -67,8 +72,7 @@ Creates a structured change proposal:
 
 **Size budget**: Under 450 words.
 
-### 4. Spec (sdd-spec)
-
+### 4. Spec (`sdd-spec`)
 Writes detailed specifications using:
 - **RFC 2119 keywords**: MUST, SHALL, SHOULD, MAY
 - **Given/When/Then scenarios**: Testable behavior
@@ -78,11 +82,10 @@ Every requirement must have at least one scenario. Specs describe WHAT, not HOW.
 
 **Size budget**: Under 650 words.
 
-### 5. Design (sdd-design)
-
+### 5. Design (`sdd-design`)
 Creates the technical design:
 - Architecture decisions with rationale and alternatives considered
-- Data flow diagrams (ASCII)
+- Data flow diagrams (**Mermaid**)
 - Concrete file changes
 - Interfaces and contracts
 - Testing strategy
@@ -92,8 +95,7 @@ Creates the technical design:
 
 **Size budget**: Under 800 words.
 
-### 6. Tasks (sdd-tasks)
-
+### 6. Tasks (`sdd-tasks`)
 Breaks the work into concrete, checkable steps:
 - Each task: specific file, one logical unit, verifiable
 - Ordered by dependency
@@ -102,8 +104,7 @@ Breaks the work into concrete, checkable steps:
 
 **Size budget**: Under 530 words.
 
-### 7. Apply (sdd-apply)
-
+### 7. Apply (`sdd-apply`)
 Implements the code following specs and design:
 - Reads specs first (they are the acceptance criteria)
 - Follows design decisions
@@ -111,26 +112,23 @@ Implements the code following specs and design:
 - Produces Work Unit Evidence (focused tests, runtime harness, rollback boundary)
 - Never overwrites existing apply-progress (merge protocol)
 
-### 8. Verify (sdd-verify)
-
+### 8. Verify (`sdd-verify`)
 Validates implementation against specs:
-- Runs actual tests (static analysis is NOT verification)
-- A spec scenario is compliant ONLY when a covering test passes at runtime
+- Runs suite of tests (`go test ./...`) alongside static analysis (`go vet`, `golangci-lint`)
+- A spec scenario is compliant ONLY when covering tests and linters pass cleanly
 - Produces compliance matrix with verdicts (COMPLIANT, FAILING, UNTESTED)
-- Does NOT fix issues — reports them
+- Reports issues back to `apply` if fixes are needed
 - Final verdict: PASS, PASS WITH WARNINGS, or FAIL
 
-### 9. Archive (sdd-archive)
-
+### 9. Archive (`sdd-archive`)
 Closes the change:
 - Validates task completion gate (all tasks checked)
 - Validates review receipt gate (approved receipt required)
 - Syncs delta specs into main specs
 - Moves change folder to archive with date prefix
-- Records audit trail (observation IDs for traceability)
+- Records audit trail (observation IDs in Engram for traceability)
 
-### 10. Onboard (sdd-onboard)
-
+### 10. Onboard (`sdd-onboard`)
 Guided walkthrough for new users:
 - Scans for a real, small improvement opportunity
 - Walks through all 9 phases with narration
@@ -150,8 +148,8 @@ SDD supports three storage modes:
 | **Hybrid** | Both Engram + OpenSpec | Cross-session recovery + team sharing |
 
 Artifact naming convention:
-```
-Engram:  sdd/{change-name}/{artifact-type}
+```text
+Engram:   sdd/{change-name}/{artifact-type}
 OpenSpec: openspec/changes/{change-name}/{artifact-type}
 Archive:  openspec/changes/archive/YYYY-MM-DD-{change-name}/
 ```
@@ -178,4 +176,4 @@ Every SDD phase follows the same contract:
 2. **Artifact Retrieval**: `mem_search` → `mem_get_observation` (never use 300-char previews)
 3. **Artifact Persistence**: Every phase MUST persist its artifact (breaks pipeline if skipped)
 4. **Return Envelope**: status, executive_summary, artifacts, next_recommended, risks, skill_resolution
-5. **Executor Boundary**: Do the phase work yourself. Never delegate. Never launch sub-subagents.
+5. **Executor Boundary**: Do the phase work directly within the phase boundaries.
