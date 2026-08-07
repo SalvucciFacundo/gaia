@@ -218,14 +218,6 @@ func (h *Hub) LoadSkills() []Skill {
 		return skills[i].Meta.Name < skills[j].Meta.Name
 	})
 
-	// Track usage
-	h.mu.Lock()
-	for _, s := range skills {
-		h.usageCount[s.Meta.Name]++
-		h.lastUsed[s.Meta.Name] = time.Now()
-	}
-	h.mu.Unlock()
-
 	return skills
 }
 
