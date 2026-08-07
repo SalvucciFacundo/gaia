@@ -22,8 +22,31 @@ import (
 var (
 	titleStyle = lipgloss.NewStyle().
 			Bold(true).
-			Foreground(lipgloss.Color("#7D56F4")).
-			Background(lipgloss.Color("#212121")).
+			Foreground(lipgloss.Color("#00F5D4")).
+			Background(lipgloss.Color("#0F172A")).
+			Padding(0, 1)
+
+	bannerTitleStyle = lipgloss.NewStyle().
+				Bold(true).
+				Foreground(lipgloss.Color("#00F5D4"))
+
+	bannerSubStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#00BBF9")).
+			Italic(true)
+
+	sectionHeaderStyle = lipgloss.NewStyle().
+				Bold(true).
+				Foreground(lipgloss.Color("#00F5D4"))
+
+	itemStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#94A3B8"))
+
+	avatarStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#00D7FF"))
+
+	bannerBoxStyle = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("#00D7FF")).
 			Padding(0, 1)
 
 	infoStyle = lipgloss.NewStyle().
@@ -47,6 +70,53 @@ var (
 	taskFailedStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#FF5F00"))
 )
+
+const gaiaTitleASCII = `   ██████╗  █████╗  ██╗ █████╗ 
+  ██╔════╝ ██╔══██╗ ██║██╔══██╗
+  ██║  ███╗███████║ ██║███████║
+  ██║   ██║██╔══██║ ██║██╔══██║
+  ╚██████╔╝██║  ██║ ██║██║  ██║
+   ╚═════╝ ╚═╝  ╚═╝ ╚═╝╚═╝  ╚═╝`
+
+const gaiaAvatarASCII = `
+       .---.
+      /     \
+     |  (o)  |
+     |   ▲   |
+      \  -  /
+     .-'---'-.
+   /   (•)   \
+  / |   │   | \
+ /  |___│___|  \`
+
+// RenderHeaderBanner builds the 2-column Hermes-style GAIA TUI banner.
+func RenderHeaderBanner(width int) string {
+	title := bannerTitleStyle.Render(gaiaTitleASCII)
+	subtitle := bannerSubStyle.Render("Go Autonomous Intelligence Agent")
+	topHeader := lipgloss.JoinVertical(lipgloss.Center, title, subtitle)
+
+	avatar := avatarStyle.Render(gaiaAvatarASCII)
+
+	toolsList := itemStyle.Render("file_read, file_write, shell_exec, git_ops, web_search")
+	subagentsList := itemStyle.Render("@explorer, @proposer, @specifier, @designer, @planner, @implementer, @verifier, @reviewer, @archiver, @debugger, @researcher, @learner")
+
+	rightPanel := lipgloss.JoinVertical(
+		lipgloss.Left,
+		sectionHeaderStyle.Render("Available Tools"),
+		toolsList,
+		"",
+		sectionHeaderStyle.Render("Available Subagents"),
+		subagentsList,
+	)
+
+	content := lipgloss.JoinHorizontal(lipgloss.Top, avatar, "   ", rightPanel)
+	fullBanner := lipgloss.JoinVertical(lipgloss.Center, topHeader, "", content)
+
+	if width > 0 {
+		return bannerBoxStyle.Width(width - 4).Render(fullBanner)
+	}
+	return bannerBoxStyle.Render(fullBanner)
+}
 
 // MessageProcessor is the interface the TUI uses to send user input
 // to the Brain for processing. It runs asynchronously so the TUI
@@ -554,9 +624,11 @@ For details: gaia help or check the README.`
 				return m, nil
 			}
 
-			// Handle /version — show build info
+			// Handle /version — show build info and banner
 			if input == "/version" {
-				m.addSystemMsg("GAIA — Go Autonomous Intelligence Agent\nVersion: development build\nGo: " + runtime.Version() + "\nLicense: MIT")
+				banner := RenderHeaderBanner(m.viewport.Width)
+				versionInfo := fmt.Sprintf("%s\n\nGAIA — Go Autonomous Intelligence Agent\nVersion: development build\nGo: %s\nLicense: MIT", banner, runtime.Version())
+				m.addSystemMsg(versionInfo)
 				return m, nil
 			}
 
