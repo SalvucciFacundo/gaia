@@ -1,6 +1,6 @@
-# Security Model
+# Security Model & PolicyGuard
 
-GAIA is a programming agent with access to file system, terminal, git, and the web. Security is applied at multiple layers to protect against both accidental and malicious threats.
+GAIA is a programming-first autonomous agent with access to the local file system, terminal, git, and external APIs. Security is enforced at multiple layers to protect against accidental damage, secret leaks, and unauthorized execution.
 
 ---
 
@@ -9,9 +9,9 @@ GAIA is a programming agent with access to file system, terminal, git, and the w
 | Risk | Mitigation |
 |---|---|
 | Keys stored in plain text | Keys stored in OS keychain (Windows Credential Manager, macOS Keychain, Linux secret-service) or encrypted config file |
-| Keys leaked in conversation | Automatic redaction of `sk-*`, `ghp_*`, `Bearer *`, and custom patterns from messages and tool output |
+| Keys leaked in conversation | Automatic redaction of `sk-*`, `ghp_*`, `github_pat_*`, `Bearer *`, and custom secret patterns from messages |
 | Keys leaked in tool output | Redaction engine scans all tool stdout/stderr before returning to LLM |
-| Subagent access to secrets | **Secret scoping**: each subagent only sees the secrets it needs |
+| Subagent access to secrets | **Secret scoping**: each subagent only receives the exact environment secrets required |
 
 API keys can be configured via:
 1. **Environment variables** — `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, etc.
@@ -20,9 +20,25 @@ API keys can be configured via:
 
 ---
 
+## PolicyGuard Security Tiers
+
+PolicyGuard governs project-level execution boundaries via explicit policy tiers initialized per project or per platform:
+
+```bash
+gaia policy init --tier=sandbox
+```
+
+| Tier | Workspace Scope | Network & Tools | Best for |
+|---|---|---|---|
+| **full** | Unrestricted filesystem access | All tools and shell commands allowed | Trusted projects, local development |
+| **sandbox** | Restricted to current workspace directory | Gated tools and shell allowlist | Standard development, external PRs |
+| **read** | Read-only filesystem access | File reading and search tools only; no code execution | Code review, security inspection |
+
+---
+
 ## Confirmation Modes
 
-GAIA supports 4 confirmation levels:
+GAIA supports 4 interaction confirmation levels:
 
 | Mode | Behavior | Best for |
 |---|---|---|
@@ -33,7 +49,7 @@ GAIA supports 4 confirmation levels:
 
 Change modes in-session:
 
-```
+```text
 /trust session      → Trust all actions this session
 /trust once         → Trust only the next action
 /trust always       → Revert to always-ask mode
@@ -56,16 +72,16 @@ Headless mode (`gaia exec`) respects confirmation mode. If `always`, headless op
 | Risk | Mitigation |
 |---|---|
 | Shell injection via tool arguments | All shell commands use parameterized execution (no string interpolation). Path and argument validation before execution. |
-| Path traversal (accessing files outside project) | `ValidatePath()` resolves symlinks, validates against an allowed root. |
+| Path traversal (accessing files outside project) | `ValidatePath()` resolves symlinks and validates against an allowed workspace root. |
 | URL safety (SSRF, malicious endpoints) | `ValidateURL()` blocks private IP ranges, localhost, internal services by default. |
 | Dangerous commands (rm -rf, dd, etc.) | Threat pattern detection flags known dangerous command patterns. Require explicit override. |
-| Fork bombs / resource exhaustion | Iteration budget caps per subagent. Timeout per command. Max output size limit. |
+| Resource exhaustion | Iteration budget caps per subagent. Timeout per command. Max output size limit. |
 
 ### Shell Allowlist
 
 The shell module maintains an allowlist of safe commands:
 
-```
+```text
 git, go, npm, npx, pnpm, yarn, cargo, rustc, python, python3,
 node, deno, bun, make, cmake, mvn, gradle, docker, kubectl,
 curl, wget, tar, zip, unzip, gzip, cat, head, tail, grep,
@@ -93,36 +109,11 @@ gaia skills list --verbose  # Show provenance for each skill
 
 ---
 
-## Git Security
-
-| Risk | Mitigation |
-|---|---|
-| Committing secrets | Pre-commit hook checks for credentials, tokens, keys. |
-| Force push | Disabled by default. Requires explicit override. |
-| Committing to protected branches | Blocked unless explicitly overridden by user. |
-
-Audit your project for committed secrets:
-
-```bash
-gaia audit secrets
-```
-
----
-
-## Communication Security
-
-| Risk | Mitigation |
-|---|---|
-| Man-in-the-middle on LLM API calls | TLS required for all provider connections. Certificate verification enabled. |
-| MCP server security | MCP servers run as subprocesses with restricted permissions. Not exposed to the network. |
-| Webhook HMAC | Webhook subscriptions verified via HMAC-SHA256 signature. |
-
----
-
 ## Security Audit Commands
 
 ```bash
 gaia doctor              # Check security config, key storage, permissions
+gaia policy init         # Initialize PolicyGuard tier for current workspace
 gaia audit secrets       # Scan project for committed secrets
 gaia audit skills        # Scan installed skills for dangerous patterns
 gaia security log        # Show security-relevant events (approvals, denials)
