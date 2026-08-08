@@ -145,7 +145,7 @@ Explore the full documentation in the [docs/](docs) directory:
 
 | Metric | Value |
 |---|---|
-| **Language** | Go 1.22+ |
+| **Language** | Go 1.23+ |
 | **Architecture** | Hexagonal (ports & adapters) |
 | **Packages** | 31 |
 | **Subagents** | 12+ (static + dynamic at runtime) |
