@@ -61,21 +61,30 @@ if ($Mode -eq "full") {
     $targetBinary = Join-Path $targetDir $binaryName
 
     if (Test-Path $sourceBinary) {
-        Write-Step "Found pre-built binary"
+        Write-Step "Found pre-built local binary"
     } else {
-        Write-Step "No binary found. Building from source..."
-        $goCheck = Get-Command "go" -ErrorAction SilentlyContinue
-        if (-not $goCheck) {
-            Write-Warn "Go is not installed."
-            Write-Warn "Download from: https://go.dev/dl/"
-            Write-Warn "Then run this script again."
-            exit 1
+        Write-Step "Downloading latest GAIA release from GitHub..."
+        $repo = "SalvucciFacundo/gaia"
+        $downloadUrl = "https://github.com/$repo/releases/latest/download/gaia-windows-amd64.exe"
+        
+        try {
+            Invoke-WebRequest -Uri $downloadUrl -OutFile $sourceBinary -UseBasicParsing
+            Write-OK "Downloaded latest gaia-windows-amd64.exe"
+        } catch {
+            Write-Warn "Could not download pre-built release binary. Attempting build from source..."
+            $goCheck = Get-Command "go" -ErrorAction SilentlyContinue
+            if (-not $goCheck) {
+                Write-Warn "Go is not installed and release download failed."
+                Write-Warn "Download Go from: https://go.dev/dl/"
+                Write-Warn "Then run this script again."
+                exit 1
+            }
+            Push-Location $PSScriptRoot
+            go build -ldflags="-s -w" -o $binaryName ./cmd/gaia/
+            if ($LASTEXITCODE -ne 0) { throw "Build failed" }
+            Pop-Location
+            Write-OK "Built gaia.exe from source"
         }
-        Push-Location $PSScriptRoot
-        go build -ldflags="-s -w" -o $binaryName ./cmd/gaia/
-        if ($LASTEXITCODE -ne 0) { throw "Build failed" }
-        Pop-Location
-        Write-OK "Built gaia.exe from source"
     }
 
     # 2. Create directories

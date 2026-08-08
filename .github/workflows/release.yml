@@ -6,21 +6,39 @@ on:
       - 'v*'
 
 jobs:
-  build-windows:
+  build:
+    name: Build Release Binaries
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - goos: windows
+            goarch: amd64
+            output: gaia-windows-amd64.exe
+          - goos: linux
+            goarch: amd64
+            output: gaia-linux-amd64
+          - goos: linux
+            goarch: arm64
+            output: gaia-linux-arm64
+          - goos: darwin
+            goarch: amd64
+            output: gaia-darwin-amd64
+          - goos: darwin
+            goarch: arm64
+            output: gaia-darwin-arm64
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.22'
+          go-version: '1.23'
 
-      - name: Build gaia.exe (Windows amd64)
+      - name: Build binary (${{ matrix.goos }}/${{ matrix.goarch }})
         run: |
-          GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o gaia.exe ./cmd/gaia/
+          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -ldflags="-s -w" -o ${{ matrix.output }} ./cmd/gaia/
 
-      - name: Upload binaries to release
+      - name: Upload binary to Release
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            gaia.exe
+          files: ${{ matrix.output }}

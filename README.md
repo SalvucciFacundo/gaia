@@ -23,15 +23,19 @@ Single binary, zero external dependencies, Windows/macOS/Linux.
 
 Get GAIA running in your local environment or remote containers instantly.
 
-### Windows
+### Linux & macOS (One-line installer)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/SalvucciFacundo/gaia/main/install.sh | bash
+```
+
+### Windows (PowerShell)
 
 ```powershell
-# Clone or download, then run the installer:
-.\install.ps1
+iwr -useb https://raw.githubusercontent.com/SalvucciFacundo/gaia/main/install.ps1 | iex
 ```
-Choose **Full Install** (agent runs locally) or **Remote Client** (connects to VPS).
 
-### macOS / Linux
+### Build from Source
 
 ```bash
 git clone https://github.com/SalvucciFacundo/gaia.git
