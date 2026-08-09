@@ -72,6 +72,7 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("/", s.handleDashboard)
 	mux.HandleFunc("/web/message", s.handleSendMessage)
 	mux.HandleFunc("/web/projects/select", s.handleSelectProject)
+	mux.HandleFunc("/web/stream", s.handleSSEStream)
 
 	addr := net.JoinHostPort("0.0.0.0", s.port)
 	log.Printf("🚀 GAIA Web UI Dashboard listening on http://%s", addr)
@@ -90,6 +91,25 @@ func (s *Server) Start(ctx context.Context) error {
 		return fmt.Errorf("web ui server: %w", err)
 	}
 	return nil
+}
+
+func (s *Server) handleSSEStream(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "Streaming unsupported!", http.StatusInternalServerError)
+		return
+	}
+
+	// Send initial connection event
+	fmt.Fprintf(w, "event: connected\ndata: {\"status\":\"ok\"}\n\n")
+	flusher.Flush()
+
+	// Keep stream alive
+	<-r.Context().Done()
 }
 
 func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {

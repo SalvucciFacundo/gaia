@@ -85,8 +85,8 @@ func RenderLayout(data WebDashboardData) templ.Component {
                         <span class="text-xs text-slate-400 font-mono" id="active-project-path">%s</span>
                     </div>
                     
-                    <!-- Message Stream Viewport -->
-                    <div id="message-container" class="flex-1 overflow-y-auto p-4 space-y-4 font-sans text-sm">
+                    <!-- Message Stream Viewport (templ-islands SSE stream) -->
+                    <div id="message-container" data-stream="chat" data-target="#message-container" hx-ext="sse" sse-connect="/web/stream" sse-swap="message" class="flex-1 overflow-y-auto p-4 space-y-4 font-sans text-sm">
                         %s
                     </div>
 

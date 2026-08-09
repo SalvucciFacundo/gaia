@@ -1,6 +1,6 @@
 module gaia
 
-go 1.26.2
+go 1.26.5
 
 require (
 	github.com/anthropics/anthropic-sdk-go v1.58.0
@@ -16,6 +16,7 @@ require (
 )
 
 require (
+	github.com/SalvucciFacundo/templ-islands v0.2.0 // indirect
 	github.com/a-h/templ v0.3.1020 // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
