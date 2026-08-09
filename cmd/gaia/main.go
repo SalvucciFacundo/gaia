@@ -119,14 +119,21 @@ func main() {
 			log.Fatalf("Wizard error: %v", err)
 		}
 
-		token, model, language, securityOn, selectedSkills := wizard.GetResults()
-		if token == "" {
+		provider, apiKey, model, language, securityOn, selectedSkills := wizard.GetResults()
+		if provider == "" {
 			log.Fatal("Wizard cancelled or failed.")
 		}
 
-		cfg.APIKeys["copilot"] = token
-		cfg.LLM.Provider = "copilot"
-		cfg.LLM.Model = model
+		if cfg.APIKeys == nil {
+			cfg.APIKeys = make(map[string]string)
+		}
+		if apiKey != "" {
+			cfg.APIKeys[provider] = apiKey
+		}
+		cfg.LLM.Provider = provider
+		if model != "" {
+			cfg.LLM.Model = model
+		}
 		if language != "" {
 			cfg.System.Language = language
 		}
@@ -137,7 +144,7 @@ func main() {
 			log.Fatalf("Error saving config: %v", err)
 		}
 
-		fmt.Printf("Configuration saved successfully!")
+		fmt.Printf("Configuration saved successfully! Selected provider: %s.", provider)
 		if len(selectedSkills) > 0 {
 			fmt.Printf(" Installed %d skills.", len(selectedSkills))
 		}

@@ -3,30 +3,33 @@ package tui
 import (
 	"context"
 	"fmt"
-	"os"
 	"os/exec"
-	"path/filepath"
 	"runtime"
 	"sort"
 	"strings"
 
 	"gaia/internal/adapters/llm"
 	"gaia/internal/skills"
-	"github.com/cli/oauth/device"
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/spinner"
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/cli/oauth/device"
 )
 
 type WizardStep int
 
 const (
 	StepWelcome WizardStep = iota
+	StepProviderSelect
+	StepKeyInput
 	StepAuthenticating
 	StepModelSelect
 	StepLanguageSelect
 	StepSecurityMode
+	StepStackSelect
 	StepSkillRecommend
 	StepFinishing
 )
@@ -34,69 +37,121 @@ const (
 type item struct {
 	id    string
 	title string
+	desc  string
 }
 
 func (i item) Title() string       { return i.title }
-func (i item) Description() string { return i.id }
-func (i item) FilterValue() string { return i.title }
-
-// multiItem is used for skill selection (multi-select).
-type multiItem struct {
-	id       string
-	title    string
-	selected bool
-}
-
-func (m multiItem) Title() string       { return m.title }
-func (m multiItem) Description() string { return m.id }
-func (m multiItem) FilterValue() string { return m.title }
+func (i item) Description() string { return i.desc }
+func (i item) FilterValue() string { return i.title + " " + i.id }
 
 type WizardModel struct {
-	step         WizardStep
-	auth         *llm.GitHubAuth
-	ghToken      string
-	cpToken      string
-	models       []string
-	selectedModel string
-	spinner      spinner.Model
-	list         list.Model
-	code         string
-	url          string
-	codeResp     *device.CodeResponse
-	err          error
-	width        int
-	height       int
+	step             WizardStep
+	provider         string
+	apiKey           string
+	textInput        textinput.Model
+	auth             *llm.GitHubAuth
+	ghToken          string
+	cpToken          string
+	models           []string
+	selectedModel    string
+	spinner          spinner.Model
+	list             list.Model
+	code             string
+	url              string
+	codeResp         *device.CodeResponse
+	err              error
+	width            int
+	height           int
 
-	// Language preference (added in Milestone 3).
-	languagePref string
+	languagePref     string
+	langIndex        int // 0 = EN, 1 = ES, 2 = PT
 
-	// Security mode preference (added in Milestone 7).
-	securityMode bool
-	secIndex     int // 0 = No (default), 1 = Yes
+	securityMode     bool
+	secIndex         int // 0 = No (default), 1 = Yes
 
-	// Skills Hub and recommendation (added in Milestone 3).
+	// Stack selection (User chooses their stacks)
+	stacks           []string
+	selectedStacks   map[string]bool
+	stackIndex       int
+
+	// Skills Hub and recommendation
 	hub              *skills.Hub
 	projectRoot      string
-	projectType      string
 	recommendedSkills []skills.SkillMeta
-	selectedSkills   map[string]bool // skill name -> selected
+	selectedSkills   map[string]bool
 	selIndex         int
 }
 
-// NewWizard creates the first-run wizard.
-// projectRoot is the current working directory used for project type detection.
+var providerCatalog = []struct {
+	id   string
+	name string
+	desc string
+}{
+	{"copilot", "GitHub Copilot", "GitHub Copilot API via OAuth device flow"},
+	{"openai", "OpenAI", "GPT-4o, GPT-4o-mini, o3-mini models"},
+	{"anthropic", "Anthropic Claude", "Claude 3.7 Sonnet, Claude 3.5 Sonnet"},
+	{"ollama", "Ollama (Local)", "Run local LLM models on http://localhost:11434"},
+	{"deepseek", "DeepSeek", "DeepSeek-Chat, DeepSeek-Reasoner"},
+	{"openrouter", "OpenRouter", "Multi-provider router (GPT-4o, Claude, Llama, etc.)"},
+	{"groq", "Groq", "Ultra-fast inference (Llama 3.3 70B)"},
+	{"qwen", "Alibaba Qwen", "Qwen-Max, Qwen-2.5 models"},
+	{"together", "Together AI", "Mixtral, Llama, and open source models"},
+	{"perplexity", "Perplexity AI", "Sonar-Pro search-augmented models"},
+	{"fireworks", "Fireworks AI", "Fast Llama and Mixtral inference"},
+	{"opencode-go", "OpenCode Go", "Grok 4.5 and developer-tuned models"},
+	{"opencode-zen", "OpenCode Zen", "Claude-Sonnet-4 optimized endpoint"},
+	{"kimi", "Moonshot Kimi", "Kimi-K3 context models"},
+	{"glm", "Zhipu GLM", "GLM-4-Plus reasoning models"},
+	{"nvidia", "NVIDIA NIM", "NVIDIA Llama-3.1 Nemotron models"},
+	{"huggingface", "HuggingFace Router", "GPT-OSS and hosted HuggingFace endpoints"},
+	{"deepinfra", "DeepInfra", "Hosted open source model APIs"},
+	{"cerebras", "Cerebras AI", "Ultra-high speed Llama inference"},
+}
+
+var availableStacks = []struct {
+	id   string
+	name string
+}{
+	{"go", "Go (Golang)"},
+	{"typescript", "TypeScript / JavaScript"},
+	{"python", "Python"},
+	{"rust", "Rust"},
+	{"generic", "General / DevOps / Docker"},
+}
+
 func NewWizard(projectRoot string) *WizardModel {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
-	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("#00F5D4"))
+
+	ti := textinput.New()
+	ti.Placeholder = "Enter your API key or endpoint URL..."
+	ti.CharLimit = 256
+	ti.Width = 60
+
+	items := make([]list.Item, 0, len(providerCatalog))
+	for _, p := range providerCatalog {
+		items = append(items, item{id: p.id, title: p.name, desc: p.desc})
+	}
+	delegate := list.NewDefaultDelegate()
+	delegate.Styles.SelectedTitle = delegate.Styles.SelectedTitle.Foreground(lipgloss.Color("#00F5D4")).Bold(true)
+	delegate.Styles.SelectedDesc = delegate.Styles.SelectedDesc.Foreground(lipgloss.Color("#00BBF9"))
+
+	l := list.New(items, delegate, 65, 14)
+	l.Title = "Select LLM Provider"
+	l.SetShowStatusBar(false)
+	l.KeyMap.Quit = key.NewBinding(key.WithKeys("ctrl+c"))
 
 	return &WizardModel{
 		step:           StepWelcome,
 		auth:           llm.NewGitHubAuth(),
 		spinner:        s,
+		textInput:      ti,
+		list:           l,
 		projectRoot:    projectRoot,
+		selectedStacks: map[string]bool{"go": true},
 		selectedSkills: make(map[string]bool),
-		selIndex:       0,
+		stacks:         []string{"go", "typescript", "python", "rust", "generic"},
 	}
 }
 
@@ -119,41 +174,76 @@ func (m *WizardModel) Init() tea.Cmd {
 }
 
 func (m *WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "ctrl+c", "q":
+		case "ctrl+c":
 			return m, tea.Quit
+		case "q":
+			if m.step != StepKeyInput {
+				return m, tea.Quit
+			}
 		case "enter":
 			return m.handleEnter()
 		case "up", "k":
+			if m.step == StepLanguageSelect {
+				if m.langIndex > 0 {
+					m.langIndex--
+				}
+				return m, nil
+			}
 			if m.step == StepSecurityMode {
 				m.secIndex = 0
+				return m, nil
+			}
+			if m.step == StepStackSelect {
+				if m.stackIndex > 0 {
+					m.stackIndex--
+				}
 				return m, nil
 			}
 			if m.step == StepSkillRecommend && len(m.recommendedSkills) > 0 {
 				if m.selIndex > 0 {
 					m.selIndex--
 				}
+				return m, nil
 			}
-			return m, nil
 		case "down", "j":
+			if m.step == StepLanguageSelect {
+				if m.langIndex < 2 {
+					m.langIndex++
+				}
+				return m, nil
+			}
 			if m.step == StepSecurityMode {
 				m.secIndex = 1
+				return m, nil
+			}
+			if m.step == StepStackSelect {
+				if m.stackIndex < len(availableStacks)-1 {
+					m.stackIndex++
+				}
 				return m, nil
 			}
 			if m.step == StepSkillRecommend && len(m.recommendedSkills) > 0 {
 				if m.selIndex < len(m.recommendedSkills)-1 {
 					m.selIndex++
 				}
+				return m, nil
 			}
-			return m, nil
 		case " ":
+			if m.step == StepStackSelect && m.stackIndex >= 0 && m.stackIndex < len(availableStacks) {
+				st := availableStacks[m.stackIndex].id
+				m.selectedStacks[st] = !m.selectedStacks[st]
+				return m, nil
+			}
 			if m.step == StepSkillRecommend && m.selIndex >= 0 && m.selIndex < len(m.recommendedSkills) {
 				name := m.recommendedSkills[m.selIndex].Name
 				m.selectedSkills[name] = !m.selectedSkills[name]
+				return m, nil
 			}
-			return m, nil
 		}
 
 	case authCodeMsg:
@@ -170,10 +260,10 @@ func (m *WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.models = msg
 		items := []list.Item{}
 		for _, mod := range m.models {
-			items = append(items, item{id: mod, title: mod})
+			items = append(items, item{id: mod, title: mod, desc: ""})
 		}
-		m.list = list.New(items, list.NewDefaultDelegate(), 20, 10)
-		m.list.Title = "Select model"
+		m.list = list.New(items, list.NewDefaultDelegate(), 65, 12)
+		m.list.Title = "Select Default Model"
 		m.step = StepModelSelect
 		return m, nil
 
@@ -186,10 +276,11 @@ func (m *WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 	}
 
-	var cmd tea.Cmd
 	m.spinner, cmd = m.spinner.Update(msg)
-	if m.step == StepModelSelect {
+	if m.step == StepProviderSelect || m.step == StepModelSelect {
 		m.list, cmd = m.list.Update(msg)
+	} else if m.step == StepKeyInput {
+		m.textInput, cmd = m.textInput.Update(msg)
 	}
 	return m, cmd
 }
@@ -197,8 +288,35 @@ func (m *WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m *WizardModel) handleEnter() (tea.Model, tea.Cmd) {
 	switch m.step {
 	case StepWelcome:
-		m.step = StepAuthenticating
-		return m, m.startAuth()
+		m.step = StepProviderSelect
+		return m, nil
+
+	case StepProviderSelect:
+		i, ok := m.list.SelectedItem().(item)
+		if ok {
+			m.provider = i.id
+			if m.provider == "copilot" {
+				m.step = StepAuthenticating
+				return m, m.startAuth()
+			} else if m.provider == "ollama" {
+				m.apiKey = "http://localhost:11434"
+				m.selectedModel = "llama3"
+				m.step = StepLanguageSelect
+				return m, nil
+			} else {
+				m.step = StepKeyInput
+				m.textInput.Focus()
+				return m, textinput.Blink
+			}
+		}
+
+	case StepKeyInput:
+		val := strings.TrimSpace(m.textInput.Value())
+		if val != "" {
+			m.apiKey = val
+			m.step = StepLanguageSelect
+			return m, nil
+		}
 
 	case StepModelSelect:
 		i, ok := m.list.SelectedItem().(item)
@@ -209,26 +327,26 @@ func (m *WizardModel) handleEnter() (tea.Model, tea.Cmd) {
 		}
 
 	case StepLanguageSelect:
-		// Move to security mode selection.
+		langs := []string{"en", "es", "pt"}
+		m.languagePref = langs[m.langIndex]
 		m.step = StepSecurityMode
-		m.secIndex = 0 // default: No
+		m.secIndex = 0
 		return m, nil
 
 	case StepSecurityMode:
 		m.securityMode = m.secIndex == 1
-		// Detect project type and move to skill recommendations.
-		m.detectProjectType()
+		m.step = StepStackSelect
+		return m, nil
+
+	case StepStackSelect:
+		m.loadSkillsForSelectedStacks()
 		m.step = StepSkillRecommend
 		return m, nil
 
 	case StepSkillRecommend:
-		// Confirm selected skills and finish.
 		if m.hub != nil {
 			for name := range m.selectedSkills {
-				if err := m.hub.Install(name); err != nil {
-					// Non-fatal: skill might already be installed.
-					continue
-				}
+				_ = m.hub.Install(name)
 			}
 		}
 		m.step = StepFinishing
@@ -243,62 +361,86 @@ func (m *WizardModel) View() string {
 	}
 
 	doc := strings.Builder{}
+	banner := RenderHeaderBanner(m.width)
+	doc.WriteString(banner + "\n\n")
 
 	switch m.step {
 	case StepWelcome:
-		doc.WriteString(titleStyle.Render(" WELCOME TO GAIA ") + "\n\n")
-		doc.WriteString("GAIA needs to connect to GitHub Copilot to function.\n")
-		doc.WriteString("Press " + lipgloss.NewStyle().Bold(true).Render("ENTER") + " to start authorization.\n")
+		doc.WriteString(bannerTitleStyle.Render("WELCOME TO GAIA — SETUP WIZARD") + "\n\n")
+		doc.WriteString("GAIA will guide you through setting up your LLM Provider, Security Policy, Language, and Development Skills.\n\n")
+		doc.WriteString("Press " + lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#00F5D4")).Render("ENTER") + " to begin setup.\n")
+
+	case StepProviderSelect:
+		return doc.String() + m.list.View()
+
+	case StepKeyInput:
+		doc.WriteString(bannerTitleStyle.Render(" API KEY CONFIGURATION ") + "\n\n")
+		doc.WriteString(fmt.Sprintf("Enter API Key or Endpoint URL for provider %s:\n\n", bannerSubStyle.Render(m.provider)))
+		doc.WriteString(m.textInput.View() + "\n\n")
+		doc.WriteString("Press " + lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#00F5D4")).Render("ENTER") + " to save and continue.\n")
 
 	case StepAuthenticating:
-		doc.WriteString(titleStyle.Render(" AUTHORIZATION ") + "\n\n")
+		doc.WriteString(bannerTitleStyle.Render(" GITHUB COPILOT AUTHORIZATION ") + "\n\n")
 		if m.code == "" {
 			doc.WriteString(m.spinner.View() + " Requesting code from GitHub...")
 		} else {
-			doc.WriteString("1. Visit: " + lipgloss.NewStyle().Foreground(lipgloss.Color("45")).Underline(true).Render(m.url) + "\n")
-			doc.WriteString("2. Enter this code: " + lipgloss.NewStyle().Bold(true).Background(lipgloss.Color("57")).Render(" "+m.code+" ") + "\n\n")
-			doc.WriteString(m.spinner.View() + " Waiting for authorization in the browser...")
+			doc.WriteString("1. Visit: " + lipgloss.NewStyle().Foreground(lipgloss.Color("#00F5D4")).Underline(true).Render(m.url) + "\n")
+			doc.WriteString("2. Enter code: " + lipgloss.NewStyle().Bold(true).Background(lipgloss.Color("#00BBF9")).Foreground(lipgloss.Color("#0F172A")).Render(" "+m.code+" ") + "\n\n")
+			doc.WriteString(m.spinner.View() + " Waiting for browser authorization...")
 		}
 
 	case StepModelSelect:
-		return m.list.View()
+		return doc.String() + m.list.View()
 
 	case StepLanguageSelect:
-		doc.WriteString(titleStyle.Render(" LANGUAGE PREFERENCE ") + "\n\n")
-		doc.WriteString("Choose the language GAIA will respond in:\n\n")
-		doc.WriteString(lipgloss.NewStyle().Bold(true).Render("  ➤ EN") + "  English\n")
-		doc.WriteString("     ES  Spanish (Español)\n")
-		doc.WriteString("     PT  Portuguese (Português)\n\n")
-		doc.WriteString("Use " + lipgloss.NewStyle().Bold(true).Render("UP/DOWN") + " arrows to select, " + lipgloss.NewStyle().Bold(true).Render("ENTER") + " to confirm.\n")
+		doc.WriteString(bannerTitleStyle.Render(" LANGUAGE PREFERENCE ") + "\n\n")
+		doc.WriteString("Select default interaction language for GAIA:\n\n")
+		opts := []string{"English (EN)", "Spanish (ES - Español)", "Portuguese (PT - Português)"}
+		for i, opt := range opts {
+			cursor := "  "
+			if i == m.langIndex {
+				cursor = "➤ "
+			}
+			doc.WriteString(cursor + itemStyle.Render(opt) + "\n")
+		}
+		doc.WriteString("\nUse " + lipgloss.NewStyle().Bold(true).Render("UP/DOWN") + " arrows, " + lipgloss.NewStyle().Bold(true).Render("ENTER") + " to confirm.\n")
 
 	case StepSecurityMode:
-		doc.WriteString(titleStyle.Render(" SECURITY MODE ") + "\n\n")
-		doc.WriteString("GAIA can restrict the agent to prevent dangerous operations.\n")
-		doc.WriteString("When enabled, the agent uses tier-based permissions:\n")
+		doc.WriteString(bannerTitleStyle.Render(" SECURITY MODE (PolicyGuard) ") + "\n\n")
+		doc.WriteString("Restrict agent capabilities with tier-based permissions:\n")
 		doc.WriteString("  • Read-only tools (read, glob, grep) — always allowed\n")
-		doc.WriteString("  • Write/edit tools — allowed in project\n")
-		doc.WriteString("  • Destructive commands (rm, docker, git push --force) — blocked by default\n")
-		doc.WriteString("  • You can always override from the /permisos panel\n\n")
-		doc.WriteString("When disabled, GAIA runs in basic mode with only a hardcoded blocklist\n")
-		doc.WriteString("for catastrophic commands (rm -rf /, fork bombs).\n\n")
-		optStyle := lipgloss.NewStyle().Bold(true)
-		for i, opt := range []string{"No — Basic mode (default)", "Yes — Security mode"} {
+		doc.WriteString("  • Write/edit tools — scoped to project directory\n")
+		doc.WriteString("  • Destructive commands (rm -rf /, git push --force) — blocked\n\n")
+		opts := []string{"No — Basic mode (default)", "Yes — Security mode (Recommended)"}
+		for i, opt := range opts {
 			cursor := "  "
 			if i == m.secIndex {
 				cursor = "➤ "
 			}
-			doc.WriteString(cursor + optStyle.Render(opt) + "\n")
+			doc.WriteString(cursor + itemStyle.Render(opt) + "\n")
 		}
 		doc.WriteString("\nUse " + lipgloss.NewStyle().Bold(true).Render("UP/DOWN") + " arrows, " + lipgloss.NewStyle().Bold(true).Render("ENTER") + " to confirm.\n")
 
-	case StepSkillRecommend:
-		doc.WriteString(titleStyle.Render(" SKILL RECOMMENDATIONS ") + "\n\n")
-		detected := m.projectType
-		if detected == "" {
-			detected = "unknown"
+	case StepStackSelect:
+		doc.WriteString(bannerTitleStyle.Render(" SELECT YOUR DEVELOPMENT STACKS ") + "\n\n")
+		doc.WriteString("Select the languages and technologies you work with:\n")
+		doc.WriteString("Press " + lipgloss.NewStyle().Bold(true).Render("SPACE") + " to select/deselect, " + lipgloss.NewStyle().Bold(true).Render("ENTER") + " to confirm.\n\n")
+
+		for i, st := range availableStacks {
+			cursor := " "
+			mark := "[ ]"
+			if i == m.stackIndex {
+				cursor = "➤"
+			}
+			if m.selectedStacks[st.id] {
+				mark = "[x]"
+			}
+			doc.WriteString(fmt.Sprintf("  %s %s %s\n", cursor, mark, lipgloss.NewStyle().Bold(true).Render(st.name)))
 		}
-		doc.WriteString(fmt.Sprintf("Project type detected: %s\n\n", lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("45")).Render(detected)))
-		doc.WriteString("We found these skills that match your project:\n")
+
+	case StepSkillRecommend:
+		doc.WriteString(bannerTitleStyle.Render(" RECOMMENDED SKILLS ") + "\n\n")
+		doc.WriteString("Skills available for your selected stacks:\n")
 		doc.WriteString("Press " + lipgloss.NewStyle().Bold(true).Render("SPACE") + " to select/deselect, " + lipgloss.NewStyle().Bold(true).Render("ENTER") + " to install and finish.\n\n")
 
 		for i, sk := range m.recommendedSkills {
@@ -311,86 +453,46 @@ func (m *WizardModel) View() string {
 				mark = "[x]"
 			}
 			doc.WriteString(fmt.Sprintf("  %s %s %s — %s\n", cursor, mark,
-				lipgloss.NewStyle().Bold(true).Render(sk.Name),
+				lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#00F5D4")).Render(sk.Name),
 				sk.Description))
 		}
 
 		if len(m.recommendedSkills) == 0 {
-			doc.WriteString("  (no matching skills found — press ENTER to skip)\n")
+			doc.WriteString("  (no matching skills found — press ENTER to finish)\n")
 		}
 
 	case StepFinishing:
-		doc.WriteString("All set! Configuration complete.\n")
+		doc.WriteString(bannerTitleStyle.Render(" ALL SET! ") + "\n\n")
+		doc.WriteString("GAIA setup is complete. Configuration saved to ~/.config/gaia/config.yaml\n")
 	}
 
-	return lipgloss.NewStyle().Margin(2, 4).Render(doc.String())
+	return lipgloss.NewStyle().Margin(1, 2).Render(doc.String())
 }
 
-// detectProjectType inspects the file system to determine the project's
-// primary language. It looks at well-known files and directory structures.
-func (m *WizardModel) detectProjectType() {
-	if m.projectRoot == "" {
+func (m *WizardModel) loadSkillsForSelectedStacks() {
+	if m.hub == nil {
 		return
 	}
+	var skillsList []skills.SkillMeta
+	seen := make(map[string]bool)
 
-	// Check for well-known files.
-	indicators := map[string]string{
-		"go.mod":          "go",
-		"package.json":    "typescript",
-		"tsconfig.json":   "typescript",
-		"Cargo.toml":      "rust",
-		"requirements.txt": "python",
-		"pyproject.toml":  "python",
-		"Pipfile":         "python",
-		"setup.py":        "python",
-		"Gemfile":         "ruby",
-		"pom.xml":         "java",
-		"build.gradle":    "java",
-		"build.gradle.kts": "java",
-		"Makefile":        "makefile",
-	}
-
-	for file, lang := range indicators {
-		if _, err := os.Stat(filepath.Join(m.projectRoot, file)); err == nil {
-			m.projectType = lang
-			break
+	for st, selected := range m.selectedStacks {
+		if !selected {
+			continue
+		}
+		recs := m.hub.RecommendFor(st)
+		for _, sk := range recs {
+			if !seen[sk.Name] {
+				seen[sk.Name] = true
+				skillsList = append(skillsList, sk)
+			}
 		}
 	}
 
-	// If still unknown, check for a Go project by scanning for .go files.
-	if m.projectType == "" {
-		m.projectType = detectGoProject(m.projectRoot)
-	}
-
-	// Fallback: generic project.
-	if m.projectType == "" {
-		m.projectType = "generic"
-	}
-
-	// Get recommendations from the hub if available.
-	if m.hub != nil {
-		m.recommendedSkills = m.hub.RecommendFor(m.projectType)
-		if m.recommendedSkills == nil {
-			m.recommendedSkills = []skills.SkillMeta{}
-		}
-		sort.Slice(m.recommendedSkills, func(i, j int) bool {
-			return m.recommendedSkills[i].Name < m.recommendedSkills[j].Name
-		})
-	}
-}
-
-// detectGoProject checks if the project contains .go files in its top level.
-func detectGoProject(root string) string {
-	entries, err := os.ReadDir(root)
-	if err != nil {
-		return ""
-	}
-	for _, e := range entries {
-		if !e.IsDir() && strings.HasSuffix(e.Name(), ".go") {
-			return "go"
-		}
-	}
-	return ""
+	m.recommendedSkills = skillsList
+	sort.Slice(m.recommendedSkills, func(i, j int) bool {
+		return m.recommendedSkills[i].Name < m.recommendedSkills[j].Name
+	})
 }
 
 // Commands
@@ -448,12 +550,22 @@ func openBrowser(url string) {
 }
 
 // GetResults returns the configuration obtained from the wizard.
-// Returns: copilot token, selected model, language preference, security mode, selected skill names.
-func (m *WizardModel) GetResults() (token, model, language string, security bool, skills []string) {
+// Returns: provider, apiKey, model, language preference, security mode, selected skill names.
+func (m *WizardModel) GetResults() (provider, apiKey, model, language string, security bool, skills []string) {
 	names := make([]string, 0, len(m.selectedSkills))
 	for name := range m.selectedSkills {
 		names = append(names, name)
 	}
 	sort.Strings(names)
-	return m.cpToken, m.selectedModel, m.languagePref, m.securityMode, names
+
+	p := m.provider
+	if p == "" {
+		p = "copilot"
+	}
+	k := m.apiKey
+	if p == "copilot" {
+		k = m.cpToken
+	}
+
+	return p, k, m.selectedModel, m.languagePref, m.securityMode, names
 }
