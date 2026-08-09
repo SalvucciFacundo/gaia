@@ -14,8 +14,8 @@
   ·
 </p>
 
-**GAIA is a programming-first autonomous agent** written in Go.  
-Single binary, zero external dependencies, Windows/macOS/Linux.
+**GAIA (Go Autonomous Intelligence Agent)** is a programming-first autonomous AI agent and coding assistant written in Go.  
+Features Spec-Driven Development (SDD), 19 supported LLM providers, Cyberpunk TUI, and a real-time Web UI Dashboard (`templ` + `htmx`). Single binary, zero external dependencies, Windows/macOS/Linux.
 
 ---
 
