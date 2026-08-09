@@ -89,7 +89,7 @@ const gaiaAvatarASCII = `
   / |   │   | \
  /  |___│___|  \`
 
-// RenderHeaderBanner builds the 2-column Hermes-style GAIA TUI banner.
+// RenderHeaderBanner builds the 2-column Hermes-style GAIA TUI banner for active sessions.
 func RenderHeaderBanner(width int) string {
 	title := bannerTitleStyle.Render(gaiaTitleASCII)
 	subtitle := bannerSubStyle.Render("Go Autonomous Intelligence Agent")
@@ -111,6 +111,18 @@ func RenderHeaderBanner(width int) string {
 
 	content := lipgloss.JoinHorizontal(lipgloss.Top, avatar, "   ", rightPanel)
 	fullBanner := lipgloss.JoinVertical(lipgloss.Center, topHeader, "", content)
+
+	if width > 0 {
+		return bannerBoxStyle.Width(width - 4).Render(fullBanner)
+	}
+	return bannerBoxStyle.Render(fullBanner)
+}
+
+// RenderWizardBanner builds a dedicated header banner for the setup wizard.
+func RenderWizardBanner(width int) string {
+	title := bannerTitleStyle.Render(gaiaTitleASCII)
+	subtitle := bannerSubStyle.Render("Go Autonomous Intelligence Agent — Initial Setup")
+	fullBanner := lipgloss.JoinVertical(lipgloss.Center, title, subtitle)
 
 	if width > 0 {
 		return bannerBoxStyle.Width(width - 4).Render(fullBanner)

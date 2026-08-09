@@ -361,7 +361,7 @@ func (m *WizardModel) View() string {
 	}
 
 	doc := strings.Builder{}
-	banner := RenderHeaderBanner(m.width)
+	banner := RenderWizardBanner(m.width)
 	doc.WriteString(banner + "\n\n")
 
 	switch m.step {
