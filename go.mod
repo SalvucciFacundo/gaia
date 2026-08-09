@@ -16,7 +16,7 @@ require (
 )
 
 require (
-	github.com/SalvucciFacundo/templ-islands v0.2.0 // indirect
+	github.com/SalvucciFacundo/templ-islands v0.3.1-0.20260809191911-1942af2cccc0 // indirect
 	github.com/a-h/templ v0.3.1020 // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
