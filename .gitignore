@@ -36,3 +36,6 @@ openspec/config.yaml
 
 # Temporary exports
 temp-export.json
+
+# Local skills reference directory
+skills/
