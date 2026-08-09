@@ -1,15 +1,14 @@
 package main
 
 import (
-	"encoding/json"
+	"context"
 	"log"
-	"net"
-	"net/http"
 	"os"
 	"os/signal"
 
 	"gaia/internal/adapters/db"
 	"gaia/internal/adapters/llm"
+	"gaia/internal/adapters/web"
 	"gaia/internal/config"
 	"gaia/internal/core"
 	"gaia/internal/core/domain"
@@ -55,43 +54,19 @@ func handleServe(args []string) {
 	brain.RegisterModule(gitops.NewModule(projectRoot))
 	brain.RegisterModule(shell.NewModule(projectRoot))
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
-	})
-	mux.HandleFunc("/message", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-		var msg serveMsg
-		if err := json.NewDecoder(r.Body).Decode(&msg); err != nil {
-			http.Error(w, "Invalid JSON", http.StatusBadRequest)
-			return
-		}
-		if msg.Content == "" {
-			http.Error(w, "Missing content", http.StatusBadRequest)
-			return
-		}
-		if err := brain.ProcessMessage(r.Context(), msg.Content); err != nil {
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
-	})
+	webServer := web.NewServer(brain, port, cfg.LLM.Provider, cfg.LLM.Model)
 
-	addr := net.JoinHostPort("0.0.0.0", port)
-	log.Printf("GAIA server listening on %s", addr)
-	server := &http.Server{Addr: addr, Handler: mux}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt)
-	go func() { <-stop; server.Close() }()
+	go func() {
+		<-stop
+		cancel()
+	}()
 
-	if err := server.ListenAndServe(); err != http.ErrServerClosed {
+	if err := webServer.Start(ctx); err != nil {
 		log.Fatalf("Server error: %v", err)
 	}
 }
