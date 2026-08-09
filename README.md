@@ -103,8 +103,15 @@ Manage and install skills for your project stack from the official registry or c
 - **AST Security Audit**: Scans installed skills for dangerous command execution, obfuscated scripts, or credential leaks.
 - **Auto-Learning**: Subagents automatically save and refine patterns into skills.
 
-### 🔐 Credential Pool
-Configure multiple API keys per provider with automatic failover and cooldown when encountering rate limits or credential errors.
+### 🌐 Web UI Dashboard (`gaia serve`)
+GAIA includes an autonomous Web UI Dashboard compiled directly into the single Go binary using **`templ`**, **`TailwindCSS`**, and **`templ-islands` (HTMX + SSE streaming)**.
+- **Multi-Workspace Sidebar**: Switch between active project directories seamlessly.
+- **Live Stream Chat**: Real-time token-by-token LLM output powered by SSE streams.
+- **Subagent Visualizer**: Reactive pipeline showing the 12 active subagents (`@explorer`, `@implementer`, `@verifier`).
+- **Zero Runtime Dependencies**: Simply run `gaia serve 8080` to launch the Web UI.
+
+### 🔐 Credential Pool & 19 LLM Providers
+Configure keys for 19 supported LLM providers (`copilot`, `openai`, `anthropic`, `ollama`, `deepseek`, `openrouter`, `groq`, `qwen`, `together`, `perplexity`, `fireworks`, `opencode`, `kimi`, `glm`, `nvidia`, `huggingface`, `deepinfra`, `cerebras`) with automatic failover and cooldown when encountering rate limits.
 
 ### ⏩ Async Background Tasks & Queueing
 Run tasks in the background while continuing the main conversation, or queue follow-up prompts to execute sequentially.
@@ -147,9 +154,10 @@ Explore the full documentation in the [docs/](docs) directory:
 |---|---|
 | **Language** | Go 1.23+ |
 | **Architecture** | Hexagonal (ports & adapters) |
-| **Packages** | 31 |
+| **Packages** | 33 |
 | **Subagents** | 12+ (static + dynamic at runtime) |
-| **LLM Providers** | OpenAI, Anthropic, Ollama, Copilot |
+| **LLM Providers** | 19 Supported Providers (OpenAI, Anthropic, DeepSeek, Ollama, Copilot, Groq, OpenRouter, etc.) |
+| **User Interfaces** | Cyberpunk TUI, Web UI Dashboard (`templ-islands`), Wails Desktop |
 | **Gateway Platforms** | Telegram, Discord, Slack, WhatsApp MCP, Signal MCP |
 | **License** | MIT |
 

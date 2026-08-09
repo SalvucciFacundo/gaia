@@ -9,17 +9,19 @@
 | `gaia exec <task> --json` | JSON output |
 | `gaia exec <task> --quiet` | Minimal output |
 
-## Server Mode
+## Server Mode (Web UI Dashboard)
 
 | Command | Description |
 |---|---|
-| `gaia serve` | Start HTTP server (default port 8080) |
-| `gaia serve 9090` | Custom port |
+| `gaia serve` | Start Web UI Dashboard server (default port 8080) |
+| `gaia serve 9090` | Custom port for Web UI Dashboard |
 
-The server exposes:
+The server exposes an interactive Web UI Dashboard (`templ` + `TailwindCSS` + `templ-islands`) with:
 ```
-GET  /health           → {"status": "ok"}
-POST /message          → {"content": "..."} → {"status": "ok"}
+GET  /                   → Web UI Dashboard (Multi-Workspace, Live Chat, Subagent Pipeline)
+POST /web/message        → Send message to active workspace
+POST /web/projects/select → Switch active workspace
+GET  /web/stream         → SSE Stream endpoint for real-time tokens & status updates
 ```
 
 ## Skills
