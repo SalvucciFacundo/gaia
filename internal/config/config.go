@@ -78,6 +78,31 @@ func Load() (*domain.Config, error) {
 		cfg.MCP.Servers = []domain.MCPServerConfig{}
 	}
 
+	// Apply Multimodal environment variables overrides
+	if envProvider := os.Getenv("MULTIMODAL_PROVIDER"); envProvider != "" {
+		cfg.Multimodal.Provider = envProvider
+	}
+	if envModel := os.Getenv("MULTIMODAL_MODEL"); envModel != "" {
+		cfg.Multimodal.Model = envModel
+	}
+	if envKey := os.Getenv("MULTIMODAL_API_KEY"); envKey != "" {
+		cfg.Multimodal.APIKey = envKey
+	}
+
+	// Set multimodal defaults if not provided
+	if cfg.Multimodal.Provider == "" {
+		cfg.Multimodal.Provider = "gemini"
+	}
+	if cfg.Multimodal.Model == "" {
+		if cfg.Multimodal.Provider == "gemini" {
+			cfg.Multimodal.Model = "gemini-2.5-flash"
+		} else if cfg.Multimodal.Provider == "openai" {
+			cfg.Multimodal.Model = "gpt-4o-mini"
+		} else {
+			cfg.Multimodal.Model = "claude-3-5-sonnet"
+		}
+	}
+
 	return &cfg, nil
 }
 

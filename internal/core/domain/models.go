@@ -186,8 +186,17 @@ type Config struct {
 		Language             string `yaml:"language"` // User's preferred language (en, es, pt)
 	} `yaml:"system"`
 	Terminal TerminalConfig `yaml:"terminal"`
-	MCP     MCPConfig     `yaml:"mcp"`
-	Browser BrowserToolsConfig `yaml:"browser"`
+	MCP      MCPConfig      `yaml:"mcp"`
+	Browser  BrowserToolsConfig `yaml:"browser"`
+	Multimodal MultimodalConfig `yaml:"multimodal"`
+}
+
+// MultimodalConfig defines secondary perception model settings for image/audio inspection.
+type MultimodalConfig struct {
+	Enabled  bool   `yaml:"enabled"`
+	Provider string `yaml:"provider"` // "gemini", "openai", "anthropic"
+	Model    string `yaml:"model"`    // "gemini-2.5-flash", "gpt-4o-mini"
+	APIKey   string `yaml:"api_key"`
 }
 
 // MCPConfig defines MCP (Model Context Protocol) client settings.
