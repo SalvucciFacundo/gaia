@@ -146,7 +146,7 @@ func handleReviewStatus() {
 		os.Exit(1)
 	}
 
-	store := gates.NewFSReceiptStore(projectRoot)
+	store := gates.NewCASReceiptStore(projectRoot)
 
 	// Try to find the latest receipt.
 	summaries, err := store.ListReceipts()
@@ -214,7 +214,7 @@ func handleReviewValidate(args []string) {
 		}
 	}
 
-	store := gates.NewFSReceiptStore(projectRoot)
+	store := gates.NewCASReceiptStore(projectRoot)
 
 	var gate *gates.Gate
 	switch gates.GateName(*gateName) {
@@ -252,7 +252,7 @@ func handleReviewList() {
 		os.Exit(1)
 	}
 
-	store := gates.NewFSReceiptStore(projectRoot)
+	store := gates.NewCASReceiptStore(projectRoot)
 	summaries, err := store.ListReceipts()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error listing receipts: %v\n", err)
