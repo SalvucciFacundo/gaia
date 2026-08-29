@@ -19,6 +19,7 @@ import (
 
 	"gaia/internal/core/domain"
 	"gaia/internal/core/ports"
+	"gaia/internal/diff"
 	"gaia/internal/mcp"
 )
 
@@ -2059,6 +2060,47 @@ For details: gaia help or check the README.`
 	return b.ui.Display(msg)
 }
 
+// DiffView renders the current git diff in unified format or reports clean tree.
+func (b *Brain) DiffView(ctx context.Context, staged bool) error {
+	args := []string{"diff"}
+	targetName := "working tree"
+	if staged {
+		args = append(args, "--staged")
+		targetName = "staging area"
+	}
+	cmd := exec.Command("git", args...)
+	output, err := cmd.Output()
+	if err != nil {
+		msg := domain.Message{Role: domain.RoleSystem, Content: fmt.Sprintf("Error running git diff: %v", err)}
+		b.repo.SaveMessage(ctx, msg)
+		return b.ui.Display(msg)
+	}
+
+	files, err := diff.ParseUnifiedDiff(string(output))
+	if err != nil {
+		msg := domain.Message{Role: domain.RoleSystem, Content: fmt.Sprintf("Error parsing git diff: %v", err)}
+		b.repo.SaveMessage(ctx, msg)
+		return b.ui.Display(msg)
+	}
+
+	if len(files) == 0 {
+		msg := domain.Message{Role: domain.RoleSystem, Content: fmt.Sprintf("Working tree clean — no modifications in %s.", targetName)}
+		b.repo.SaveMessage(ctx, msg)
+		return b.ui.Display(msg)
+	}
+
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("Git Diff (%s):\n\n", targetName))
+	for _, f := range files {
+		sb.WriteString(diff.RenderDiffFile(f, 80, -1))
+		sb.WriteString("\n")
+	}
+
+	msg := domain.Message{Role: domain.RoleSystem, Content: sb.String()}
+	b.repo.SaveMessage(ctx, msg)
+	return b.ui.Display(msg)
+}
+
 // AuditLog displays the policy audit trail.
 func (b *Brain) AuditLog(ctx context.Context) error {
 	if len(b.auditLog) == 0 {
@@ -2749,6 +2791,15 @@ func (b *Brain) ProcessMessage(ctx context.Context, content string) error {
 			arg = strings.TrimSpace(content[6:])
 		}
 		return b.FastMode(ctx, arg)
+	}
+
+	// 0af. /diff — inspect git diff
+	if content == "/diff" {
+		return b.DiffView(ctx, false)
+	}
+	if strings.HasPrefix(content, "/diff ") {
+		staged := strings.Contains(content, "--staged") || strings.Contains(content, "--cached")
+		return b.DiffView(ctx, staged)
 	}
 
 	// 0af. /busy — control Enter key behavior

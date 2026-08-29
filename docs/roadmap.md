@@ -27,11 +27,13 @@ This document outlines high-impact architectural enhancements for GAIA to elevat
 
 ## Pillar 3: Developer Experience & Control
 
-### 3. Interactive TUI Diff Viewer (Human-in-the-Loop)
+### 3. Interactive TUI Diff Viewer (Human-in-the-Loop) (`completed`)
 - **Problem**: Terminal output only shows text summaries after code modifications, without visual hunk-level inspection.
-- **Solution**: An interactive Bubbletea component providing a side-by-side or unified colored diff viewer with:
-  - Hunk-by-hunk review and staging.
-  - Line-level feedback steering before commit.
+- **Solution**: An interactive Bubbletea component (`internal/adapters/tui/diff_viewer.go` & `internal/diff/`) providing a unified colored diff viewer with:
+  - Hunk-by-hunk review and staging (`s`/`u`/`d`).
+  - Next/previous hunk navigation (`n`/`p`).
+  - Line-level feedback steering (`e`/`r`) before commit.
+  - `/diff` in-session TUI command.
 - **Benefits**: Enforces "AI is a tool, human always directs" with zero friction.
 
 ---

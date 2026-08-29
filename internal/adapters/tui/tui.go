@@ -186,6 +186,10 @@ type Model struct {
 	policyPanel *PolicyPanelModel        // nil when not in policy panel mode
 	sessionMgr  *core.SessionManager     // session routing (nil if not in unified mode)
 
+	// Diff viewer overlay
+	diffViewer    *DiffViewerModel // nil when not in diff viewer mode
+	gitDiffLoader GitDiffLoader    // nil for DefaultGitDiffLoader
+
 	// Display preferences (set via slash commands)
 	showTimestamps bool   // /timestamps toggle
 	showStatusbar  bool   // /statusbar toggle
@@ -273,6 +277,38 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m.textInput, tiCmd = m.textInput.Update(msg)
 	m.viewport, vpCmd = m.viewport.Update(msg)
 
+	// Route to diff viewer when active
+	if m.diffViewer != nil {
+		switch msg := msg.(type) {
+		case DiffCloseMsg:
+			m.diffViewer = nil
+			return m, nil
+		case DiffSteeringMsg:
+			m.diffViewer = nil
+			guidance := fmt.Sprintf("User steering on %s (%s):\n```diff\n%s\n```\nFeedback: %s", msg.FilePath, msg.HunkHeader, msg.DiffSnippet, msg.Feedback)
+			m.history = append(m.history, domain.Message{
+				Role:    domain.RoleUser,
+				Content: guidance,
+			})
+			m.viewport.SetContent(m.renderHistory())
+			m.viewport.GotoBottom()
+			if m.brain != nil {
+				return m, func() tea.Msg {
+					ctx := context.Background()
+					_ = m.brain.ProcessMessage(ctx, guidance)
+					return nil
+				}
+			}
+			return m, nil
+		default:
+			newModel, cmd := m.diffViewer.Update(msg)
+			if updated, ok := newModel.(DiffViewerModel); ok {
+				m.diffViewer = &updated
+			}
+			return m, cmd
+		}
+	}
+
 	// Route to interview when active
 	if m.interview != nil {
 		newModel, cmd := m.interview.Update(msg)
@@ -343,6 +379,38 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			input := m.textInput.Value()
 			if input == "" {
+				return m, nil
+			}
+
+			// Handle /diff — interactive diff viewer
+			if strings.HasPrefix(input, "/diff") {
+				staged := strings.Contains(input, "--staged") || strings.Contains(input, "--cached")
+				loader := m.gitDiffLoader
+				if loader == nil {
+					loader = DefaultGitDiffLoader
+				}
+				files, err := loader(".", staged)
+				if err != nil {
+					m.addSystemMsg(fmt.Sprintf("Error loading git diff: %v", err))
+				} else if len(files) == 0 {
+					target := "working directory"
+					if staged {
+						target = "staging area"
+					}
+					m.addSystemMsg(fmt.Sprintf("Working tree clean — no modifications in %s.", target))
+				} else {
+					w := m.viewport.Width
+					if w <= 0 {
+						w = 80
+					}
+					h := m.viewport.Height
+					if h <= 0 {
+						h = 24
+					}
+					dv := NewDiffViewerModel(files, w, h)
+					m.diffViewer = &dv
+				}
+				m.textInput.SetValue("")
 				return m, nil
 			}
 
@@ -937,6 +1005,11 @@ For details: gaia help or check the README.`
 }
 
 func (m *Model) View() string {
+	// Render diff viewer when active
+	if m.diffViewer != nil {
+		return m.diffViewer.View()
+	}
+
 	// Render interview when active
 	if m.interview != nil {
 		return m.interview.View()
@@ -966,6 +1039,53 @@ func (m *Model) View() string {
 	}
 
 	return fmt.Sprintf("%s\n%s\n%s\n%s", header, taskPane, m.viewport.View(), footer)
+}
+
+// SetGitDiffLoader configures a custom git diff loader (useful for testing or specific worktrees).
+func (m *Model) SetGitDiffLoader(loader GitDiffLoader) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.gitDiffLoader = loader
+}
+
+// SetDiffViewer opens the interactive diff viewer overlay with provided model.
+func (m *Model) SetDiffViewer(dv *DiffViewerModel) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.diffViewer = dv
+}
+
+// GetDiffViewer returns the current diff viewer model (or nil if inactive).
+func (m *Model) GetDiffViewer() *DiffViewerModel {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.diffViewer
+}
+
+// OpenDiffViewer loads the working diff and activates the diff viewer modal if modifications exist.
+func (m *Model) OpenDiffViewer(staged bool) error {
+	loader := m.gitDiffLoader
+	if loader == nil {
+		loader = DefaultGitDiffLoader
+	}
+	files, err := loader(".", staged)
+	if err != nil {
+		return err
+	}
+	if len(files) == 0 {
+		return fmt.Errorf("working tree clean — no modifications found")
+	}
+	w := m.viewport.Width
+	if w <= 0 {
+		w = 80
+	}
+	h := m.viewport.Height
+	if h <= 0 {
+		h = 24
+	}
+	dv := NewDiffViewerModel(files, w, h)
+	m.SetDiffViewer(&dv)
+	return nil
 }
 
 // AppendToken adds a streaming token to the current assistant message.

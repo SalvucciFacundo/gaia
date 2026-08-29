@@ -368,6 +368,29 @@ func TestBrain_BusyMode(t *testing.T) {
 	}
 }
 
+func TestBrain_DiffCommand(t *testing.T) {
+	prov := &stubProvider{}
+	repo := &stubRepo{}
+	ui := &stubUI{}
+	budget := domain.BudgetConfig{MaxIterations: 5}
+
+	brain := NewBrain(prov, repo, ui, nil, budget)
+
+	err := brain.ProcessMessage(context.Background(), "/diff")
+	if err != nil {
+		t.Fatalf("unexpected error running /diff: %v", err)
+	}
+
+	if len(ui.displayed) == 0 {
+		t.Fatal("expected UI display output for /diff")
+	}
+
+	lastMsg := ui.displayed[len(ui.displayed)-1]
+	if !contains(lastMsg.Content, "Git Diff") && !contains(lastMsg.Content, "Working tree clean") && !contains(lastMsg.Content, "Error") {
+		t.Errorf("unexpected output from /diff: %s", lastMsg.Content)
+	}
+}
+
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(s) > 0 && len(substr) > 0 && searchSubstring(s, substr))
 }

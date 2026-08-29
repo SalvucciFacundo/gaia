@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"gaia/internal/core/domain"
+	"gaia/internal/diff"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/exp/teatest"
 )
@@ -220,5 +221,104 @@ func TestIntegration_TUIProcessorReceivesInput(t *testing.T) {
 	}
 	if !found {
 		t.Error("expected assistant response 'OK' in history")
+	}
+}
+
+// TestIntegration_TUIDiffSlashCommandCleanTree verifies that /diff on a clean tree displays system notification.
+func TestIntegration_TUIDiffSlashCommandCleanTree(t *testing.T) {
+	model := NewTUI()
+	model.ready = true
+	model.SetGitDiffLoader(func(workDir string, staged bool) ([]diff.DiffFile, error) {
+		return []diff.DiffFile{}, nil
+	})
+
+	model.textInput.SetValue("/diff")
+	model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+
+	if model.GetDiffViewer() != nil {
+		t.Error("expected diff viewer to remain nil on clean/empty diff")
+	}
+
+	model.mu.Lock()
+	defer model.mu.Unlock()
+	if len(model.history) == 0 {
+		t.Fatal("expected system notification in history for /diff")
+	}
+	lastMsg := model.history[len(model.history)-1]
+	if !strings.Contains(lastMsg.Content, "clean") {
+		t.Errorf("expected clean tree message, got %q", lastMsg.Content)
+	}
+}
+
+// TestIntegration_TUIDiffOverlayLifecycleAndSteering verifies full overlay activation, key interaction, and steering dispatch.
+func TestIntegration_TUIDiffOverlayLifecycleAndSteering(t *testing.T) {
+	model := NewTUI()
+	model.ready = true
+	proc := &processorStub{model: model, response: "Acknowledged steering"}
+	model.SetBrain(proc)
+
+	sampleFiles := []diff.DiffFile{
+		{
+			OldPath: "server.go",
+			NewPath: "server.go",
+			Hunks: []diff.DiffHunk{
+				{
+					Header:   "@@ -10,3 +10,4 @@",
+					OldStart: 10,
+					OldLines: 3,
+					NewStart: 10,
+					NewLines: 4,
+					Lines: []diff.DiffLine{
+						{Type: diff.LineContext, Content: "package server", OldLine: 10, NewLine: 10},
+						{Type: diff.LineAddition, Content: "func Start() error {}", OldLine: 0, NewLine: 11},
+					},
+				},
+			},
+		},
+	}
+
+	dv := NewDiffViewerModel(sampleFiles, 80, 24)
+	model.SetDiffViewer(&dv)
+
+	if model.GetDiffViewer() == nil {
+		t.Fatal("expected diff viewer to be active")
+	}
+
+	// View should render diff viewer
+	view := model.View()
+	if !strings.Contains(view, "GAIA Interactive Diff Viewer") || !strings.Contains(view, "server.go") {
+		t.Errorf("expected diff viewer rendered in model view, got %s", view)
+	}
+
+	// Trigger steering mode with 'e'
+	model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'e'}})
+	if model.GetDiffViewer().Mode != ModeSteering {
+		t.Fatalf("expected ModeSteering, got %v", model.GetDiffViewer().Mode)
+	}
+
+	// Type steering feedback
+	model.GetDiffViewer().SteeringInput.SetValue("Add timeout context to Start()")
+
+	// Press Enter to submit steering guidance from diff viewer
+	_, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd != nil {
+		// Bubbletea executes the command and feeds back the message
+		msg := cmd()
+		_, runCmd := model.Update(msg)
+		if runCmd != nil {
+			runCmd()
+		}
+	}
+
+	// Diff viewer should be closed
+	if model.GetDiffViewer() != nil {
+		t.Errorf("expected diff viewer to be closed after steering submission")
+	}
+
+	if len(proc.calls) != 1 {
+		t.Fatalf("expected 1 ProcessMessage call from steering, got %d", len(proc.calls))
+	}
+	if !strings.Contains(proc.calls[0], "Add timeout context to Start()") {
+		t.Errorf("expected steering feedback in call, got %q", proc.calls[0])
 	}
 }
