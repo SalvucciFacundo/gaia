@@ -31,6 +31,13 @@ When review findings require surgical fixes:
 - Ordinary review permits at most **1 correction transaction**.
 - Excess line modifications or failed corrections trigger escalation to human review.
 
+### Content-Addressable Receipt Authority (Git CAS & Fallback)
+
+Receipts generated during code reviews are managed by `CASReceiptStore` (`internal/review/gates/cas_store.go`):
+- **Git Repositories (Native CAS)**: Receipts are written directly into Git's Object Database as immutable blobs (`git hash-object -w --stdin`) and referenced atomically at `refs/gaia-reviews/<change-name>`.
+- **Non-Git Workspaces (Graceful Fallback)**: If a project is not version-controlled with Git, receipts fall back automatically to standard filesystem JSON storage in `.gaia/reviews/` without throwing errors.
+- **Delivery Gates Validation**: Delivery gates (`pre-commit`, `pre-push`, `pre-pr`) inspect `CASReceiptStore` to ensure that the current workspace tree matches the exact SHA-256 hash of the approved review.
+
 ---
 
 ## Risk Classification
