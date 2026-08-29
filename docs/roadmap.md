@@ -40,10 +40,11 @@ This document outlines high-impact architectural enhancements for GAIA to elevat
 
 ## Pillar 4: Semantic Precision
 
-### 4. LSP-Powered Active Refactoring Tools
+### 4. LSP-Powered Active Refactoring Tools (`completed`)
 - **Problem**: Text/regex based replacement can cause broken imports, syntax mismatches, or missed references across packages.
-- **Solution**: Expose active Language Server Protocol (LSP) tools to `Implementer` and `Debugger`:
-  - `lsp_rename_symbol`: Project-wide safe renaming.
+- **Solution**: Active Language Server Protocol (LSP) tools (`internal/lsp/`) exposed to `Implementer` and `Debugger`:
+  - `lsp_rename_symbol`: Project-wide safe renaming across multiple files using `WorkspaceEdit` with reverse-order sorting and atomic rollback.
   - `lsp_find_references`: Impact radius calculation before signature changes.
   - `lsp_code_actions`: Direct compiler/linter quick-fixes.
+  - `lsp_diagnostics`: Real-time compiler diagnostics.
 - **Benefits**: 100% compilation safety during multi-file refactoring.

@@ -1,6 +1,6 @@
 // Package lsp provides an LSP (Language Server Protocol) client for GAIA.
 // It connects to language servers (gopls, pylsp, etc.) via stdio transport
-// and exposes diagnostics, completions, and hover as agent tools.
+// and exposes diagnostics, completions, and refactoring as agent tools.
 package lsp
 
 import (
@@ -10,8 +10,17 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"strings"
 	"sync"
 )
+
+// RefactoringClient defines refactoring capabilities supported by the LSP client.
+type RefactoringClient interface {
+	RenameSymbol(ctx context.Context, uri string, pos Position, newName string) (*WorkspaceEdit, error)
+	FindReferences(ctx context.Context, uri string, pos Position, includeDecl bool) ([]Location, error)
+	CodeActions(ctx context.Context, uri string, rng Range, actionCtx CodeActionContext) ([]CodeAction, error)
+	ApplyWorkspaceEdit(ctx context.Context, edit *WorkspaceEdit) (*ApplyResult, error)
+}
 
 // ServerConfig defines settings for an LSP server connection.
 type ServerConfig struct {
@@ -28,7 +37,7 @@ type Client struct {
 	cmd     *exec.Cmd
 	stdin   io.WriteCloser
 	stdout  io.ReadCloser
-	scanner *bufio.Scanner
+	reader  *bufio.Reader
 	mu      sync.Mutex
 	nextID  int
 }
@@ -39,6 +48,18 @@ func NewClient(cfg ServerConfig) *Client {
 		cfg:    cfg,
 		nextID: 1,
 	}
+}
+
+// NewClientWithIO creates an LSP client with injected io streams for testing or custom transports.
+func NewClientWithIO(stdin io.WriteCloser, stdout io.ReadCloser, cfg ServerConfig) *Client {
+	c := &Client{
+		cfg:    cfg,
+		stdin:  stdin,
+		stdout: stdout,
+		nextID: 1,
+		reader: bufio.NewReader(stdout),
+	}
+	return c
 }
 
 // Connect starts the LSP server process and performs the initialize handshake.
@@ -62,12 +83,11 @@ func (c *Client) Connect(ctx context.Context) error {
 		return fmt.Errorf("lsp stdout: %w", err)
 	}
 
+	c.reader = bufio.NewReader(c.stdout)
+
 	if err := c.cmd.Start(); err != nil {
 		return fmt.Errorf("lsp start: %w", err)
 	}
-
-	c.scanner = bufio.NewScanner(c.stdout)
-	c.scanner.Buffer(make([]byte, 0, 1024*1024), 1024*1024) // 1 MB buffer for large responses.
 
 	// Initialize handshake.
 	initReq := lspRequest{
@@ -75,9 +95,9 @@ func (c *Client) Connect(ctx context.Context) error {
 		ID:      c.nextID,
 		Method:  "initialize",
 		Params: map[string]interface{}{
-			"processId":         nil,
-			"rootUri":           fmt.Sprintf("file://%s", c.cfg.Workspace),
-			"capabilities":      map[string]interface{}{},
+			"processId":    nil,
+			"rootUri":      fmt.Sprintf("file://%s", c.cfg.Workspace),
+			"capabilities": map[string]interface{}{},
 		},
 	}
 	c.nextID++
@@ -98,7 +118,6 @@ func (c *Client) Diagnostics(ctx context.Context) ([]Diagnostic, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	// Send workspace/diagnostic refresh request.
 	req := lspRequest{
 		JSONRPC: "2.0",
 		ID:      c.nextID,
@@ -113,8 +132,146 @@ func (c *Client) Diagnostics(ctx context.Context) ([]Diagnostic, error) {
 	if err != nil {
 		return nil, fmt.Errorf("lsp diagnostics: %w", err)
 	}
+	if resp.Error != nil {
+		return nil, fmt.Errorf("lsp diagnostics error (%d): %s", resp.Error.Code, resp.Error.Message)
+	}
 
 	return parseDiagnostics(resp.Result), nil
+}
+
+// RenameSymbol sends a textDocument/rename request to rename the symbol at pos.
+func (c *Client) RenameSymbol(ctx context.Context, uri string, pos Position, newName string) (*WorkspaceEdit, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	params := RenameParams{
+		TextDocument: TextDocumentIdentifier{URI: uri},
+		Position:     pos,
+		NewName:      newName,
+	}
+
+	req := lspRequest{
+		JSONRPC: "2.0",
+		ID:      c.nextID,
+		Method:  "textDocument/rename",
+		Params:  params,
+	}
+	c.nextID++
+
+	resp, err := c.sendRequest(req)
+	if err != nil {
+		return nil, fmt.Errorf("lsp rename: %w", err)
+	}
+	if resp.Error != nil {
+		return nil, fmt.Errorf("lsp rename error (%d): %s", resp.Error.Code, resp.Error.Message)
+	}
+	if resp.Result == nil {
+		return &WorkspaceEdit{Changes: make(map[string][]TextEdit)}, nil
+	}
+
+	data, err := json.Marshal(resp.Result)
+	if err != nil {
+		return nil, fmt.Errorf("lsp rename marshal result: %w", err)
+	}
+
+	var edit WorkspaceEdit
+	if err := json.Unmarshal(data, &edit); err != nil {
+		return nil, fmt.Errorf("lsp rename unmarshal edit: %w", err)
+	}
+
+	return &edit, nil
+}
+
+// FindReferences sends a textDocument/references request to find all references to the symbol at pos.
+func (c *Client) FindReferences(ctx context.Context, uri string, pos Position, includeDecl bool) ([]Location, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	params := ReferenceParams{
+		TextDocument: TextDocumentIdentifier{URI: uri},
+		Position:     pos,
+		Context:      ReferenceContext{IncludeDeclaration: includeDecl},
+	}
+
+	req := lspRequest{
+		JSONRPC: "2.0",
+		ID:      c.nextID,
+		Method:  "textDocument/references",
+		Params:  params,
+	}
+	c.nextID++
+
+	resp, err := c.sendRequest(req)
+	if err != nil {
+		return nil, fmt.Errorf("lsp references: %w", err)
+	}
+	if resp.Error != nil {
+		return nil, fmt.Errorf("lsp references error (%d): %s", resp.Error.Code, resp.Error.Message)
+	}
+	if resp.Result == nil {
+		return []Location{}, nil
+	}
+
+	data, err := json.Marshal(resp.Result)
+	if err != nil {
+		return nil, fmt.Errorf("lsp references marshal result: %w", err)
+	}
+
+	var locs []Location
+	if err := json.Unmarshal(data, &locs); err != nil {
+		return nil, fmt.Errorf("lsp references unmarshal locations: %w", err)
+	}
+
+	return locs, nil
+}
+
+// CodeActions sends a textDocument/codeAction request to retrieve code actions for range and context.
+func (c *Client) CodeActions(ctx context.Context, uri string, rng Range, actionCtx CodeActionContext) ([]CodeAction, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	params := CodeActionParams{
+		TextDocument: TextDocumentIdentifier{URI: uri},
+		Range:        rng,
+		Context:      actionCtx,
+	}
+
+	req := lspRequest{
+		JSONRPC: "2.0",
+		ID:      c.nextID,
+		Method:  "textDocument/codeAction",
+		Params:  params,
+	}
+	c.nextID++
+
+	resp, err := c.sendRequest(req)
+	if err != nil {
+		return nil, fmt.Errorf("lsp code actions: %w", err)
+	}
+	if resp.Error != nil {
+		return nil, fmt.Errorf("lsp code actions error (%d): %s", resp.Error.Code, resp.Error.Message)
+	}
+	if resp.Result == nil {
+		return []CodeAction{}, nil
+	}
+
+	data, err := json.Marshal(resp.Result)
+	if err != nil {
+		return nil, fmt.Errorf("lsp code actions marshal result: %w", err)
+	}
+
+	var actions []CodeAction
+	if err := json.Unmarshal(data, &actions); err != nil {
+		return nil, fmt.Errorf("lsp code actions unmarshal: %w", err)
+	}
+
+	return actions, nil
+}
+
+// ApplyWorkspaceEdit safely applies a WorkspaceEdit using the WorkspaceEditApplier.
+func (c *Client) ApplyWorkspaceEdit(ctx context.Context, edit *WorkspaceEdit) (*ApplyResult, error) {
+	applier := NewWorkspaceEditApplier()
+	return applier.Apply(edit)
 }
 
 // Close terminates the LSP server process.
@@ -139,17 +296,32 @@ func (c *Client) sendRequest(req lspRequest) (*lspResponse, error) {
 
 // sendNotification sends an LSP notification (no response expected).
 func (c *Client) sendNotification(method string, params interface{}) error {
+	if c.stdin == nil {
+		return fmt.Errorf("lsp client not connected")
+	}
+
 	notif := lspRequest{
 		JSONRPC: "2.0",
 		Method:  method,
 		Params:  params,
 	}
-	_, err := c.send(notif)
+
+	reqBytes, err := json.Marshal(notif)
+	if err != nil {
+		return fmt.Errorf("marshal notification: %w", err)
+	}
+
+	frame := fmt.Sprintf("Content-Length: %d\r\n\r\n%s", len(reqBytes), string(reqBytes))
+	_, err = c.stdin.Write([]byte(frame))
 	return err
 }
 
 // send writes an LSP message using Content-Length framing and reads the response.
 func (c *Client) send(msg lspRequest) (*lspResponse, error) {
+	if c.stdin == nil || c.stdout == nil {
+		return nil, fmt.Errorf("lsp client not connected")
+	}
+
 	reqBytes, err := json.Marshal(msg)
 	if err != nil {
 		return nil, fmt.Errorf("marshal: %w", err)
@@ -161,25 +333,29 @@ func (c *Client) send(msg lspRequest) (*lspResponse, error) {
 		return nil, fmt.Errorf("write: %w", err)
 	}
 
-	// Read Content-Length header.
-	if !c.scanner.Scan() {
-		return nil, fmt.Errorf("lsp: unexpected EOF reading header")
-	}
-
-	header := c.scanner.Text()
+	// Read headers and body using Content-Length framing.
 	var contentLength int
-	if _, err := fmt.Sscanf(header, "Content-Length: %d", &contentLength); err != nil {
-		return nil, fmt.Errorf("lsp: bad header: %s", header)
+	for {
+		line, err := c.reader.ReadString('\n')
+		if err != nil {
+			return nil, fmt.Errorf("lsp read header: %w", err)
+		}
+		line = strings.TrimSpace(line)
+		if line == "" {
+			break
+		}
+		if strings.HasPrefix(strings.ToLower(line), "content-length:") {
+			_, _ = fmt.Sscanf(line, "Content-Length: %d", &contentLength)
+		}
 	}
 
-	// Read blank line separator.
-	if !c.scanner.Scan() {
-		return nil, fmt.Errorf("lsp: unexpected EOF after header")
+	if contentLength <= 0 {
+		return nil, fmt.Errorf("lsp: missing or invalid Content-Length")
 	}
 
-	// Read body.
+	// Read body using the same buffered reader.
 	body := make([]byte, contentLength)
-	n, err := io.ReadFull(c.stdout, body)
+	n, err := io.ReadFull(c.reader, body)
 	if err != nil {
 		return nil, fmt.Errorf("lsp: read body: expected %d bytes, got %d: %w", contentLength, n, err)
 	}
