@@ -162,6 +162,14 @@ func (s *Spawner) Available() []string {
 func (s *Spawner) RunLoop(ctx context.Context, task domain.SubagentTask, systemPrompt string) (*domain.Message, error) {
 	filtered := s.cfg.Tools.Filtered(task.AllowedTools)
 
+	if len(task.SkillPaths) > 0 {
+		systemPrompt += "\n## Skills to load before work\n" +
+			"Read these skill files using file_read before performing task work:\n"
+		for _, p := range task.SkillPaths {
+			systemPrompt += fmt.Sprintf("- %s\n", p)
+		}
+	}
+
 	messages := []domain.Message{
 		{Role: domain.RoleSystem, Content: systemPrompt},
 		{Role: domain.RoleUser, Content: task.Description},

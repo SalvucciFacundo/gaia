@@ -256,15 +256,16 @@ const (
 
 // SubagentTask is a self-contained work unit sent to a subagent.
 type SubagentTask struct {
-	ID           string   // Unique identifier for this task
-	Description  string   // Human-readable instruction for the subagent
-	KGContext    []string // Relevant knowledge graph facts
-	Skills       []string // Skill names to load before execution
-	SkillRegistry []string // All available skill names (for subagent to choose from)
-	AllowedTools []string // Tool names allowed for this subagent; empty = all
-	Mode         string   // Execution mode: "plan" or "build"
-	IsDirectChat bool     // True when routed via @name syntax; subagent responds directly to user
-	MoA          MoAConfig // Mixture-of-Agents config (empty = single-model)
+	ID            string    // Unique identifier for this task
+	Description   string    // Human-readable instruction for the subagent
+	KGContext     []string  // Relevant knowledge graph facts
+	Skills        []string  // Skill names to load before execution
+	SkillPaths    []string  // Exact file paths to SKILL.md for progressive on-demand loading
+	SkillRegistry []string  // All available skill names (for subagent to choose from)
+	AllowedTools  []string  // Tool names allowed for this subagent; empty = all
+	Mode          string    // Execution mode: "plan" or "build"
+	IsDirectChat  bool      // True when routed via @name syntax; subagent responds directly to user
+	MoA           MoAConfig // Mixture-of-Agents config (empty = single-model)
 }
 
 // ReviewState represents the state of a review transaction in the formal state machine.

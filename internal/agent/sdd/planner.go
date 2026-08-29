@@ -7,6 +7,44 @@ import (
 	"gaia/internal/core/domain"
 )
 
+// ReviewWorkloadForecast represents the budget analysis for a task breakdown.
+type ReviewWorkloadForecast struct {
+	EstimatedLines      int    `json:"estimated_lines"`
+	ChainedPRsRequired  bool   `json:"chained_prs_required"`
+	BudgetRisk          string `json:"budget_risk"` // Low, Medium, High
+	RecommendedStrategy string `json:"recommended_strategy"` // single-pr, stacked-to-main, feature-branch-chain
+	DecisionNeeded      bool   `json:"decision_needed"`
+}
+
+// AnalyzeWorkload calculates the review risk and PR chaining recommendation based on estimated lines.
+func AnalyzeWorkload(estimatedLines int) ReviewWorkloadForecast {
+	if estimatedLines > 400 {
+		return ReviewWorkloadForecast{
+			EstimatedLines:      estimatedLines,
+			ChainedPRsRequired:  true,
+			BudgetRisk:          "High",
+			RecommendedStrategy: "stacked-to-main",
+			DecisionNeeded:      true,
+		}
+	}
+	if estimatedLines > 250 {
+		return ReviewWorkloadForecast{
+			EstimatedLines:      estimatedLines,
+			ChainedPRsRequired:  false,
+			BudgetRisk:          "Medium",
+			RecommendedStrategy: "single-pr",
+			DecisionNeeded:      false,
+		}
+	}
+	return ReviewWorkloadForecast{
+		EstimatedLines:      estimatedLines,
+		ChainedPRsRequired:  false,
+		BudgetRisk:          "Low",
+		RecommendedStrategy: "single-pr",
+		DecisionNeeded:      false,
+	}
+}
+
 // planner breaks the design into implementation tasks with workload forecasts.
 // It sits between Designer and Implementer in the SDD pipeline. It has read
 // access plus shell_exec for validation (e.g., checking file existence).

@@ -221,6 +221,42 @@ func (h *Hub) LoadSkills() []Skill {
 	return skills
 }
 
+// ResolveSkillPaths resolves a list of active skill names into relative/absolute SKILL.md file paths.
+// This supports progressive path-based skill injection (## Skills to load before work)
+// preventing context window bloat while letting subagents read full skills on demand.
+func (h *Hub) ResolveSkillPaths(skillNames []string) []string {
+	h.ensureIndex()
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	var paths []string
+	for _, name := range skillNames {
+		dir := h.findSkillDir(name)
+		if dir == "" {
+			continue
+		}
+		skillFile := filepath.Join(dir, "SKILL.md")
+		if _, err := os.Stat(skillFile); err == nil {
+			paths = append(paths, skillFile)
+		}
+	}
+	return paths
+}
+
+// FormatSkillsPromptHeader formats skill file paths for prompt injection.
+func FormatSkillsPromptHeader(skillPaths []string) string {
+	if len(skillPaths) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("\n## Skills to load before work\n")
+	b.WriteString("Read these skill files using file_read before performing task work:\n")
+	for _, p := range skillPaths {
+		b.WriteString(fmt.Sprintf("- %s\n", p))
+	}
+	return b.String()
+}
+
 // RecommendFor returns skills matching the given project language.
 // Used by the first-run wizard to suggest relevant skills.
 func (h *Hub) RecommendFor(language string) []SkillMeta {

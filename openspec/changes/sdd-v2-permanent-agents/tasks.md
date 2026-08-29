@@ -29,15 +29,15 @@
 
 ## Slice 2: Store Policy, Chained PRs & Path-Based Skills
 
-- [ ] 2.1 Implement `StorePolicy` in `internal/agent/sdd/store_policy.go`
-  - [ ] Support `engram`, `openspec`, `hybrid`, and `none` modes
-  - [ ] Add dispatcher guards to prevent missing-file errors when in engram-only mode
-- [ ] 2.2 Update `Planner` in `internal/agent/sdd/planner.go` with Review Workload Guard
-  - [ ] Calculate estimated lines and emit `Review Workload Forecast`
-  - [ ] Recommend chained PR boundaries for tasks exceeding 400 lines
-- [ ] 2.3 Implement Path-Based Skill Ingestion in `internal/skills/` & `internal/agent/spawner.go`
-  - [ ] Add `## Skills to load before work` resolver injecting relative paths
-  - [ ] Ensure subagents load full skills on demand
+- [x] 2.1 Implement `StorePolicy` in `internal/agent/sdd/store_policy.go`
+  - [x] Support `engram`, `openspec`, `hybrid`, and `none` modes
+  - [x] Add dispatcher guards to prevent missing-file errors when in engram-only mode
+- [x] 2.2 Update `Planner` in `internal/agent/sdd/planner.go` with Review Workload Guard
+  - [x] Calculate estimated lines and emit `Review Workload Forecast`
+  - [x] Recommend chained PR boundaries for tasks exceeding 400 lines
+- [x] 2.3 Implement Path-Based Skill Ingestion in `internal/skills/` & `internal/agent/spawner.go`
+  - [x] Add `## Skills to load before work` resolver injecting relative paths
+  - [x] Ensure subagents load full skills on demand
 
 ---
 

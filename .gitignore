@@ -38,6 +38,6 @@ openspec/config.yaml
 temp-export.json
 
 # Local skills reference directory
-skills/
+/skills/
 # Local Pi runtime state
 .atl/
