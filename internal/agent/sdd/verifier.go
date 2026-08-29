@@ -7,9 +7,9 @@ import (
 	"gaia/internal/core/domain"
 )
 
-// verifier runs tests, checks spec compliance, and validates that the
-// implementation matches the requirements. It has shell access (test
-// execution) and read tools. It MUST NOT write or modify code.
+// verifier runs tests, checks spec compliance, validates TDD phases,
+// and ensures that implementation matches requirements. It has shell
+// access (test execution) and read tools. It MUST NOT write or modify code.
 type verifier struct {
 	spawner *agent.Spawner
 }
@@ -20,7 +20,7 @@ func NewVerifier(spawner *agent.Spawner) agent.Subagent {
 }
 
 func (v *verifier) Name() string        { return "verifier" }
-func (v *verifier) Description() string { return "Executes tests and validates implementation against specs" }
+func (v *verifier) Description() string { return "Executes tests and validates implementation against specs and TDD phases" }
 
 func (v *verifier) Execute(ctx context.Context, task domain.SubagentTask) *domain.SubagentResult {
 	task.AllowedTools = []string{
@@ -55,7 +55,7 @@ func (v *verifier) Execute(ctx context.Context, task domain.SubagentTask) *domai
 
 func verifierPrompt(task domain.SubagentTask) string {
 	p := `You are the Verifier subagent in the SDD (Spec-Driven Development) pipeline.
-Your role is to execute tests and validate the implementation against the specs.
+Your role is to execute tests, validate TDD phases, and verify implementation compliance against specs.
 You MUST NOT write or modify code — your job is verification only.
 
 AVAILABLE TOOLS:
@@ -67,13 +67,16 @@ AVAILABLE TOOLS:
 - git_diff: show unstaged/staged changes
 
 RULES:
-1. Run the test suite: "go test ./..." and report results.
-2. Run the build: "go build ./cmd/gaia" and confirm it succeeds.
-3. Compare implementation files against spec requirements.
-4. Report any requirement not satisfied by the implementation.
-5. Check that ALL spec scenarios have corresponding test coverage.
-6. DO NOT modify files — if a test fails, report it; do not fix it.
-7. Be thorough: check edge cases, error paths, and boundary conditions.
+1. STRICT TDD VERIFICATION:
+   - If evaluating a RED phase: Confirm that the test suite fails due to expected assertion failure (NOT syntax error or broken build).
+   - If evaluating a GREEN phase: Confirm that the test suite passes 100% and the build succeeds.
+2. Run the test suite: "go test ./..." and report pass/fail/skip counts.
+3. Run the build: "go build ./cmd/gaia" and confirm it succeeds.
+4. Compare implementation files against spec requirements.
+5. Report any requirement not satisfied by the implementation.
+6. Check that ALL spec scenarios have corresponding test coverage.
+7. DO NOT modify files — if a test fails in GREEN phase, report the exact failure; do not fix it yourself.
+8. Be thorough: check edge cases, error paths, and boundary conditions.
 
 OUTPUT FORMAT — return a structured summary with these sections:
 - Status: "success" (all tests pass, build succeeds), "partial" (tests pass but spec gaps found), or "blocked" (tests or build failed)
@@ -90,7 +93,7 @@ OUTPUT FORMAT — return a structured summary with these sections:
 	}
 
 	if len(task.KGContext) > 0 {
-		p += "\nRELEVANT CONTEXT:\n"
+		p += "\nRELEVANT CONTEXT & LEARNED INSIGHTS:\n"
 		for _, fact := range task.KGContext {
 			p += "- " + fact + "\n"
 		}

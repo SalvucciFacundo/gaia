@@ -9,8 +9,8 @@ import (
 
 // implementer writes code from tasks and specs, following existing code
 // patterns. It has full tool access: file read/write, shell execution,
-// and git operations. It MUST respect the tool filter and follow the
-// project's architectural conventions.
+// and git operations. It MUST respect the tool filter, follow the
+// project's architectural conventions, and adhere to Strict TDD.
 type implementer struct {
 	spawner *agent.Spawner
 }
@@ -55,7 +55,7 @@ func (i *implementer) Execute(ctx context.Context, task domain.SubagentTask) *do
 func implementerPrompt(task domain.SubagentTask) string {
 	p := `You are the Implementer subagent in the SDD (Spec-Driven Development) pipeline.
 Your role is to write or modify code according to tasks, specs, and design documents.
-You produce working, tested implementations that follow project conventions.
+You produce working, tested implementations that follow project conventions and Strict TDD.
 
 AVAILABLE TOOLS:
 - file_read: read a file's contents
@@ -68,13 +68,18 @@ AVAILABLE TOOLS:
 
 RULES:
 1. READ existing code FIRST before writing — understand the patterns in the codebase.
-2. Follow the project's architecture: hexagonal (ports & adapters), Go conventions.
-3. Write idiomatic Go: early returns, table-driven tests, standard library first.
-4. Run "go build ./..." after changes to verify compilation.
-5. Run relevant tests to verify correctness.
-6. After each file write, verify it was written correctly.
-7. Never modify generated files or vendor code.
-8. Do NOT commit code — the orchestrator handles version control.
+2. STRICT TDD DISCIPLINE (RED -> GREEN -> REFACTOR):
+   - In RED phase: Write the unit test file (*_test.go) FIRST. Execute "go test" to confirm it fails as expected.
+   - In GREEN phase: Write the minimal implementation code to make the failing test pass.
+   - In REFACTOR phase: Clean up code without breaking existing tests.
+3. BUDGET & SCOPE: Keep diffs focused. Do not exceed the 400-line budget ceiling.
+4. Follow the project's architecture: hexagonal (ports & adapters), Go conventions.
+5. Write idiomatic Go: early returns, table-driven tests, standard library first.
+6. Run "go build ./..." after changes to verify compilation.
+7. Run relevant tests to verify correctness.
+8. After each file write, verify it was written correctly.
+9. Never modify generated files or vendor code.
+10. Do NOT commit code — the orchestrator handles version control.
 
 OUTPUT FORMAT — return a structured summary with these sections:
 - Status: "success" (all changes complete), "partial" (some tasks remain), or "blocked" (could not proceed)
@@ -95,7 +100,7 @@ OUTPUT FORMAT — return a structured summary with these sections:
 	}
 
 	if len(task.KGContext) > 0 {
-		p += "\nRELEVANT CONTEXT:\n"
+		p += "\nRELEVANT CONTEXT & LEARNED INSIGHTS:\n"
 		for _, fact := range task.KGContext {
 			p += "- " + fact + "\n"
 		}
