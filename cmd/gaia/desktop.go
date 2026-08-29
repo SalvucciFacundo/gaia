@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"gaia/internal/adapters/desktop"
 	"gaia/internal/config"
@@ -11,6 +12,7 @@ import (
 
 	"gaia/internal/adapters/db"
 	"gaia/internal/adapters/llm"
+	"gaia/internal/codegraph"
 	"gaia/internal/core/ports"
 	"gaia/internal/modules/fileops"
 	"gaia/internal/modules/gitops"
@@ -98,6 +100,11 @@ func handleDesktop(args []string) {
 	brain.RegisterModule(shell.NewModuleWithConfig(projectRoot, &cfg.Terminal))
 	brain.RegisterModule(fileops.NewModule(projectRoot))
 	brain.RegisterModule(gitops.NewModule(projectRoot))
+
+	codegraphDB := filepath.Join(projectRoot, ".gaia", "codegraph.db")
+	if cgMod, cgErr := codegraph.NewModule(codegraphDB); cgErr == nil {
+		brain.RegisterModule(cgMod)
+	}
 
 	// 9. Create Wails binding API (created — frontend connects via Wails service layer).
 	_ = desktop.NewBindingAPI(ui, brain)

@@ -1227,6 +1227,94 @@ func (b *Brain) BusyMode(ctx context.Context, mode string) error {
 	}
 }
 
+// CodeGraphCommand handles the /codegraph slash command for semantic code graph queries.
+func (b *Brain) CodeGraphCommand(ctx context.Context, arg string) error {
+	arg = strings.TrimSpace(arg)
+
+	if arg == "" || arg == "status" {
+		res, err := b.registry.Execute(ctx, "codegraph_lookup_symbol", map[string]interface{}{
+			"symbol": "main",
+		})
+		statusText := "CodeGraph semantic index is active."
+		if err != nil || (res != nil && !res.Success) {
+			statusText = "CodeGraph index not initialized. Run '/codegraph index' to index the workspace."
+		}
+		msg := domain.Message{
+			Role:    domain.RoleSystem,
+			Content: fmt.Sprintf("CodeGraph Semantic Index:\n- Status: %s\n- Usage: /codegraph index [path] | /codegraph find <symbol> | /codegraph callers <symbol>", statusText),
+		}
+		b.repo.SaveMessage(ctx, msg)
+		return b.ui.Display(msg)
+	}
+
+	if arg == "index" || strings.HasPrefix(arg, "index ") {
+		path := "."
+		if strings.HasPrefix(arg, "index ") {
+			path = strings.TrimSpace(arg[6:])
+		}
+		res, err := b.registry.Execute(ctx, "codegraph_index_workspace", map[string]interface{}{
+			"path": path,
+		})
+		if err != nil || (res != nil && !res.Success) {
+			errMsg := "indexing failed"
+			if res != nil {
+				errMsg = res.Error
+			}
+			msg := domain.Message{Role: domain.RoleSystem, Content: fmt.Sprintf("CodeGraph indexing failed: %s", errMsg)}
+			b.repo.SaveMessage(ctx, msg)
+			return b.ui.Display(msg)
+		}
+
+		msg := domain.Message{
+			Role:    domain.RoleSystem,
+			Content: fmt.Sprintf("CodeGraph Indexing Complete:\n%s", res.Output),
+		}
+		b.repo.SaveMessage(ctx, msg)
+		return b.ui.Display(msg)
+	}
+
+	if strings.HasPrefix(arg, "find ") {
+		symbol := strings.TrimSpace(arg[5:])
+		res, _ := b.registry.Execute(ctx, "codegraph_lookup_symbol", map[string]interface{}{
+			"symbol": symbol,
+		})
+		output := "No symbol found."
+		if res != nil && res.Success && res.Output != "" {
+			output = res.Output
+		}
+		msg := domain.Message{
+			Role:    domain.RoleSystem,
+			Content: fmt.Sprintf("CodeGraph Lookup (%s):\n%s", symbol, output),
+		}
+		b.repo.SaveMessage(ctx, msg)
+		return b.ui.Display(msg)
+	}
+
+	if strings.HasPrefix(arg, "callers ") {
+		symbol := strings.TrimSpace(arg[8:])
+		res, _ := b.registry.Execute(ctx, "codegraph_find_callers", map[string]interface{}{
+			"symbol": symbol,
+		})
+		output := "No callers found."
+		if res != nil && res.Success && res.Output != "" {
+			output = res.Output
+		}
+		msg := domain.Message{
+			Role:    domain.RoleSystem,
+			Content: fmt.Sprintf("CodeGraph Callers of %s:\n%s", symbol, output),
+		}
+		b.repo.SaveMessage(ctx, msg)
+		return b.ui.Display(msg)
+	}
+
+	msg := domain.Message{
+		Role:    domain.RoleSystem,
+		Content: fmt.Sprintf("Unknown codegraph command %q. Usage: /codegraph [status|index|find <symbol>|callers <symbol>]", arg),
+	}
+	b.repo.SaveMessage(ctx, msg)
+	return b.ui.Display(msg)
+}
+
 // MemoryPending displays recent memory operations pending review.
 func (b *Brain) MemoryPending(ctx context.Context) error {
 	// Tracked via recent messages that contain "mem_save" patterns
@@ -2809,6 +2897,15 @@ func (b *Brain) ProcessMessage(ctx context.Context, content string) error {
 			arg = strings.TrimSpace(content[6:])
 		}
 		return b.BusyMode(ctx, arg)
+	}
+
+	// 0ag. /codegraph — semantic code graph index and query
+	if content == "/codegraph" || strings.HasPrefix(content, "/codegraph ") {
+		arg := ""
+		if strings.HasPrefix(content, "/codegraph ") {
+			arg = strings.TrimSpace(content[11:])
+		}
+		return b.CodeGraphCommand(ctx, arg)
 	}
 
 	// Messaging-only commands (work in both TUI and gateway)

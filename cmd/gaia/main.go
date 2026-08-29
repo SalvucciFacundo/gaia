@@ -29,6 +29,7 @@ import (
 	"gaia/internal/modules/gitops"
 	"gaia/internal/modules/multimodal"
 	"gaia/internal/browser"
+	"gaia/internal/codegraph"
 	"gaia/internal/modules/shell"
 	"gaia/internal/skills"
 	tea "github.com/charmbracelet/bubbletea"
@@ -279,6 +280,12 @@ func main() {
 	brain.RegisterModule(fileops.NewModule(projectRoot))
 	brain.RegisterModule(gitops.NewModule(projectRoot))
 	brain.RegisterModule(multimodal.NewModule(cfg.Multimodal, router))
+
+	// Register CodeGraph AST indexer & semantic query module
+	codegraphDB := filepath.Join(projectRoot, ".gaia", "codegraph.db")
+	if cgMod, cgErr := codegraph.NewModule(codegraphDB); cgErr == nil {
+		brain.RegisterModule(cgMod)
+	}
 	// Register browser module if configured
 	if cfg.Browser.Enabled {
 		browserMod, berr := browser.NewModule(cfg.Browser)

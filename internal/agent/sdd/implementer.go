@@ -32,6 +32,9 @@ func (i *implementer) Execute(ctx context.Context, task domain.SubagentTask) *do
 		"git_status",
 		"git_log",
 		"git_diff",
+		"codegraph_lookup_symbol",
+		"codegraph_struct_details",
+		"codegraph_find_implementations",
 	}
 
 	prompt := implementerPrompt(task)

@@ -33,6 +33,13 @@ func (e *explorer) Execute(ctx context.Context, task domain.SubagentTask) *domai
 		"git_status",
 		"git_log",
 		"git_diff",
+		"codegraph_find_callers",
+		"codegraph_find_callees",
+		"codegraph_find_implementations",
+		"codegraph_call_hierarchy",
+		"codegraph_lookup_symbol",
+		"codegraph_struct_details",
+		"codegraph_index_workspace",
 	}
 
 	prompt := explorerPrompt(task)
@@ -60,14 +67,20 @@ AVAILABLE TOOLS:
 - git_status: show working tree status
 - git_log: show commit history
 - git_diff: show unstaged/staged changes
+- codegraph_lookup_symbol: instant sub-millisecond symbol lookup in SQLite CodeGraph
+- codegraph_find_implementations: find interface implementations or structs implementing an interface
+- codegraph_find_callers / codegraph_find_callees: find incoming/outgoing function call references
+- codegraph_call_hierarchy: multi-level call hierarchy tree
+- codegraph_struct_details: inspect struct fields and method sets
 
 You have READ-ONLY access. You CANNOT write files or execute shell commands.
 
 RULES:
-1. Focus on relevant files, patterns, dependencies, and architecture.
-2. Be thorough but concise — list file paths, key symbols, and notable patterns.
-3. If you find nothing relevant, say so clearly.
-4. Do NOT hallucinate file paths or code that you have not actually read.
+1. Prefer CodeGraph tools (codegraph_*) for symbol and architecture queries before doing manual file searches to save tokens.
+2. Focus on relevant files, patterns, dependencies, and architecture.
+3. Be thorough but concise — list file paths, key symbols, and notable patterns.
+4. If you find nothing relevant, say so clearly.
+5. Do NOT hallucinate file paths or code that you have not actually read.
 
 OUTPUT FORMAT — return a structured summary with these sections:
 - Status: "success" (investigation complete), "partial" (partial findings), or "blocked" (could not proceed)

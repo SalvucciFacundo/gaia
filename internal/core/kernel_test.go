@@ -391,6 +391,38 @@ func TestBrain_DiffCommand(t *testing.T) {
 	}
 }
 
+func TestBrain_CodeGraphCommand(t *testing.T) {
+	prov := &stubProvider{}
+	repo := &stubRepo{}
+	ui := &stubUI{}
+	budget := domain.BudgetConfig{MaxIterations: 5}
+
+	brain := NewBrain(prov, repo, ui, nil, budget)
+
+	ctx := context.Background()
+
+	// 1. Status query
+	err := brain.ProcessMessage(ctx, "/codegraph")
+	if err != nil {
+		t.Fatalf("unexpected error running /codegraph: %v", err)
+	}
+
+	if len(ui.displayed) == 0 {
+		t.Fatal("expected UI display output for /codegraph")
+	}
+
+	lastMsg := ui.displayed[len(ui.displayed)-1]
+	if !contains(lastMsg.Content, "CodeGraph") {
+		t.Errorf("unexpected output from /codegraph: %s", lastMsg.Content)
+	}
+
+	// 2. Find query
+	err = brain.ProcessMessage(ctx, "/codegraph find MySymbol")
+	if err != nil {
+		t.Fatalf("unexpected error running /codegraph find: %v", err)
+	}
+}
+
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(s) > 0 && len(substr) > 0 && searchSubstring(s, substr))
 }

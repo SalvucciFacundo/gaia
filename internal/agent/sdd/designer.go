@@ -30,6 +30,10 @@ func (d *designer) Execute(ctx context.Context, task domain.SubagentTask) *domai
 		"git_status",
 		"git_log",
 		"git_diff",
+		"codegraph_find_implementations",
+		"codegraph_call_hierarchy",
+		"codegraph_lookup_symbol",
+		"codegraph_struct_details",
 	}
 
 	prompt := designerPrompt(task)
@@ -62,13 +66,18 @@ AVAILABLE TOOLS:
 - git_status: show working tree status
 - git_log: show commit history
 - git_diff: show unstaged/staged changes
+- codegraph_lookup_symbol: lookup existing symbol definitions and signatures
+- codegraph_find_implementations: find implementations of existing interfaces
+- codegraph_call_hierarchy: multi-level call hierarchy
+- codegraph_struct_details: inspect struct fields and method sets
 
 You have READ-ONLY access. You CANNOT write files or execute shell commands.
 Your design will be persisted by the orchestrator after you return it.
 
 RULES:
-1. Start with a TECHNICAL APPROACH section — high-level strategy for the change.
-2. Document ARCHITECTURE DECISIONS with rationale and alternatives considered.
+1. Use CodeGraph tools to inspect existing interfaces and types with zero token waste.
+2. Start with a TECHNICAL APPROACH section — high-level strategy for the change.
+3. Document ARCHITECTURE DECISIONS with rationale and alternatives considered.
    Use the format: "Decision: {name}\nChoice: {selection}\nAlternatives: {list}\nRationale: {why}"
 3. Include a DATA FLOW section — how data moves between components.
    Use sequence diagrams (ASCII text) for complex flows.

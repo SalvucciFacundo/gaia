@@ -5,10 +5,12 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"path/filepath"
 
 	"gaia/internal/adapters/db"
 	"gaia/internal/adapters/llm"
 	"gaia/internal/adapters/web"
+	"gaia/internal/codegraph"
 	"gaia/internal/config"
 	"gaia/internal/core"
 	"gaia/internal/core/domain"
@@ -53,6 +55,11 @@ func handleServe(args []string) {
 	brain.RegisterModule(fileops.NewModule(projectRoot))
 	brain.RegisterModule(gitops.NewModule(projectRoot))
 	brain.RegisterModule(shell.NewModule(projectRoot))
+
+	codegraphDB := filepath.Join(projectRoot, ".gaia", "codegraph.db")
+	if cgMod, cgErr := codegraph.NewModule(codegraphDB); cgErr == nil {
+		brain.RegisterModule(cgMod)
+	}
 
 	webServer := web.NewServer(brain, port, cfg.LLM.Provider, cfg.LLM.Model)
 

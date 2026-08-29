@@ -35,6 +35,10 @@ func (d *debugger) Execute(ctx context.Context, task domain.SubagentTask) *domai
 		"git_status",
 		"git_log",
 		"git_diff",
+		"codegraph_find_callers",
+		"codegraph_find_callees",
+		"codegraph_call_hierarchy",
+		"codegraph_lookup_symbol",
 	}
 
 	prompt := debuggerPrompt(task)
@@ -68,6 +72,9 @@ AVAILABLE TOOLS:
 - git_status: show working tree status
 - git_log: show commit history
 - git_diff: show unstaged or staged changes
+- codegraph_call_hierarchy: trace function call paths to find root cause origins
+- codegraph_find_callers: find all incoming callers of a buggy function
+- codegraph_lookup_symbol: instant symbol definition lookup
 
 You have FULL tool access: read, write, and shell execution.
 You are expected to make code changes when you identify the fix.
@@ -76,6 +83,7 @@ STRUCTURED DEBUGGING WORKFLOW — follow these four phases in order:
 
 PHASE 1: ANALYZE — Understand the bug
 - Reproduce the issue if possible (use shell_exec to run tests, build, etc.)
+- Use CodeGraph call hierarchies (codegraph_call_hierarchy) to trace callers without reading unrelated files
 - Read relevant source files and trace the code path
 - Inspect git log for recent changes that may have introduced the bug
 - Summarize: what is the observed symptom? What is the expected behavior?

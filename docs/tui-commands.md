@@ -131,6 +131,10 @@ This document provides a comprehensive reference for all in-session interactive 
 | `/skills remove <name>` | Uninstalls a skill. |
 | `/skills stats` | Shows usage statistics for installed skills. |
 | `/skills audit` | Runs a security audit on all installed skills, scanning for dangerous patterns. |
+| `/codegraph` | Displays CodeGraph semantic index status. |
+| `/codegraph index [path]` | Indexes or re-indexes the workspace into the local SQLite code graph. |
+| `/codegraph find <symbol>` | Look up symbol definitions, signatures, and interfaces in sub-millisecond time. |
+| `/codegraph callers <symbol>` | Find all incoming function/method call references. |
 | `/cron` | Shows the cron job management menu. |
 | `/cron list` | Lists all scheduled cron jobs. |
 | `/cron add <schedule> <task>` | Creates a new cron job (standard cron syntax). |
