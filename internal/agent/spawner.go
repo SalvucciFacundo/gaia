@@ -14,15 +14,16 @@ import (
 
 // SpawnerConfig holds the dependencies needed to spawn subagent executions.
 type SpawnerConfig struct {
-	Provider     ports.LLMProvider
-	Tools        *core.ToolRegistry // Full tool registry; filtered per subagent
-	Budget       domain.BudgetConfig
-	Namespace    *memory.NamespaceManager // Engram namespace wrapper
-	TaskManager  *TaskManager             // Async task lifecycle tracking (nil = sync-only mode)
-	MoAProviders map[string]ports.LLMProvider // providers for MoA fan-out, keyed by name
-	Policy       *core.PolicyGuard        // policy evaluation guard (nil = no policy enforcement)
-	AuditFunc    func(name string, args map[string]interface{}, allowed bool) // audit trail callback
-	DefaultTimeout time.Duration                                              // optional timeout for Spawn execution
+	Provider       ports.LLMProvider
+	Tools          *core.ToolRegistry                                            // Full tool registry; filtered per subagent
+	Budget         domain.BudgetConfig
+	Namespace      *memory.NamespaceManager                                      // Engram namespace wrapper
+	TaskManager    *TaskManager                                                  // Async task lifecycle tracking (nil = sync-only mode)
+	MoAProviders   map[string]ports.LLMProvider                                  // providers for MoA fan-out, keyed by name
+	Policy         *core.PolicyGuard                                             // policy evaluation guard (nil = no policy enforcement)
+	AuditFunc      func(name string, args map[string]interface{}, allowed bool) // audit trail callback
+	DefaultTimeout time.Duration                                                 // optional timeout for Spawn execution
+	WorktreeMgr    *WorktreeManager                                              // Git worktree isolation for async tasks
 }
 
 // Spawner implements ports.SubagentPort. It creates isolated execution
@@ -39,6 +40,9 @@ type Spawner struct {
 func NewSpawner(cfg SpawnerConfig, registry *Registry) *Spawner {
 	if cfg.Budget.MaxIterations <= 0 {
 		cfg.Budget = domain.DefaultBudget()
+	}
+	if cfg.WorktreeMgr == nil {
+		cfg.WorktreeMgr = NewWorktreeManager()
 	}
 	return &Spawner{
 		cfg:       cfg,
@@ -69,7 +73,8 @@ func (s *Spawner) TaskManager() *TaskManager {
 }
 
 // SpawnAsync launches a subagent execution in a goroutine and returns immediately.
-// The goroutine wraps the existing synchronous Spawn logic with panic recovery.
+// The goroutine provisions an isolated git worktree for write-capable subagents,
+// executes the subagent, attaches the diff/patch to the result, and cleans up the worktree.
 // Returns the TaskID immediately. The caller can track completion via TaskManager.
 //
 // If SpawnerConfig.TaskManager is nil, returns an error — async mode is disabled.
@@ -86,6 +91,17 @@ func (s *Spawner) SpawnAsync(ctx context.Context, name string, task domain.Subag
 	s.cfg.TaskManager.UpdateStatus(taskID, TaskRunning, nil, nil)
 
 	go func() {
+		var wt *WorktreeContext
+		if s.cfg.WorktreeMgr != nil && (name == "implementer" || name == "debugger") {
+			if createdWT, err := s.cfg.WorktreeMgr.Create(taskCtx, ".", taskID); err == nil {
+				wt = createdWT
+				task.WorkDir = wt.WorktreeDir
+				defer func() {
+					_ = s.cfg.WorktreeMgr.Remove(context.Background(), wt)
+				}()
+			}
+		}
+
 		defer func() {
 			if r := recover(); r != nil {
 				err := fmt.Errorf("panic in subagent %q: %v", name, r)
@@ -97,6 +113,13 @@ func (s *Spawner) SpawnAsync(ctx context.Context, name string, task domain.Subag
 		if err != nil {
 			s.cfg.TaskManager.UpdateStatus(taskID, TaskFailed, nil, err)
 			return
+		}
+
+		// If worktree was used, extract diff and attach to artifacts
+		if wt != nil && s.cfg.WorktreeMgr != nil && result != nil {
+			if diff, diffErr := s.cfg.WorktreeMgr.GetDiff(taskCtx, wt); diffErr == nil && diff != "" {
+				result.Artifacts = append(result.Artifacts, fmt.Sprintf("worktree-diff (branch: %s)", wt.BranchName))
+			}
 		}
 
 		s.cfg.TaskManager.UpdateStatus(taskID, TaskCompleted, result, nil)

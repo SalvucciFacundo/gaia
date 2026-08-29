@@ -185,6 +185,21 @@ subagents:
 
 ---
 
+## Git Worktree Isolation (Background Execution)
+
+When subagents execute asynchronously via `/background` or `SpawnAsync`, write-capable subagents (`Implementer`, `Debugger`) run in **isolated ephemeral git worktrees**:
+
+```text
+Main Working Tree:       /home/user/project         (Untouched by background tasks)
+Isolated Worktree:       .gaia/worktrees/<task-id>  (Clean branch: gaia-wt/<task-id>)
+```
+
+- **True Parallelism**: Background subagents write files, compile binaries, and run test suites without touching or locking the user's active files.
+- **Unified Diff Output**: Upon task completion, the worktree manager extracts a unified diff/patch and attaches it to the task result.
+- **Automatic Cleanup**: The ephemeral worktree directory and branch are deleted and pruned automatically upon task completion or cancellation.
+
+---
+
 ## Learning Loop
 
 Each subagent has an independent learning loop:

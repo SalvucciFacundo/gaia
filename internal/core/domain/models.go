@@ -258,6 +258,7 @@ const (
 type SubagentTask struct {
 	ID            string    // Unique identifier for this task
 	Description   string    // Human-readable instruction for the subagent
+	WorkDir       string    // Working directory for tool execution (e.g., isolated git worktree)
 	KGContext     []string  // Relevant knowledge graph facts
 	Skills        []string  // Skill names to load before execution
 	SkillPaths    []string  // Exact file paths to SKILL.md for progressive on-demand loading
