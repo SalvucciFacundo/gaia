@@ -15,13 +15,13 @@ This document outlines high-impact architectural enhancements for GAIA to elevat
 
 ## Pillar 2: Deep Code Understanding
 
-### 2. CodeGraph & Local AST Semantic Index (SQLite)
+### 2. CodeGraph & Local AST Semantic Index in SQLite (`completed`)
 - **Problem**: Large repositories (>100 files) overwhelm grep/find and waste tokens during exploratory reads.
-- **Solution**: A Go-native AST indexer that builds a relational symbol graph in SQLite:
+- **Solution**: A Go-native AST indexer (`internal/codegraph/`) that builds a relational symbol graph in SQLite:
   - Interface implementations (who implements `ports.Repository`?).
   - Function call hierarchies (callers and callees).
   - Dependency paths from HTTP handlers to database models.
-- **Benefits**: Sub-millisecond architecture queries; 80%+ token reduction during exploration.
+- **Benefits**: Sub-millisecond architecture queries (<0.52ms); 80%+ token reduction during subagent exploration.
 
 ---
 
