@@ -8,6 +8,67 @@ import (
 	"gaia/internal/core/domain"
 )
 
+// SessionSummary holds structured session context for post-compaction rehydration.
+type SessionSummary struct {
+	Goal          string   `json:"goal"`
+	Instructions  []string `json:"instructions"`
+	Discoveries   []string `json:"discoveries"`
+	Accomplished  []string `json:"accomplished"`
+	NextSteps     []string `json:"next_steps"`
+	RelevantFiles []string `json:"relevant_files"`
+}
+
+// BuildSessionSummary analyzes conversation messages to build a structured session summary.
+func BuildSessionSummary(messages []domain.Message) SessionSummary {
+	var summary SessionSummary
+	seenFiles := make(map[string]bool)
+
+	for _, msg := range messages {
+		content := msg.Content
+		lines := strings.Split(content, "\n")
+		for _, line := range lines {
+			trimmed := strings.TrimSpace(line)
+
+			// Extract file references
+			if strings.Contains(trimmed, ".go") || strings.Contains(trimmed, ".md") || strings.Contains(trimmed, ".yaml") {
+				for _, word := range strings.Fields(trimmed) {
+					cleaned := strings.Trim(word, "`,:\"'()")
+					if (strings.HasSuffix(cleaned, ".go") || strings.HasSuffix(cleaned, ".md") || strings.HasSuffix(cleaned, ".yaml")) && !seenFiles[cleaned] {
+						seenFiles[cleaned] = true
+						summary.RelevantFiles = append(summary.RelevantFiles, cleaned)
+					}
+				}
+			}
+
+			// Extract goal from the earliest user message
+			if summary.Goal == "" && msg.Role == domain.RoleUser && trimmed != "" {
+				summary.Goal = trimmed
+			}
+		}
+	}
+
+	return summary
+}
+
+// FormatRehydrationPrompt builds the system injection string to rehydrate post-compaction context.
+func FormatRehydrationPrompt(summary SessionSummary) string {
+	var sb strings.Builder
+	sb.WriteString("[REHYDRATED SESSION CONTEXT AFTER COMPACTION]\n")
+	if summary.Goal != "" {
+		sb.WriteString(fmt.Sprintf("Active Goal: %s\n", summary.Goal))
+	}
+	if len(summary.RelevantFiles) > 0 {
+		sb.WriteString(fmt.Sprintf("Relevant Files: %s\n", strings.Join(summary.RelevantFiles, ", ")))
+	}
+	if len(summary.Accomplished) > 0 {
+		sb.WriteString("Accomplished:\n")
+		for _, acc := range summary.Accomplished {
+			sb.WriteString(fmt.Sprintf("- %s\n", acc))
+		}
+	}
+	return sb.String()
+}
+
 // recallKnowledgeGraph searches the knowledge graph for facts relevant to text.
 // Returns a slice of formatted fact strings to append to system prompt.
 // Uses keyword search; falls back to recent facts if search yields nothing.
@@ -41,9 +102,8 @@ func (b *Brain) recallKnowledgeGraph(ctx context.Context, text string) []string 
 }
 
 // compactHistory compacts stale messages when the history exceeds the compaction threshold.
-// Old messages (beyond keepRecent) are condensed into a single system message, reducing
-// token usage on long conversations. Compaction is non-destructive — old messages remain
-// in the database but are excluded from subsequent history fetches via compactedTo offset.
+// Old messages (beyond keepRecent) are condensed into a structured session summary message, reducing
+// token usage on long conversations while preventing post-compaction amnesia.
 func (b *Brain) compactHistory(ctx context.Context) error {
 	if b.budget.CompactionThreshold <= 0 {
 		return nil // disabled
@@ -79,11 +139,13 @@ func (b *Brain) compactHistory(ctx context.Context) error {
 		return nil
 	}
 
-	// Build compacted summary: drop tool outputs, condense user/assistant messages
+	// Build structured session summary from old messages
+	summary := BuildSessionSummary(oldMsgs)
+
 	var sb strings.Builder
-	sb.WriteString("Compacted conversation history (older messages):\n")
+	sb.WriteString(FormatRehydrationPrompt(summary))
+	sb.WriteString("\nCompacted conversation history (older messages):\n")
 	for _, msg := range oldMsgs {
-		// Skip tool role messages entirely — they're the longest and least relevant
 		if msg.Role == domain.RoleTool {
 			continue
 		}
@@ -91,7 +153,6 @@ func (b *Brain) compactHistory(ctx context.Context) error {
 		prefix := strings.ToUpper(string(msg.Role))[:4]
 		content := msg.Content
 
-		// Truncate long messages
 		if len(content) > 300 {
 			content = content[:300] + "..."
 		}
