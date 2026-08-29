@@ -43,12 +43,12 @@
 
 ## Slice 3: Review Transitions v2 & Opt-In Mode
 
-- [ ] 3.1 Implement Review Mode Switch in `internal/review/mode.go`
-  - [ ] Add `enable`, `disable`, and `status` controls with clone/global scopes
-  - [ ] Bypass review gates when disabled under ordinary repo policy
-- [ ] 3.2 Update Review Engine with v2 typed transition contracts
-  - [ ] Implement `min(200, ceil(lines/2))` mathematical correction budget
-  - [ ] Restrict to at most 1 ordinary correction round
-- [ ] 3.3 Update `tracker/manifest.yaml` and verify all tests pass
-  - [ ] Update ported features in tracker manifest
-  - [ ] Run full test suite: `go test ./...`
+- [x] 3.1 Implement Review Mode Switch in `internal/review/mode.go`
+  - [x] Add `enable`, `disable`, and `status` controls with clone/global scopes
+  - [x] Bypass review gates when disabled under ordinary repo policy
+- [x] 3.2 Update Review Engine with v2 typed transition contracts
+  - [x] Implement `min(200, ceil(lines/2))` mathematical correction budget
+  - [x] Restrict to at most 1 ordinary correction round
+- [x] 3.3 Update `tracker/manifest.yaml` and verify all tests pass
+  - [x] Update ported features in tracker manifest
+  - [x] Run full test suite: `go test ./...`

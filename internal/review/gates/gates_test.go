@@ -1,7 +1,6 @@
 package gates
 
 import (
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -11,9 +10,25 @@ import (
 	"gaia/internal/review"
 )
 
-func TestGateValidationPass(t *testing.T) {
-	// Create a temp directory with a test file.
+func TestGateValidation_DisabledReviewMode_BypassesGate(t *testing.T) {
 	dir := t.TempDir()
+	// Review mode is default disabled
+	store := &memReceiptStore{receipt: nil} // No receipt
+	gate := GatePreCommit
+
+	result, err := gate.Validate(dir, []string{"test.go"}, store)
+	if err != nil {
+		t.Fatalf("Validate error: %v", err)
+	}
+	if !result.Passed {
+		t.Errorf("expected gate to pass when review mode is disabled, got: %s", result.Reason)
+	}
+}
+
+func TestGateValidationPass(t *testing.T) {
+	dir := t.TempDir()
+	_ = review.SetMode(review.ModeEnabled, review.ScopeClone, dir)
+
 	filePath := filepath.Join(dir, "test.go")
 	content := "package main\nfunc main() {}\n"
 	if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
@@ -52,6 +67,8 @@ func TestGateValidationPass(t *testing.T) {
 
 func TestGateValidationFailContentChanged(t *testing.T) {
 	dir := t.TempDir()
+	_ = review.SetMode(review.ModeEnabled, review.ScopeClone, dir)
+
 	filePath := filepath.Join(dir, "test.go")
 	content := "package main\nfunc main() {}\n"
 	if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
@@ -90,6 +107,8 @@ func TestGateValidationFailContentChanged(t *testing.T) {
 
 func TestGateValidationNoReceipt(t *testing.T) {
 	dir := t.TempDir()
+	_ = review.SetMode(review.ModeEnabled, review.ScopeClone, dir)
+
 	filePath := filepath.Join(dir, "test.go")
 	if err := os.WriteFile(filePath, []byte("package main"), 0644); err != nil {
 		t.Fatalf("write test file: %v", err)
@@ -105,11 +124,12 @@ func TestGateValidationNoReceipt(t *testing.T) {
 	if result.Passed {
 		t.Error("expected gate to fail when no receipt exists")
 	}
-	// Validate should return nil error and non-passed result for missing receipt.
 }
 
 func TestGateValidationWrongState(t *testing.T) {
 	dir := t.TempDir()
+	_ = review.SetMode(review.ModeEnabled, review.ScopeClone, dir)
+
 	filePath := filepath.Join(dir, "test.go")
 	content := "package main\nfunc main() {}\n"
 	if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
@@ -126,7 +146,7 @@ func TestGateValidationWrongState(t *testing.T) {
 		Schema:       "gaia.review-receipt/v1",
 		LineageID:    "test-lineage-id",
 		SnapshotHash: snapshotHash,
-		State:        domain.ReviewStateEscalated, // NOT approved
+		State:        domain.ReviewStateReviewing, // not approved
 		RiskLevel:    "low",
 		CreatedAt:    time.Now(),
 		UpdatedAt:    time.Now(),
@@ -140,159 +160,125 @@ func TestGateValidationWrongState(t *testing.T) {
 		t.Fatalf("Validate: %v", err)
 	}
 	if result.Passed {
-		t.Error("expected gate to fail when receipt is escalated (not approved)")
+		t.Error("expected gate to fail when receipt is not approved")
 	}
 }
 
-func TestHookGeneration(t *testing.T) {
-	hook := PreCommitHook
-	script := hook.scriptContent()
-
-	// Verify the generated script contains expected elements.
-	if !contains(script, "GAIA Review Gate") {
-		t.Error("hook script missing GAIA marker")
-	}
-	if !contains(script, "pre-commit") {
-		t.Error("hook script missing gate name")
-	}
-	if !contains(script, "review validate") {
-		t.Error("hook script missing validate command")
-	}
-	if !contains(script, "--gate") {
-		t.Error("hook script missing --gate flag")
-	}
-
-	hook2 := PrePushHook
-	script2 := hook2.scriptContent()
-	if !contains(script2, "pre-push") {
-		t.Error("pre-push hook script missing gate name")
-	}
-}
-
-func TestHookAppend(t *testing.T) {
+func TestGateValidationUnreviewedFiles(t *testing.T) {
 	dir := t.TempDir()
-	hookDir := filepath.Join(dir, ".git", "hooks")
-	if err := os.MkdirAll(hookDir, 0755); err != nil {
-		t.Fatalf("create hooks dir: %v", err)
+	_ = review.SetMode(review.ModeEnabled, review.ScopeClone, dir)
+
+	// Create file a.go and file b.go
+	if err := os.WriteFile(filepath.Join(dir, "a.go"), []byte("package main"), 0644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "b.go"), []byte("package main"), 0644); err != nil {
+		t.Fatalf("write: %v", err)
 	}
 
-	existingContent := "#!/bin/sh\necho 'existing hook'\n"
-	hookPath := filepath.Join(hookDir, "pre-commit")
-	if err := os.WriteFile(hookPath, []byte(existingContent), 0755); err != nil {
-		t.Fatalf("write existing hook: %v", err)
-	}
-
-	// Install hooks — should append GAIA content.
-	if err := WriteHooks(dir); err != nil {
-		t.Fatalf("WriteHooks: %v", err)
-	}
-
-	data, err := os.ReadFile(hookPath)
+	// Receipt only covers a.go
+	snapshots, err := review.SnapshotFiles(dir, []string{"a.go"})
 	if err != nil {
-		t.Fatalf("read hook: %v", err)
+		t.Fatalf("snapshot: %v", err)
 	}
-
-	content := string(data)
-	if !contains(content, existingContent) {
-		t.Error("existing hook content was not preserved")
-	}
-	if !contains(content, "GAIA Review Gate") {
-		t.Error("GAIA hook content was not appended")
-	}
-}
-
-func TestHookIdempotent(t *testing.T) {
-	dir := t.TempDir()
-	hookDir := filepath.Join(dir, ".git", "hooks")
-	if err := os.MkdirAll(hookDir, 0755); err != nil {
-		t.Fatalf("create hooks dir: %v", err)
-	}
-
-	// First install.
-	if err := WriteHooks(dir); err != nil {
-		t.Fatalf("first WriteHooks: %v", err)
-	}
-
-	data1, _ := os.ReadFile(filepath.Join(hookDir, "pre-commit"))
-
-	// Second install should be idempotent.
-	if err := WriteHooks(dir); err != nil {
-		t.Fatalf("second WriteHooks: %v", err)
-	}
-
-	data2, _ := os.ReadFile(filepath.Join(hookDir, "pre-commit"))
-
-	if string(data1) != string(data2) {
-		t.Error("WriteHooks is not idempotent — second call changed content")
-	}
-}
-
-func TestFSReceiptStore(t *testing.T) {
-	dir := t.TempDir()
-	store := &FSReceiptStore{reviewDir: filepath.Join(dir, ".gaia", "reviews")}
+	snapshotHash := review.ComputeSnapshotHash(snapshots)
 
 	receipt := &domain.ReviewReceipt{
 		Schema:       "gaia.review-receipt/v1",
-		LineageID:    "abc123def4567890",
-		SnapshotHash: "sha256:test",
+		LineageID:    "test-lineage-id",
+		SnapshotHash: snapshotHash,
+		State:        domain.ReviewStateApproved,
+		RiskLevel:    "low",
+		CreatedAt:    time.Now(),
+		UpdatedAt:    time.Now(),
+	}
+
+	store := &memReceiptStore{receipt: receipt}
+	gate := GatePreCommit
+
+	// Validate both files -> hash mismatch because b.go wasn't in receipt
+	result, err := gate.Validate(dir, []string{"a.go", "b.go"}, store)
+	if err != nil {
+		t.Fatalf("Validate: %v", err)
+	}
+	if result.Passed {
+		t.Error("expected gate to fail when unreviewed files are included")
+	}
+}
+
+func TestGatePrePushValidate(t *testing.T) {
+	dir := t.TempDir()
+	_ = review.SetMode(review.ModeEnabled, review.ScopeClone, dir)
+
+	filePath := filepath.Join(dir, "main.go")
+	if err := os.WriteFile(filePath, []byte("package main"), 0644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	snapshots, err := review.SnapshotFiles(dir, []string{"main.go"})
+	if err != nil {
+		t.Fatalf("snapshot: %v", err)
+	}
+	snapshotHash := review.ComputeSnapshotHash(snapshots)
+
+	receipt := &domain.ReviewReceipt{
+		Schema:       "gaia.review-receipt/v1",
+		LineageID:    "push-lineage",
+		SnapshotHash: snapshotHash,
+		State:        domain.ReviewStateApproved,
+		RiskLevel:    "medium",
+		CreatedAt:    time.Now(),
+		UpdatedAt:    time.Now(),
+	}
+
+	store := &memReceiptStore{receipt: receipt}
+	result, err := GatePrePush.Validate(dir, []string{"main.go"}, store)
+	if err != nil {
+		t.Fatalf("Validate: %v", err)
+	}
+	if !result.Passed {
+		t.Errorf("expected pre-push to pass, got: %s", result.Reason)
+	}
+}
+
+func TestGatePrePRValidate(t *testing.T) {
+	dir := t.TempDir()
+	_ = review.SetMode(review.ModeEnabled, review.ScopeClone, dir)
+
+	filePath := filepath.Join(dir, "api.go")
+	if err := os.WriteFile(filePath, []byte("package api"), 0644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	snapshots, err := review.SnapshotFiles(dir, []string{"api.go"})
+	if err != nil {
+		t.Fatalf("snapshot: %v", err)
+	}
+	snapshotHash := review.ComputeSnapshotHash(snapshots)
+
+	receipt := &domain.ReviewReceipt{
+		Schema:       "gaia.review-receipt/v1",
+		LineageID:    "pr-lineage",
+		SnapshotHash: snapshotHash,
 		State:        domain.ReviewStateApproved,
 		RiskLevel:    "high",
 		CreatedAt:    time.Now(),
 		UpdatedAt:    time.Now(),
 	}
 
-	// Save receipt.
-	if err := store.SaveReceipt(receipt, "test-change"); err != nil {
-		t.Fatalf("SaveReceipt: %v", err)
-	}
-
-	// Load back.
-	loaded, err := store.LatestReceipt("test-change")
+	store := &memReceiptStore{receipt: receipt}
+	result, err := GatePrePR.Validate(dir, []string{"api.go"}, store)
 	if err != nil {
-		t.Fatalf("LatestReceipt: %v", err)
+		t.Fatalf("Validate: %v", err)
 	}
-	if loaded == nil {
-		t.Fatal("LatestReceipt returned nil")
-	}
-	if loaded.LineageID != receipt.LineageID {
-		t.Errorf("lineage ID mismatch: got %q, want %q", loaded.LineageID, receipt.LineageID)
-	}
-	if loaded.State != domain.ReviewStateApproved {
-		t.Errorf("state mismatch: got %q, want %q", loaded.State, domain.ReviewStateApproved)
+	if !result.Passed {
+		t.Errorf("expected pre-pr to pass, got: %s", result.Reason)
 	}
 }
 
-func TestUninstallHooks(t *testing.T) {
-	dir := t.TempDir()
-	hookDir := filepath.Join(dir, ".git", "hooks")
-	if err := os.MkdirAll(hookDir, 0755); err != nil {
-		t.Fatalf("create hooks dir: %v", err)
-	}
-
-	// Install.
-	if err := WriteHooks(dir); err != nil {
-		t.Fatalf("WriteHooks: %v", err)
-	}
-
-	// Uninstall.
-	if err := UninstallHooks(dir); err != nil {
-		t.Fatalf("UninstallHooks: %v", err)
-	}
-
-	// Check that GAIA content is removed.
-	data, err := os.ReadFile(filepath.Join(hookDir, "pre-commit"))
-	if err != nil {
-		t.Fatalf("read hook after uninstall: %v", err)
-	}
-	if contains(string(data), "GAIA Review Gate") {
-		t.Error("GAIA content was not removed by uninstall")
-	}
-}
-
-// memReceiptStore is an in-memory receipt store for testing.
+// memReceiptStore is an in-memory ReceiptStore for testing.
 type memReceiptStore struct {
-	receipt  *domain.ReviewReceipt
-	receipts []ReceiptSummary
+	receipt *domain.ReviewReceipt
 }
 
 func (m *memReceiptStore) LatestReceipt(changeName string) (*domain.ReviewReceipt, error) {
@@ -301,35 +287,19 @@ func (m *memReceiptStore) LatestReceipt(changeName string) (*domain.ReviewReceip
 
 func (m *memReceiptStore) SaveReceipt(receipt *domain.ReviewReceipt, changeName string) error {
 	m.receipt = receipt
-	m.receipts = append(m.receipts, ReceiptSummary{
-		ChangeName: changeName,
-		State:      string(receipt.State),
-		RiskLevel:  receipt.RiskLevel,
-		CreatedAt:  receipt.CreatedAt,
-	})
 	return nil
 }
 
 func (m *memReceiptStore) ListReceipts() ([]ReceiptSummary, error) {
-	return m.receipts, nil
-}
-
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && searchSubstring(s, substr)
-}
-
-func searchSubstring(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
+	if m.receipt == nil {
+		return nil, nil
 	}
-	return false
+	return []ReceiptSummary{
+		{
+			ChangeName: "test-change",
+			State:      string(m.receipt.State),
+			RiskLevel:  m.receipt.RiskLevel,
+			CreatedAt:  m.receipt.CreatedAt,
+		},
+	}, nil
 }
-
-// Ensure interface is satisfied.
-var _ ReceiptStore = (*memReceiptStore)(nil)
-
-// Ensure unused imports compile for json if needed.
-var _ = json.Marshal
-

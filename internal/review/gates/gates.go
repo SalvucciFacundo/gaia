@@ -78,6 +78,16 @@ var (
 func (g *Gate) Validate(projectRoot string, files []string, store ReceiptStore) (*GateResult, error) {
 	checkedAt := time.Now()
 
+	// Check if review mode is enabled (opt-in RDD policy)
+	modeStatus := review.IsEnabled(projectRoot)
+	if modeStatus.Mode == review.ModeDisabled {
+		return &GateResult{
+			Passed:    true,
+			Reason:    "review mode disabled/unmanaged; delivery allowed under ordinary repository policy",
+			CheckedAt: checkedAt,
+		}, nil
+	}
+
 	// Load the latest receipt.
 	changeName := deriveChangeName(files)
 	receipt, err := store.LatestReceipt(changeName)
