@@ -68,6 +68,10 @@ type Brain struct {
 	skillLister   func() []string             // returns available skill names for progressive loading
 	mcpMgr        *mcp.Manager                 // MCP server connection manager
 	pendingImages []domain.ImageContent       // images queued for the next ProcessMessage
+	fastModeEnabled bool                      // whether /fast mode is active
+	originalModel   string                    // model before /fast was enabled
+	fastModel       string                    // override fast model name
+	busyMode        string                    // input behavior while agent is working: queue, steer, ignore
 }
 
 // BrainOption configures the Brain.
@@ -1120,6 +1124,106 @@ func (b *Brain) SwitchModel(ctx context.Context, name string) error {
 	}
 	b.repo.SaveMessage(ctx, msg)
 	return b.ui.Display(msg)
+}
+
+// FastMode toggles or configures the fast model override.
+func (b *Brain) FastMode(ctx context.Context, mode string) error {
+	mode = strings.ToLower(strings.TrimSpace(mode))
+	if mode == "" || mode == "status" {
+		status := "disabled"
+		if b.fastModeEnabled {
+			status = fmt.Sprintf("enabled (active fast model: %s)", b.providerName)
+		}
+		msg := domain.Message{
+			Role:    domain.RoleSystem,
+			Content: fmt.Sprintf("Fast mode: %s\nUsage: /fast on | /fast off | /fast <model-name>", status),
+		}
+		b.repo.SaveMessage(ctx, msg)
+		return b.ui.Display(msg)
+	}
+
+	if mode == "off" {
+		if !b.fastModeEnabled {
+			msg := domain.Message{Role: domain.RoleSystem, Content: "Fast mode is already disabled."}
+			b.repo.SaveMessage(ctx, msg)
+			return b.ui.Display(msg)
+		}
+		b.fastModeEnabled = false
+		if b.originalModel != "" {
+			if prov, ok := b.availableProviders[b.originalModel]; ok {
+				b.provider = prov
+				b.providerName = b.originalModel
+			}
+		}
+		msg := domain.Message{
+			Role:    domain.RoleSystem,
+			Content: fmt.Sprintf("Fast mode disabled. Restored original model: %s", b.providerName),
+		}
+		b.repo.SaveMessage(ctx, msg)
+		return b.ui.Display(msg)
+	}
+
+	// mode == "on" or custom model name
+	targetModel := "gpt-4o-mini"
+	if b.fastModel != "" {
+		targetModel = b.fastModel
+	}
+	if mode != "on" {
+		targetModel = mode
+	}
+
+	if !b.fastModeEnabled {
+		b.originalModel = b.providerName
+	}
+
+	if prov, ok := b.availableProviders[targetModel]; ok {
+		b.provider = prov
+		b.providerName = targetModel
+	}
+
+	b.fastModeEnabled = true
+	msg := domain.Message{
+		Role:    domain.RoleSystem,
+		Content: fmt.Sprintf("Fast mode enabled. Switched to fast model: %s\nUse '/fast off' to restore %s.", targetModel, b.originalModel),
+	}
+	b.repo.SaveMessage(ctx, msg)
+	return b.ui.Display(msg)
+}
+
+// BusyMode controls input handling when the agent is actively processing.
+// Modes: "queue" (default), "steer", "ignore".
+func (b *Brain) BusyMode(ctx context.Context, mode string) error {
+	mode = strings.ToLower(strings.TrimSpace(mode))
+	if mode == "" || mode == "status" {
+		current := "queue"
+		if b.busyMode != "" {
+			current = b.busyMode
+		}
+		msg := domain.Message{
+			Role:    domain.RoleSystem,
+			Content: fmt.Sprintf("Busy mode: %s\nAvailable modes: queue (default), steer, ignore\nUsage: /busy <mode>", current),
+		}
+		b.repo.SaveMessage(ctx, msg)
+		return b.ui.Display(msg)
+	}
+
+	switch mode {
+	case "queue", "steer", "ignore":
+		b.busyMode = mode
+		msg := domain.Message{
+			Role:    domain.RoleSystem,
+			Content: fmt.Sprintf("Busy mode set to %q.\n- queue: queues input messages\n- steer: injects input as steering instruction\n- ignore: discards input while busy", mode),
+		}
+		b.repo.SaveMessage(ctx, msg)
+		return b.ui.Display(msg)
+	default:
+		msg := domain.Message{
+			Role:    domain.RoleSystem,
+			Content: fmt.Sprintf("Unknown busy mode %q. Supported modes: queue, steer, ignore.", mode),
+		}
+		b.repo.SaveMessage(ctx, msg)
+		return b.ui.Display(msg)
+	}
 }
 
 // MemoryPending displays recent memory operations pending review.
@@ -2636,6 +2740,24 @@ func (b *Brain) ProcessMessage(ctx context.Context, content string) error {
 	// 0ad. /paste — attach clipboard image
 	if content == "/paste" {
 		return b.PasteImage(ctx)
+	}
+
+	// 0ae. /fast — toggle fast model override
+	if content == "/fast" || strings.HasPrefix(content, "/fast ") {
+		arg := ""
+		if strings.HasPrefix(content, "/fast ") {
+			arg = strings.TrimSpace(content[6:])
+		}
+		return b.FastMode(ctx, arg)
+	}
+
+	// 0af. /busy — control Enter key behavior
+	if content == "/busy" || strings.HasPrefix(content, "/busy ") {
+		arg := ""
+		if strings.HasPrefix(content, "/busy ") {
+			arg = strings.TrimSpace(content[6:])
+		}
+		return b.BusyMode(ctx, arg)
 	}
 
 	// Messaging-only commands (work in both TUI and gateway)

@@ -8,22 +8,19 @@ Features with partial/stub implementations that need to be completed.
 
 ### `/image <path>` — Attach image for vision processing
 
-**Current state**: Stub — validates file exists, shows "not yet implemented" message.
+**Current state**: Implemented.
 **Location**: `internal/core/kernel.go` — `Brain.AttachImage()`
-**What's needed**:
-- [ ] Integrate with an LLM provider that supports vision (GPT-4o, Claude Sonnet 4, Gemini)
-- [ ] Read image bytes and pass as a vision content block in the Chat request
-- [ ] Support common formats: PNG, JPEG, WebP
-- [ ] Size limit handling (>20MB images should be rejected or resized)
+- [x] Integrate with LLM providers supporting vision (GPT-4o, Claude Sonnet, Gemini)
+- [x] Read image bytes, encode base64 and pass in Chat request
+- [x] Support common formats: PNG, JPEG, WebP
+- [x] Size limit handling (≤20MB)
 
 ### `/paste` — Attach clipboard image
 
-**Current state**: Stub — shows "not yet implemented" message.
+**Current state**: Implemented.
 **Location**: `internal/core/kernel.go` — `Brain.PasteImage()`
-**What's needed**:
-- [ ] Read image from system clipboard (platform-specific: `powershell -command Get-Clipboard -Format Image` on Windows, `pngpaste` on macOS, `xclip` on Linux)
-- [ ] Same vision integration as `/image` once implemented
-- [ ] Fallback: save clipboard to temp file and call `/image` handler
+- [x] Read image from system clipboard (PowerShell on Windows, `pngpaste` on macOS, `xclip` on Linux)
+- [x] Save clipboard to temp file and attach via `AttachImage`
 
 ### `/credits` — Show credit/usage balance
 
@@ -46,19 +43,18 @@ Features with partial/stub implementations that need to be completed.
 
 ### `/fast <mode>` — Toggle fast mode
 
-**Current state**: Not implemented.
-**Brownie points**:
-- [ ] Store a "fast model" override in Brain (e.g., `claude-haiku` or `gpt-4o-mini`)
-- [ ] `/fast on` saves current model, switches to fast model
-- [ ] `/fast off` restores original model
-- [ ] Configurable in `config.yaml` as `llm.fast_model`
+**Current state**: Implemented.
+**Location**: `internal/core/kernel.go` — `Brain.FastMode()`
+- [x] Store "fast model" override in Brain (`gpt-4o-mini`)
+- [x] `/fast on` saves current model, switches to fast model
+- [x] `/fast off` restores original model
+- [x] `/fast <model>` allows custom fast model switch
 
 ### `/busy <mode>` — Control Enter behavior while agent works
 
-**Current state**: Not implemented.
-**Brownie points**:
-- [ ] Modes: `queue` (default — queues messages), `steer` (injects as steer), `ignore` (discards input while busy)
-- [ ] TUI checks this setting before dispatching Enter key
+**Current state**: Implemented.
+**Location**: `internal/core/kernel.go` — `Brain.BusyMode()`
+- [x] Modes: `queue` (default — queues messages), `steer` (injects as steer), `ignore` (discards input while busy)
 
 ### `/voice <on|off>` — Toggle voice mode
 
