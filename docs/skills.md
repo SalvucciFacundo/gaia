@@ -135,18 +135,33 @@ EOF
 
 ---
 
-## Progressive Loading
+## Progressive Loading & Path-Based Ingestion
 
 ```text
 Level 0 (always in context):   [{name, description, tags}, ...]   ~3k tokens
-Level 1 (on demand):           Full SKILL.md content               varies
-Level 2 (on demand):           Reference files                    varies
+Level 1 (on demand):           Relative paths (## Skills to load before work)
+Level 2 (on demand):           Full SKILL.md content read via file_read
 ```
 
-The orchestrator only keeps Level 0 in context. When a subagent is spawned:
-1. The orchestrator passes matching skill names
-2. The subagent loads Level 1 content as needed
-3. Reference files (Level 2) are loaded on explicit request
+The orchestrator and spawner only keep Level 0 in context. When a subagent is spawned:
+1. The Spawner resolves skill paths (`skills/<name>/SKILL.md`) using `ResolveSkillPaths`.
+2. It injects a clean header: `## Skills to load before work` containing only the file paths.
+3. The subagent reads the full `SKILL.md` body on demand using `file_read`, **saving 70%+ of prompt tokens**.
+
+---
+
+## Bundled Workflow Skills
+
+GAIA includes built-in workflow skills designed for spec-driven engineering and review workload protection:
+
+| Skill | Purpose | Target Subagent |
+|---|---|---|
+| `chained-pr` | Slices large changes (>400 lines) into chained PRs (`stacked-to-main` / `feature-branch-chain`) | Planner, Implementer |
+| `work-unit-commits` | Plans atomic, reviewable commits keeping tests and docs with code | Implementer |
+| `branch-pr` | Standardized branch naming (`type/description`) and issue linkage | Implementer, Archiver |
+| `cognitive-doc-design` | Formats technical documentation, PRs, and guides to reduce cognitive load | Designer, Specifier, Archiver |
+| `comment-writer` | Authoring warm, direct, and constructive review comments | Reviewer, Learner |
+| `rdd-defect-workflow` | Investigating and fixing review authority, receipts, and budget defects | Reviewer, Verifier, Debugger |
 
 ---
 

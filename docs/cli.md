@@ -62,8 +62,11 @@ gaia skills add-tap https://github.com/owner/repo
 
 | Command | Description |
 |---|---|
-| `gaia review start` | Start bounded review |
-| `gaia review validate --gate <gate>` | Validate receipt at gate |
+| `gaia review mode enable` | Enable opt-in Receipt-Driven Development (RDD) review |
+| `gaia review mode disable` | Disable review mode (delivery uses ordinary repo policy) |
+| `gaia review mode status` | Show active review mode and deciding source (clone vs global) |
+| `gaia review start` | Start bounded 4R review |
+| `gaia review validate --gate <gate>` | Validate receipt at gate (`pre-commit`, `pre-push`, `pre-pr`) |
 | `gaia review staged` | Review staged changes |
 
 ## Gateway

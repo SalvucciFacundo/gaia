@@ -106,6 +106,8 @@ This document provides a comprehensive reference for all in-session interactive 
 | `/model` | Lists all available LLM providers. The active provider is marked with `➤`. |
 | `/model <name>` | Switches the active LLM provider mid-session (e.g., `/model anthropic`). |
 | `/models` | Lists all available models from the current provider. Switch to a model with `/model <name>`. |
+| `/fast` or `/fast on` | Enables fast mode, temporarily switching to a lightweight/fast model (`gpt-4o-mini`, `claude-3-5-haiku`). Use `/fast off` to restore the original model. |
+| `/busy <mode>` | Controls Enter key input handling while the agent is executing tools. Modes: `queue` (default), `steer` (injects input as mid-loop steering), `ignore`. |
 | `/reasoning <level>` | Changes the reasoning effort of the LLM. Accepts `low`, `medium`, or `high`. |
 | `/personality <name>` | Switches the agent's personality. Options: `teacher`, `professional`, `strict`, `friendly`. |
 | `/yolo` | Toggles YOLO mode. When ON, all commands are auto-approved (except catastrophic commands). |
@@ -162,8 +164,8 @@ This document provides a comprehensive reference for all in-session interactive 
 | `/debug` | Collects and displays system diagnostic information. |
 | `/credits` | Shows credit/usage balance information based on your LLM provider. |
 | `/billing` | Shows billing management information and links to your provider's dashboard. |
-| `/image <path>` | Loads an image file from the specified path for vision processing (stub/pending). |
-| `/paste` | Attaches an image from the system clipboard for vision processing (stub/pending). |
+| `/image <path>` | Loads an image file (PNG, JPEG, WebP ≤ 20MB) from the specified path for vision processing in the next turn. |
+| `/paste` | Attaches an image from the system clipboard for multimodal vision processing. |
 
 ---
 
