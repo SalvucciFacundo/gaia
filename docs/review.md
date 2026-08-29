@@ -13,15 +13,23 @@ gaia review status                   # Check review state
 gaia review validate                 # Validate receipt
 gaia review list                     # List recent reviews
 gaia review install-hooks            # Install git hooks
+gaia review mode enable --scope clone # Enable opt-in review for this clone
+gaia review mode disable             # Disable review mode
 ```
 
-Reviews produce **content-bound receipts** (SHA256). Every delivery gate validates against the same receipt:
+### Opt-In Review Mode Switch
 
-```
-post-apply → pre-commit → pre-push → pre-PR → release
-```
+Receipt-Driven Development (RDD) review is **opt-in and disabled by default**:
+- When **disabled**, delivery gates pass under ordinary repository policy without requiring a review receipt.
+- When **enabled**, gates enforce content-bound receipts (`post-apply → pre-commit → pre-push → pre-PR → release`).
+- Scope can be configured per repository clone (`--scope clone`) or globally across the user machine (`--scope global`).
 
-If content changes between gates, the receipt is invalidated and a new review is needed.
+### Correction Line Budget
+
+When review findings require surgical fixes:
+- The correction budget is capped mathematically: `min(200, ceil(original_changed_lines / 2))`.
+- Ordinary review permits at most **1 correction transaction**.
+- Excess line modifications or failed corrections trigger escalation to human review.
 
 ---
 

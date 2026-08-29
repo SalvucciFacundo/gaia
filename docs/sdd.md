@@ -137,6 +137,26 @@ Guided walkthrough for new users:
 
 ---
 
+## Attempt Ledger & Budget Guard
+
+The Attempt Ledger (`internal/agent/sdd/attempt_ledger.go`) governs execution attempts and line-change budgets per work unit:
+
+- **Bounded Execution**: Enforces `MaxAttempts` (default 3) and `MaxChangedLines` (default 400 lines) per task.
+- **Permanent Subagent Learning**: When an attempt fails, is blocked, or exceeds the line budget, failure patterns are saved to the subagent's domain memory (`LearnedInsights`) and trigger the subagent's learning loop (`internal/agent/learn`), preventing repetitive mistakes in future attempts.
+
+---
+
+## Strict TDD Mode
+
+Strict TDD (`internal/agent/sdd/tdd.go`) enforces the test-driven development cycle:
+
+- **RED Phase**: Requires writing the test file (`*_test.go`) FIRST and confirming that tests fail on expected assertions. Code implementation without a failing test is rejected.
+- **GREEN Phase**: Requires minimal production code to make the failing test pass 100%.
+- **REFACTOR Phase**: Allows optimizing and cleaning code while ensuring tests remain green.
+- **Discipline Feedback**: Violations or testing errors are recorded in the subagent's domain memory.
+
+---
+
 ## Artifact Storage
 
 SDD supports three storage modes:
