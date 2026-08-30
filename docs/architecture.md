@@ -123,27 +123,25 @@ gaia/
 
 `internal/core/kernel.go` — The Brain is the heart of GAIA:
 
-```
-User Message
-    │
-    ▼
-ProcessMessage(ctx, content)
-    │
-    ├── Check SDD Trigger (is this a substantial change?)
-    │     ├── Yes → Run SDD pipeline (subagent system)
-    │     └── No  → Continue with direct response
-    │
-    ├── Knowledge Graph Recall (query relevant facts)
-    ├── Skill Index (select active skills)
-    ├── Provider Router (select LLM by config)
-    ├── LLM Call (Chat or Stream)
-    ├── Handle Tool Calls (if any)
-    │     ├── ConfirmGuard (check trust mode)
-    │     ├── ToolRegistry.Execute (dispatch to module)
-    │     └── RedactSecrets (scan output)
-    ├── Iteration Budget (consume, check cap)
-    ├── Save to Session (persist message)
-    └── Display to UI (TUI streaming or headless output)
+```mermaid
+flowchart TD
+    UserMsg([User Message]) --> Process[ProcessMessage]
+    Process --> CheckSDD{Check SDD Trigger}
+    CheckSDD -->|Substantial Change| SDDPipeline[Run SDD Pipeline]
+    CheckSDD -->|Direct Task| DirectFlow[Direct Execution Flow]
+    
+    DirectFlow --> Recall[Knowledge Graph & CodeGraph Recall]
+    Recall --> Skills[Skill Index & Path Injection]
+    Skills --> Route[Provider Router]
+    Route --> LLMCall[LLM Chat / Stream]
+    LLMCall --> HasTools{Tool Calls?}
+    HasTools -->|Yes| Guard[ConfirmGuard & PolicyGuard]
+    Guard --> Exec[ToolRegistry.Execute]
+    Exec --> Redact[Redact Secrets from Output]
+    Redact --> Loop[Check Iteration Budget]
+    Loop --> LLMCall
+    HasTools -->|No| Persist[Persist Message & Passive Learnings]
+    Persist --> UI[Display to UI / SSE Stream]
 ```
 
 ---
@@ -152,21 +150,21 @@ ProcessMessage(ctx, content)
 
 `internal/agent/` — Each subagent is an autonomous LLM-powered agent:
 
-```
-Orchestrator
-    │
-    ├── Spawner.RunLoop(ctx, systemPrompt, tools)
-    │     │
-    │     ├── Creates isolated Brain (separate LLM calls)
-    │     ├── Filters tools (subagent only sees its allowed tools)
-    │     ├── Injects Engram namespace
-    │     ├── Runs iteration budget
-    │     └── Returns SubagentResult
-    │
-    └── Registry (maps name → factory function)
-          ├── "explorer" → ExplorerFactory
-          ├── "designer" → DesignerFactory
-          └── ...
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Orch as Orchestrator / Brain
+    participant Spawner as Spawner (Isolated Brain)
+    participant Sub as Subagent Specialist
+    participant Mem as Engram & Domain Memory
+
+    Orch->>Spawner: RunLoop(task, systemPrompt, allowedTools)
+    Spawner->>Sub: Instantiate with filtered tools & budget
+    Spawner->>Mem: Attach domain namespace (gaia/subagent/project)
+    Sub->>Sub: Execute Think ➔ Act ➔ Learn
+    Sub->>Mem: Persist domain insights
+    Sub-->>Spawner: Return SubagentResult
+    Spawner-->>Orch: Synthesized outcome
 ```
 
 ---

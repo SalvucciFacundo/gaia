@@ -75,15 +75,18 @@ When conversation length crosses the compaction threshold (default: 50 messages)
 
 ## Knowledge Graph Structure
 
-```text
-Topic (e.g., "Authentication System")
-├── Concept (e.g., "JWT Token Flow")
-│   ├── Fact (e.g., "Tokens expire after 24h, refresh every 7d")
-│   ├── Fact (e.g., "Secret stored in AUTH_SECRET env var")
-│   └── Fact (e.g., "Middleware validates on /api/* routes")
-├── Concept (e.g., "Session Management")
-│   ├── Fact (e.g., "Redis store, 30min TTL")
-│   └── Fact (e.g., "Sessions invalidated on password change")
+```mermaid
+graph TD
+    Topic["Topic: Authentication System"]
+    
+    Topic --> C1["Concept: JWT Token Flow"]
+    C1 --> F1["Fact: Tokens expire after 24h, refresh every 7d"]
+    C1 --> F2["Fact: Secret stored in AUTH_SECRET env var"]
+    C1 --> F3["Fact: Middleware validates on /api/* routes"]
+    
+    Topic --> C2["Concept: Session Management"]
+    C2 --> F4["Fact: Redis store, 30min TTL"]
+    C2 --> F5["Fact: Sessions invalidated on password change"]
 ```
 
 Each fact contains:

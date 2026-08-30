@@ -122,33 +122,24 @@ Checks:
 
 A review progresses through formal states:
 
-```
-unreviewed
-    │
-    ▼
-reviewing ───── Start the review
-    │
-    ├── judges_confirmed (Judgment Day only — judges have reported)
-    │
-    ▼
-findings_frozen ─── Findings are locked
-    │
-    ▼
-evidence_classified ─── Each finding gets severity
-    │                     (BLOCKER / WARNING / SUGGESTION)
-    │
-    ├── fix_required → fixing → fix_validating
-    │     (1 correction round normal, 2 for Judgment Day)
-    │
-    ▼
-ready_final_verification
-    │
-    ▼
-final_verifying ─── Tests + build confirm the fix
-    │
-    ├── approved ─────── Receipt issued
-    ├── escalated ────── Human intervention needed
-    └── invalidated ──── Content changed, new review needed
+```mermaid
+stateDiagram-v2
+    [*] --> unreviewed
+    unreviewed --> reviewing: Start Review
+    reviewing --> judges_confirmed: Judgment Day judges report
+    reviewing --> findings_frozen: Lenses complete
+    judges_confirmed --> findings_frozen: Findings locked
+    findings_frozen --> evidence_classified: Classify severities
+    evidence_classified --> fix_required: Severe findings detected
+    evidence_classified --> ready_final_verification: No severe findings
+    fix_required --> fixing: Apply surgical fix
+    fixing --> fix_validating: Validate candidate
+    fix_validating --> evidence_classified: Re-evaluate
+    ready_final_verification --> final_verifying: Run test suite & build
+    final_verifying --> approved: Receipt issued
+    final_verifying --> escalated: Human intervention needed
+    final_verifying --> invalidated: Snapshot hash mismatch
+    approved --> [*]
 ```
 
 ---

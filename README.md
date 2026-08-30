@@ -119,6 +119,18 @@ Run tasks in the background while continuing the main conversation, or queue fol
 ### 🛡️ PolicyGuard — Permission System
 Tier-based security (`read`, `sandbox`, `full`) for autonomous command execution. Denies dangerous operations automatically (e.g. `rm -rf /`) and escalates overrides to the user interactively.
 
+### 🌲 Git Worktree Isolation
+Background subagents (`/background` and async tasks) execute inside ephemeral `git worktree` instances. Prevents race conditions and file collisions with the user's active working tree.
+
+### ⚡ CodeGraph & AST Indexer
+Go-native AST indexer and SQLite graph engine. Resolves interface implementations, call hierarchies, and symbol definitions in sub-millisecond latency (<0.51ms) to save 80%+ tokens during exploration.
+
+### 👁️ Interactive TUI Diff Viewer
+Terminal visual diff viewer with Lipgloss syntax highlighting, hunk navigation (`n`/`p`), selective staging (`s`/`u`/`d`), and line-level steering prompt (`e`/`r`) before commit.
+
+### 🧩 LSP-Powered Active Refactor
+Language Server Protocol client integration exposing project-wide symbol renaming (`RenameSymbol`), reference lookups (`FindReferences`), and compiler quick-fixes (`CodeActions`) with atomic rollback.
+
 ---
 
 ## 📖 Documentation
@@ -142,6 +154,7 @@ Explore the full documentation in the [docs/](docs) directory:
 | **Security Architecture** | [docs/security.md](docs/security.md) |
 | **Persona System** | [docs/persona.md](docs/persona.md) |
 | **Unified Gateway Proposal** | [docs/unified-architecture.md](docs/unified-architecture.md) |
+| **Architecture Roadmap** | [docs/roadmap.md](docs/roadmap.md) |
 | **Hermes Gap Analysis** | [docs/hermes-commands-review.md](docs/hermes-commands-review.md) |
 | **Pending Features** | [docs/pending-implementations.md](docs/pending-implementations.md) |
 | **Full Specification** | [SPEC.md](SPEC.md) |

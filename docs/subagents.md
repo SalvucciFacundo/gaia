@@ -8,13 +8,21 @@ GAIA has **12 specialized subagents**, each autonomously learning in its domain.
 
 Every subagent follows the same pattern:
 
-```
-Orchestrator delegates → Spawner creates isolated Brain
-                         → Filters tools by domain
-                         → Injects Engram namespace
-                         → Runs subagent with system prompt
-                         → Subagent returns structured summary
-                         → Orchestrator synthesizes into response
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Orch as Orchestrator / Brain
+    participant Spawner as Spawner
+    participant Sub as Subagent Specialist
+    participant Engram as Domain Memory (Engram/SQLite)
+
+    Orch->>Spawner: Delegate task (with filtered tools)
+    Spawner->>Sub: Create isolated execution context
+    Spawner->>Engram: Inject domain memory namespace
+    Sub->>Sub: Execute agent loop with domain tools
+    Sub->>Engram: Record failure/success learnings
+    Sub-->>Orch: Return structured result envelope
+    Orch->>Orch: Synthesize response for user
 ```
 
 Each subagent:

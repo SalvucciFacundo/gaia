@@ -36,59 +36,53 @@ GAIA combines:
 ---
 
 ## 3. Architecture Overview
-
-```
-+------------------------------------------------------------------+
-¦                     GAIA (single binary)                         ¦
-¦                                                                  ¦
-¦  +---------------------------------------------------------+    ¦
-¦  ¦  ORCHESTRATOR — Main Agent Loop                          ¦    ¦
-¦  ¦  • Think ? Act ? Learn ? Persist                        ¦    ¦
-¦  ¦  • Delegates to specialized subagents                   ¦    ¦
-¦  ¦  • Synthesizes results, never does the work itself      ¦    ¦
-¦  ¦  • Progressive skill index in context (~3k tokens)      ¦    ¦
-¦  ¦  • Per-turn knowledge graph recall (~500 tokens)        ¦    ¦
-¦  ¦  • Context compaction (summarize stale history)         ¦    ¦
-¦  +---------------------------------------------------------+    ¦
-¦                           ¦                                      ¦
-¦  +------------------------?--------------------------------+    ¦
-¦  ¦  SUBAGENT SYSTEM — Autonomous & Specialized              ¦    ¦
-¦  ¦                                                          ¦    ¦
-¦  ¦  Each subagent has:                                      ¦    ¦
-¦  ¦  • Own memory namespace in Engram (topic key)            ¦    ¦
-¦  ¦  • Independent learning loop (nudge + skill creation)    ¦    ¦
-¦  ¦  • Configurable LLM model (different per subagent)       ¦    ¦
-¦  ¦  • Own skill index (only what it needs)                  ¦    ¦
-¦  ¦  • Shared knowledge graph for cross-domain concepts      ¦    ¦
-¦  ¦                                                          ¦    ¦
-¦  ¦  +----------+ +----------+ +----------+ +----------+   ¦    ¦
-¦  ¦  ¦ Explorer  ¦ ¦Proposer  ¦ ¦Specifier ¦ ¦Designer  ¦   ¦    ¦
-¦  ¦  +----------+ +----------+ +----------+ +----------+   ¦    ¦
-¦  ¦  +----------+ +----------+ +----------+ +----------+   ¦    ¦
-¦  ¦  ¦Planner   ¦ ¦Implement.¦ ¦Verifier  ¦ ¦Reviewer  ¦   ¦    ¦
-¦  ¦  +----------+ +----------+ +----------+ +----------+   ¦    ¦
-¦  ¦  +----------+ +----------+ +----------+ +----------+   ¦    ¦
-¦  ¦  ¦Learner   ¦ ¦Researcher¦ ¦Archiver  ¦ ¦Debugger  ¦   ¦    ¦
-¦  ¦  +----------+ +----------+ +----------+ +----------+   ¦    ¦
-¦  +---------------------------------------------------------+    ¦
-¦                           ¦                                      ¦
-¦  +------------------------?--------------------------------+    ¦
-¦  ¦  INFRASTRUCTURE                                         ¦    ¦
-¦  ¦                                                          ¦    ¦
-¦  ¦  +----------+ +----------+ +----------+ +----------+   ¦    ¦
-¦  ¦  ¦LLM Multi-¦ ¦Tool Exec ¦ ¦Memory    ¦ ¦ KG       ¦   ¦    ¦
-¦  ¦  ¦Provider  ¦ ¦Engine    ¦ ¦(Engram)  ¦ ¦Recall    ¦   ¦    ¦
-¦  ¦  +----------+ +----------+ +----------+ +----------+   ¦    ¦
-¦  ¦  +----------+ +----------+ +----------+ +----------+   ¦    ¦
-¦  ¦  ¦TUI       ¦ ¦Desktop   ¦ ¦MCP       ¦ ¦Skills    ¦   ¦    ¦
-¦  ¦  ¦Bubbletea ¦ ¦Wails     ¦ ¦Client    ¦ ¦Loader    ¦   ¦    ¦
-¦  ¦  +----------+ +----------+ +----------+ +----------+   ¦    ¦
-¦  +---------------------------------------------------------+    ¦
-+------------------------------------------------------------------+
-```
-
----
-
+```mermaid
+graph TD
+    subgraph SingleBinary ["GAIA (Single Binary)"]
+        subgraph Orchestrator ["ORCHESTRATOR — Main Agent Loop"]
+            Loop["Think ➔ Act ➔ Learn ➔ Persist"]
+            Delegation["Delegates to specialized subagents"]
+            Synthesize["Synthesizes results, never does work itself"]
+            ProgressiveSkills["Progressive skill index in context (~3k tokens)"]
+            KGRecall["Per-turn knowledge graph recall (~500 tokens)"]
+            Compaction["Context compaction & rehydration"]
+        end
+
+        subgraph Subagents ["SUBAGENT SYSTEM — 12 Autonomous Specialists"]
+            subgraph SDD ["SDD Pipeline Subagents"]
+                Explorer["Explorer"]
+                Proposer["Proposer"]
+                Specifier["Specifier"]
+                Designer["Designer"]
+                Planner["Planner"]
+                Implementer["Implementer"]
+                Verifier["Verifier"]
+                Archiver["Archiver"]
+            end
+            subgraph OnDemand ["On-Demand & Background Subagents"]
+                Reviewer["Reviewer (BR / RDD)"]
+                Debugger["Debugger"]
+                Researcher["Researcher"]
+                Learner["Learner"]
+            end
+        end
+
+        subgraph Infrastructure ["INFRASTRUCTURE & INTEGRATIONS"]
+            LLM["LLM Multi-Provider Client"]
+            Tools["Tool Execution Engine"]
+            Memory["Memory & Attempt Ledger"]
+            KG["Knowledge Graph & CodeGraph"]
+            TUI["Cyberpunk TUI (Bubbletea)"]
+            Desktop["Desktop GUI (Wails)"]
+            MCP["MCP Client & Manager"]
+            LSP["LSP Active Refactor"]
+        end
+    end
+
+    Orchestrator --> Subagents
+    Subagents --> Infrastructure
+```
+
 ## 4. Subagent System — 12 Autonomous Specialists
 
 Each subagent is an autonomous LLM-powered agent with:
@@ -777,23 +771,23 @@ While GAIA's memory lives in Engram + Knowledge Graph (machine-native), the user
 ```
 gaia-memory-export/
 +-- Project/
-¦   +-- Auth-System.md              # Facts del KG sobre auth
+¦   +-- Auth-System.md              # Knowledge Graph facts on auth
 ¦   ¦   - Token expiration: 24h, refresh: 7d
 ¦   ¦   - Common bug: missing refresh on 401
 ¦   ¦   - Test helper: auth.NewTestToken()
-¦   +-- API-Design.md               # Decisiones de arquitectura
+¦   +-- API-Design.md               # Architecture decisions
 ¦   ¦   - Hexagonal architecture with ports/adapters
 ¦   ¦   - All mutations go through service layer
-¦   +-- Common-Bugs.md              # Bugs frecuentes y fixes
+¦   +-- Common-Bugs.md              # Frequent bugs and fixes
 ¦       - N+1 query in UserList ? fixed with eager loading
 +-- User/
-¦   +-- Preferences.md              # Lenguajes, frameworks, estilo
+¦   +-- Preferences.md              # Languages, frameworks, style
 ¦   ¦   - Primary: Go, TypeScript, Rust
 ¦   ¦   - Style: early returns, table-driven tests
 ¦   ¦   - Personality: Teacher persona
-¦   +-- Learning-Style.md           # Cómo prefiere que le expliquen
+¦   +-- Learning-Style.md           # Explanation style preferences
 +-- Skills/
-    +-- go-testing.md               # Skill que GAIA creó o mejoró
+    +-- go-testing.md               # Skill created or improved by GAIA
     +-- react-patterns.md
 ```
 
