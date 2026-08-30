@@ -5,6 +5,8 @@
 </p>
 
 [![Go Version](https://img.shields.io/badge/Go-1.23+-00ADD8?logo=go)](https://go.dev)
+[![Website](https://img.shields.io/badge/Website-gaia.facundosalvucci.dev-00f0ff?logo=googlechrome&logoColor=white)](https://gaia.facundosalvucci.dev)
+[![Docs](https://img.shields.io/badge/Docs-Live%20Portal-00ff9d?logo=googledocs&logoColor=white)](https://gaia.facundosalvucci.dev/docs)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/SalvucciFacundo/gaia?logo=github)](https://github.com/SalvucciFacundo/gaia/releases)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)](https://github.com/SalvucciFacundo/gaia)
@@ -135,7 +137,9 @@ Language Server Protocol client integration exposing project-wide symbol renamin
 
 ## 📖 Documentation
 
-Explore the full documentation in the [docs/](docs) directory:
+> 🌐 **Interactive Documentation Portal:** Browse the full live documentation on **[gaia.facundosalvucci.dev/docs](https://gaia.facundosalvucci.dev/docs)** with real-time search, Mermaid architecture diagrams, and responsive navigation.
+
+Explore the complete guides in the [docs/](docs) directory:
 
 | Topic | Guide |
 |---|---|

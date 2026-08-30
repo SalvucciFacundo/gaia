@@ -6,15 +6,15 @@ GAIA includes a built-in bounded code review system inspired by Gentle-AI's BR (
 
 ## Overview
 
-```
-gaia review start                    # Start a review
-gaia review start --judgment-day     # Adversarial review
-gaia review status                   # Check review state
-gaia review validate                 # Validate receipt
-gaia review list                     # List recent reviews
-gaia review install-hooks            # Install git hooks
+```bash
+gaia review start                     # Start a review
+gaia review start --judgment-day      # Adversarial review
+gaia review status                    # Check review state
+gaia review validate                  # Validate receipt
+gaia review list                      # List recent reviews
+gaia review install-hooks             # Install git hooks
 gaia review mode enable --scope clone # Enable opt-in review for this clone
-gaia review mode disable             # Disable review mode
+gaia review mode disable              # Disable review mode
 ```
 
 ### Opt-In Review Mode Switch
@@ -67,54 +67,15 @@ Risk level is determined by combining codes:
 
 ## The 4 Review Lenses
 
-### Risk Lens
-
-Focuses on security, permissions, data exposure, and architecture.
-
-Checks:
-- SQL injection and command injection
-- Missing authentication/authorization
-- Hardcoded secrets
-- Insecure cryptography
-- Path traversal vulnerabilities
-- Dependency vulnerabilities
-- Overly permissive permissions
-
-### Resilience Lens
-
-Focuses on fallbacks, retry, graceful degradation, and observability.
-
-Checks:
-- Missing error handling
-- No retry/backoff for external calls
-- Missing fallbacks for degraded dependencies
-- No logging/metrics for critical paths
-- Resource leaks (connections, file handles)
-- Missing circuit breakers
-
-### Readability Lens
-
-Focuses on naming, structure, maintainability, and comments.
-
-Checks:
-- Clear naming (no abbreviations)
-- Single responsibility per function
-- Appropriate abstraction level
-- Comments explain WHY, not WHAT
-- Consistent project patterns
-- No dead code
-
-### Reliability Lens
-
-Focuses on tests, determinism, regressions, and edge cases.
-
-Checks:
-- Missing tests for new code
-- Flaky test patterns
-- Untested edge cases (empty, nil, boundary)
-- Non-deterministic test behavior
-- Missing test fixtures
-- Test coverage gaps
+```mermaid
+flowchart TD
+    subgraph Lenses ["4 Bounded Review Lenses"]
+        R1["🛡️ Risk Lens\n• SQL/Command injection\n• Missing auth/authz\n• Hardcoded secrets\n• Overly permissive chmod"]
+        R2["🔄 Resilience Lens\n• Missing error handling\n• No retry / backoff\n• Missing fallbacks\n• Resource leaks & handles"]
+        R3["📖 Readability Lens\n• Clear naming & single responsibility\n• Comments explain WHY\n• Pattern consistency\n• No dead code"]
+        R4["🧪 Reliability Lens\n• Test coverage gaps\n• Untested edge cases\n• Flaky test patterns\n• Non-deterministic mocks"]
+    end
+```
 
 ---
 
@@ -123,23 +84,24 @@ Checks:
 A review progresses through formal states:
 
 ```mermaid
-stateDiagram-v2
-    [*] --> unreviewed
-    unreviewed --> reviewing: Start Review
-    reviewing --> judges_confirmed: Judgment Day judges report
-    reviewing --> findings_frozen: Lenses complete
-    judges_confirmed --> findings_frozen: Findings locked
-    findings_frozen --> evidence_classified: Classify severities
-    evidence_classified --> fix_required: Severe findings detected
-    evidence_classified --> ready_final_verification: No severe findings
-    fix_required --> fixing: Apply surgical fix
-    fixing --> fix_validating: Validate candidate
-    fix_validating --> evidence_classified: Re-evaluate
-    ready_final_verification --> final_verifying: Run test suite & build
-    final_verifying --> approved: Receipt issued
-    final_verifying --> escalated: Human intervention needed
-    final_verifying --> invalidated: Snapshot hash mismatch
-    approved --> [*]
+flowchart TD
+    UNREV["1. unreviewed"] --> REV["2. reviewing\n(Start review)"]
+    REV --> JD{"Judgment Day?"}
+    JD -- "Yes" --> CONF["judges_confirmed\n(Dual Judges reported)"]
+    JD -- "No" --> FROZEN["3. findings_frozen\n(Lock findings)"]
+    CONF --> FROZEN
+    FROZEN --> CLASS["4. evidence_classified\n(Classify Severity)"]
+    
+    CLASS --> CHK{"Severe Findings?"}
+    CHK -- "Blockers" --> FIX["5. fix_required ➔ fixing\n(Scoped fix within budget)"]
+    FIX --> FIX_VAL["6. fix_validating"]
+    FIX_VAL --> READY["7. ready_final_verification"]
+    CHK -- "Clean / Info" --> READY
+    
+    READY --> FINAL["8. final_verifying\n(Tests + Build verification)"]
+    FINAL --> APP["✅ approved\n(SHA256 Receipt Issued)"]
+    FINAL --> ESC["⚠️ escalated\n(Human decision needed)"]
+    FINAL --> INV["❌ invalidated\n(Code drifted, new review)"]
 ```
 
 ---
@@ -172,68 +134,12 @@ stateDiagram-v2
 
 ---
 
-## Git Hooks
+## Delivery Gates
 
-Install pre-commit and pre-push hooks:
-
-```bash
-gaia review install-hooks
-```
-
-This creates:
-- `.git/hooks/pre-commit` — Runs `gaia review validate` before each commit
-- `.git/hooks/pre-push` — Runs `gaia review validate` before each push
-
-Both hooks validate the content-bound receipt. If the receipt is invalidated (content changed since review), the hook blocks the operation.
-
----
-
-## AGENTS.md Standards
-
-GAIA reads `AGENTS.md` from the project root as team coding standards. The file uses YAML frontmatter + markdown:
-
-```markdown
----
-name: my-project
-version: 1.0.0
-rules:
-  - use-early-returns
-  - no-magic-numbers
----
-
-# Team Standards
-
-## Code Style
-- Use early returns over nested if/else
-- Error messages should be lowercase, no punctuation
-- Prefer table-driven tests
-
-## Security
-- Never log secrets or API keys
-- Use parameterized queries
-- Validate all user input
-
-## Architecture
-- Follow hexagonal architecture
-- Dependencies point inward only
-```
-
-The Reviewer subagent automatically discovers `AGENTS.md` in the project root and injects its rules into review prompts.
-
----
-
-## Judgment Day Protocol
-
-For high-risk changes (auth, security, payments, >400 lines):
-
-```bash
-gaia review start --judgment-day
-```
-
-1. **Judge A** (blind) — Focuses on security, data flow, correctness
-2. **Judge B** (blind) — Focuses on error handling, edge cases, resilience
-3. **Comparison** — Merge findings, resolve conflicts by severity
-4. **Fix Agent** — Applies surgical corrections (budget-limited)
-5. **Re-judgment** — Maximum 2 rounds of fix + re-judgment
-6. **Approval** — Both judges must agree, otherwise escalated to human
-
+| Gate | Timing | Checks | Action on Fail |
+|---|---|---|---|
+| `post-apply` | After task completion | Lint + build + basic tests | Fix before continuing |
+| `pre-commit` | Git `pre-commit` hook | Receipt valid + tree hash matches | Block commit |
+| `pre-push` | Git `pre-push` hook | Receipt valid for HEAD | Block push |
+| `pre-pr` | Before PR creation | Full review completed + receipt | Require review |
+| `release` | Before release build | Zero unresolved blockers | Block release |
