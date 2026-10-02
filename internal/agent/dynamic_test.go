@@ -354,6 +354,39 @@ func TestDynamicSubagent_FactoryClosure(t *testing.T) {
 	}
 }
 
+func TestDynamicSubagent_MaxDelegationDepth(t *testing.T) {
+	def := SubagentDef{Name: "nested-agent"}
+	agent := NewDynamicSubagent(def, nil)
+
+	task := domain.SubagentTask{
+		Depth: MaxDelegationDepth,
+	}
+
+	result := agent.Execute(context.Background(), task)
+	if result.Status != domain.SubagentBlocked {
+		t.Errorf("expected SubagentBlocked when Depth >= MaxDelegationDepth, got %v", result.Status)
+	}
+	if !containsString(result.Summary, "maximum delegation depth reached") {
+		t.Errorf("expected summary to mention depth limit, got: %s", result.Summary)
+	}
+}
+
+func TestDynamicSubagent_AllowedEditRootsPrompt(t *testing.T) {
+	def := SubagentDef{Name: "writer-agent"}
+	task := domain.SubagentTask{
+		AllowedEditRoots: []string{"internal/pkg/auth", "internal/pkg/session"},
+	}
+
+	prompt := buildDynamicPrompt(def, task, "")
+	if !containsString(prompt, "APPROVED EDIT SURFACES (EDIT AUTHORITY)") {
+		t.Error("prompt should contain APPROVED EDIT SURFACES header")
+	}
+	if !containsString(prompt, "internal/pkg/auth") || !containsString(prompt, "internal/pkg/session") {
+		t.Error("prompt should list approved edit roots")
+	}
+}
+
+
 // --- Helpers ---
 
 func containsString(s, sub string) bool {

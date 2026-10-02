@@ -86,10 +86,12 @@ Run multiple LLM models in parallel on the same task. Collect all responses and 
 - **Parallel execution**: Goroutine fan-out with a 30-second timeout per model.
 - **Synthesis**: Primary model automatically merges responses and reconciles contradictions.
 
-### 📋 Spec-Driven Development (SDD)
-Built-in planning and implementation pipeline:
-`explore → propose → spec → design → tasks → apply → verify → archive`.
-Each phase is handled by a specialized subagent with its own memory namespace, learning loop, and model configuration.
+### 📋 Organic Driven Development (ODD) & Modern Engram Protocol
+Modern autonomous workflow adapting dynamically to task complexity:
+- **Inline Direct Execution**: Small, bounded tasks execute directly in the primary turn without worker overhead (`/inline` or deprecated `/direct`).
+- **Dynamic Bounded Workers**: Tasks crossing evidence, write, or verification boundaries delegate to focused workers (`@explorer`, `@implementer`, `@verifier`).
+- **Feature Tracking**: Complex initiatives and architectural overhauls use structured specs and tasks (`/odd`, with `/sdd` supported as a deprecated backup command).
+- **Engram v1.15.3+ Protocol**: Persistent memory with lifecycle states (`active`/`needs_review`), runtime session tracking, and prompt pollution protection (`capture_prompt: false`).
 
 ### 📝 BR Code Review
 Bounded code review with 4 lenses (Risk, Resilience, Readability, Reliability) + content-bound receipts (SHA256). Pre-commit/pre-push gates validate against the same receipt — no silent re-reviews.
@@ -196,7 +198,7 @@ go test ./...
 ## 🙏 Acknowledgments
 
 GAIA stands on the shoulders of several open-source projects:
-- **[Gentle AI](https://github.com/Gentleman-Programming/gentle-ai)** — Core workflow inspiration, SDD phases, BR review, and Engram memory model.
+- **[Gentle AI / Gentle Shell](https://github.com/Gentleman-Programming/gentle-ai)** — Core workflow inspiration, Organic Driven Development (ODD), BR review, and Engram memory model.
 - **[Hermes Agent](https://github.com/NousResearch/hermes-agent)** — Learning loop, skill creation/improvement, and tool approval system.
 - **[ogcode](https://github.com/...)** — Token efficiency and Knowledge Graph recall.
 - **[pi-go](https://github.com/...)** — Go-native agent structure.

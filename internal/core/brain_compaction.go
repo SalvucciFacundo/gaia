@@ -69,6 +69,58 @@ func FormatRehydrationPrompt(summary SessionSummary) string {
 	return sb.String()
 }
 
+// FormatEngramSessionSummary formats an Engram-compliant markdown session summary from SessionSummary.
+func FormatEngramSessionSummary(summary SessionSummary) string {
+	var sb strings.Builder
+	sb.WriteString("## Goal\n")
+	if summary.Goal != "" {
+		sb.WriteString(summary.Goal)
+	} else {
+		sb.WriteString("Autonomous coding session")
+	}
+	sb.WriteString("\n\n## Instructions\n")
+	if len(summary.Instructions) > 0 {
+		for _, inst := range summary.Instructions {
+			sb.WriteString(fmt.Sprintf("- %s\n", inst))
+		}
+	} else {
+		sb.WriteString("- None\n")
+	}
+	sb.WriteString("\n## Discoveries\n")
+	if len(summary.Discoveries) > 0 {
+		for _, disc := range summary.Discoveries {
+			sb.WriteString(fmt.Sprintf("- %s\n", disc))
+		}
+	} else {
+		sb.WriteString("- None\n")
+	}
+	sb.WriteString("\n## Accomplished\n")
+	if len(summary.Accomplished) > 0 {
+		for _, acc := range summary.Accomplished {
+			sb.WriteString(fmt.Sprintf("- %s\n", acc))
+		}
+	} else {
+		sb.WriteString("- None\n")
+	}
+	sb.WriteString("\n## Next Steps\n")
+	if len(summary.NextSteps) > 0 {
+		for _, next := range summary.NextSteps {
+			sb.WriteString(fmt.Sprintf("- %s\n", next))
+		}
+	} else {
+		sb.WriteString("- None\n")
+	}
+	sb.WriteString("\n## Relevant Files\n")
+	if len(summary.RelevantFiles) > 0 {
+		for _, f := range summary.RelevantFiles {
+			sb.WriteString(fmt.Sprintf("- %s\n", f))
+		}
+	} else {
+		sb.WriteString("- None\n")
+	}
+	return sb.String()
+}
+
 // recallKnowledgeGraph searches the knowledge graph for facts relevant to text.
 // Returns a slice of formatted fact strings to append to system prompt.
 // Uses keyword search; falls back to recent facts if search yields nothing.

@@ -84,6 +84,9 @@ func main() {
 		case "policy":
 			handlePolicyCLI(os.Args[2:])
 			return
+		case "delivery":
+			handleDeliveryCLI(os.Args[2:])
+			return
 		}
 	}
 
@@ -274,6 +277,22 @@ func main() {
 
 	// 7f. Wire MoA providers into Brain for /moa command.
 	brain.SetMoAProviders(moaProviders)
+
+	// 7g. Wire Skills Hub to Brain for intent-driven progressive skill loading & context protection.
+	brain.SetSkillLister(func() []string {
+		active := skillsHub.ListActive()
+		names := make([]string, len(active))
+		for i, s := range active {
+			names[i] = s.Name
+		}
+		return names
+	})
+	brain.SetSkillPathResolver(func(skillNames []string) []string {
+		return skillsHub.ResolveSkillPaths(skillNames)
+	})
+	brain.SetSkillMatcher(func(taskDesc string, files []string) []string {
+		return skillsHub.MatchSkills(taskDesc, files)
+	})
 
 	// 8. Register tool modules
 	brain.RegisterModule(shell.NewModule(projectRoot))

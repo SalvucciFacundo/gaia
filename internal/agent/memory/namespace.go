@@ -11,7 +11,8 @@ import (
 // The wrapper enforces the namespace format, prepending the prefix automatically
 // so subagents cannot self-report into another subagent's namespace.
 type NamespaceManager struct {
-	project string
+	project   string
+	sessionID string
 }
 
 // NewNamespaceManager creates a namespace manager for the given project.
@@ -21,6 +22,16 @@ func NewNamespaceManager(project string) *NamespaceManager {
 		project = "default"
 	}
 	return &NamespaceManager{project: project}
+}
+
+// SetSessionID sets the authoritative active runtime session identity.
+func (n *NamespaceManager) SetSessionID(sessionID string) {
+	n.sessionID = sessionID
+}
+
+// SessionID returns the authoritative active runtime session identity.
+func (n *NamespaceManager) SessionID() string {
+	return n.sessionID
 }
 
 // SubagentPrefix returns the topic_key prefix for a specific subagent.
@@ -52,13 +63,20 @@ func (n *NamespaceManager) TopicKey(subagent, topic string) string {
 func (n *NamespaceManager) SaveInstructions(name string) string {
 	prefix := n.SubagentPrefix(name)
 	shared := n.SharedPrefix()
+	sessionLine := ""
+	if n.sessionID != "" {
+		sessionLine = fmt.Sprintf("\n- Active session_id: \"%s\" (include when calling mem_save)", n.sessionID)
+	}
 	return fmt.Sprintf(`MEMORY (ENGRAM) INSTRUCTIONS:
 - Your namespace: "%s"
-- When saving to Engram memory (mem_save), use topic_key prefix: "%s/{topic}"
+- When saving to Engram memory (mem_save), use topic_key prefix: "%s/{topic}"%s
+- Automated or system artifacts: set capture_prompt: false to prevent polluting user prompts
+- Lifecycle states: "active" is verified knowledge; "needs_review" is stale context requiring verification
+- If mem_save returns judgment_required, resolve candidates using mem_judge
 - When searching your memory, include your namespace prefix
 - Shared knowledge graph: "%s" — you may READ from it but MUST NOT write
-- Example save: mem_save(title: "...", topic_key: "%s/pattern-discovered", type: "discovery", content: "...")
-- Example search: mem_search(query: "deployment patterns", project: "%s")`, prefix, prefix, shared, prefix, n.project)
+- Example save: mem_save(title: "...", topic_key: "%s/pattern-discovered", type: "discovery", content: "...", capture_prompt: false)
+- Example search: mem_search(query: "deployment patterns", project: "%s")`, prefix, prefix, sessionLine, shared, prefix, n.project)
 }
 
 // SearchInstructions returns prompt text for memory retrieval within the subagent's scope.
@@ -68,7 +86,8 @@ func (n *NamespaceManager) SearchInstructions(name string) string {
 	return fmt.Sprintf(`MEMORY SEARCH:
 - Search your scope first with topic_key prefix: "%s"
 - Then search the shared graph: "%s"
-- Use mem_get_observation(id) for full content after search returns previews`, prefix, shared)
+- Use mem_get_observation(id) for full content after search returns previews
+- Verify "needs_review" observations against source code before treating as authoritative`, prefix, shared)
 }
 
 // DynamicPrefix returns the namespace prefix for a dynamically-created subagent.

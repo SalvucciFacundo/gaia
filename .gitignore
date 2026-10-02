@@ -41,3 +41,5 @@ temp-export.json
 /skills/
 # Local Pi runtime state
 .atl/
+# Test/runtime state
+.gaia/

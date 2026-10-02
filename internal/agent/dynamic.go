@@ -51,10 +51,22 @@ func (d *DynamicSubagent) Name() string { return d.def.Name }
 // Description returns the user-assigned description.
 func (d *DynamicSubagent) Description() string { return d.def.Description }
 
+// MaxDelegationDepth defines the maximum recursion level for dynamic subagent delegation.
+const MaxDelegationDepth = 10
+
 // Execute runs the dynamic subagent. It enforces the AllowedTools filter
 // from the definition and assembles a system prompt from def.SystemPrompt
 // and def.Personality. It delegates the agent loop to Spawner.RunLoop().
 func (d *DynamicSubagent) Execute(ctx context.Context, task domain.SubagentTask) *domain.SubagentResult {
+	if task.Depth >= MaxDelegationDepth {
+		return &domain.SubagentResult{
+			Status:          domain.SubagentBlocked,
+			Summary:         fmt.Sprintf("Dynamic subagent %q blocked: maximum delegation depth reached (%d >= %d)", d.def.Name, task.Depth, MaxDelegationDepth),
+			NextRecommended: "none",
+			SkillResolution: "none",
+		}
+	}
+
 	task.AllowedTools = d.def.AllowedTools
 
 	var nsInstr string
@@ -223,6 +235,16 @@ func buildDynamicPrompt(def SubagentDef, task domain.SubagentTask, namespaceInst
 		sb.WriteString("\n")
 		sb.WriteString(namespaceInstr)
 		sb.WriteString("\n")
+	}
+
+	// Inject Edit Authority roots if constrained
+	if len(task.AllowedEditRoots) > 0 {
+		sb.WriteString("\nAPPROVED EDIT SURFACES (EDIT AUTHORITY):\n")
+		sb.WriteString("You are strictly constrained to modify files ONLY within the following paths:\n")
+		for _, root := range task.AllowedEditRoots {
+			sb.WriteString(fmt.Sprintf("- %s\n", root))
+		}
+		sb.WriteString("Modifications outside these paths are strictly prohibited.\n")
 	}
 
 	sb.WriteString("\nReturn your result as a structured summary with these sections:\n")

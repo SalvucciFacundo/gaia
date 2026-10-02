@@ -127,3 +127,57 @@ func TestDetectSDDTrigger_KeywordsList(t *testing.T) {
 		})
 	}
 }
+
+func TestDetectSDDTrigger_ProactiveSignals(t *testing.T) {
+	proactiveMessages := []string{
+		"crea un nuevo subsistema de colas",
+		"implementa el delivery engine",
+		"agrega un nuevo modulo para analytics",
+		"we need a new pipeline for events",
+		"haz un refactor arquitectonico del motor",
+	}
+
+	for _, msg := range proactiveMessages {
+		t.Run(msg, func(t *testing.T) {
+			tr := DetectSDDTrigger(msg)
+			if !tr.SuggestSDD {
+				t.Errorf("expected SuggestSDD=true for proactive message %q, got %+v", msg, tr)
+			}
+			if tr.ShouldSDD {
+				t.Errorf("expected ShouldSDD=false (suggestion only) for proactive message %q", msg)
+			}
+		})
+	}
+}
+
+func TestDetectSDDTrigger_ActivePhaseSignals(t *testing.T) {
+	phaseMessages := []string{
+		"vamos con la fase 1",
+		"vamos con la fase 2",
+		"phase 1 implementation",
+		"ejecuta el sdd-apply",
+		"siguiente fase del cambio",
+	}
+
+	for _, msg := range phaseMessages {
+		t.Run(msg, func(t *testing.T) {
+			tr := DetectSDDTrigger(msg)
+			if !tr.ShouldSDD {
+				t.Errorf("expected ShouldSDD=true for phase continuation message %q, got %+v", msg, tr)
+			}
+		})
+	}
+}
+
+func TestDetectSDDTrigger_DirectOverridesProactive(t *testing.T) {
+	tr := DetectSDDTrigger("/direct crea un nuevo subsistema de colas")
+	if !tr.ForceDirect {
+		t.Error("expected ForceDirect=true")
+	}
+	if tr.SuggestSDD {
+		t.Error("expected SuggestSDD=false when /direct is specified")
+	}
+	if tr.ShouldSDD {
+		t.Error("expected ShouldSDD=false when /direct is specified")
+	}
+}

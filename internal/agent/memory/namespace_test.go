@@ -109,3 +109,28 @@ func TestProject(t *testing.T) {
 		t.Errorf("Project: want 'gaia', got %q", mgr.Project())
 	}
 }
+
+// TestNamespaceManager_SessionID verifies session identity management.
+func TestNamespaceManager_SessionID(t *testing.T) {
+	mgr := NewNamespaceManager("gaia")
+	if mgr.SessionID() != "" {
+		t.Errorf("expected empty initial session ID, got %q", mgr.SessionID())
+	}
+
+	mgr.SetSessionID("sess-12345")
+	if mgr.SessionID() != "sess-12345" {
+		t.Errorf("expected session ID 'sess-12345', got %q", mgr.SessionID())
+	}
+
+	instr := mgr.SaveInstructions("explorer")
+	if !strings.Contains(instr, "sess-12345") {
+		t.Error("SaveInstructions should contain active session_id when configured")
+	}
+	if !strings.Contains(instr, "capture_prompt: false") {
+		t.Error("SaveInstructions should advise capture_prompt: false for automated artifacts")
+	}
+	if !strings.Contains(instr, "needs_review") {
+		t.Error("SaveInstructions should mention needs_review lifecycle state")
+	}
+}
+

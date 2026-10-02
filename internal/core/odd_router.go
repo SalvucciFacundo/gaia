@@ -1,0 +1,176 @@
+// Package core implements the central orchestrator and routing for GAIA.
+package core
+
+import (
+	"strings"
+)
+
+// ODDRouteType represents the execution topology selected by Organic Driven Development.
+type ODDRouteType string
+
+const (
+	// RouteInline executes directly in the parent loop within bounded call/token budget.
+	RouteInline ODDRouteType = "inline"
+	// RouteDelegatedWorker delegates to a bounded, specialized dynamic worker.
+	RouteDelegatedWorker ODDRouteType = "delegated_worker"
+	// RouteFeatureTracking manages complex multi-stage tasks with tracking specs.
+	RouteFeatureTracking ODDRouteType = "feature_tracking"
+)
+
+// Command prefixes
+const (
+	// ODDCommandPrefix triggers the ODD feature tracking workflow.
+	ODDCommandPrefix = "/odd"
+	// InlineCommandPrefix forces direct inline execution.
+	InlineCommandPrefix = "/inline"
+	// LegacySDDCommandPrefix is the deprecated backup command for feature/pipeline mode.
+	LegacySDDCommandPrefix = "/sdd"
+	// LegacyDirectCommandPrefix is the deprecated backup command for inline execution.
+	LegacyDirectCommandPrefix = "/direct"
+)
+
+// ODDTriggerResult describes the result of evaluating an incoming prompt against ODD rules.
+type ODDTriggerResult struct {
+	Route             ODDRouteType
+	WorkerRole        string // "explorer", "writer", "verifier", or ""
+	SuggestFeature    bool   // If true, recommend formal feature tracking
+	IsDeprecatedAlias bool   // True if triggered via legacy /sdd or /direct
+	Reason            string
+}
+
+// ExplorerSignals detect tasks requiring deep read-only codebase mapping.
+var ExplorerSignals = []string{
+	"map codebase", "mapear codebase", "investigate codebase",
+	"investigar arquitectura", "broad search", "analizar dependencias",
+	"deep search", "trace all references", "find all usages of",
+}
+
+// WriterSignals detect tasks requiring multi-file edits or heavy implementation.
+var WriterSignals = []string{
+	"refactor multiple files", "refactorizar multiples archivos",
+	"implement across packages", "migrar componentes",
+}
+
+// VerifierSignals detect heavy validation, test suites, or build checks.
+var VerifierSignals = []string{
+	"run full test suite", "ejecutar todos los tests",
+	"verify all packages", "verificar suite completa",
+}
+
+// DetectODDRoute evaluates user input according to Organic Driven Development rules:
+// 1. Explicit /inline or legacy /direct -> RouteInline
+// 2. Explicit /odd or legacy /sdd -> RouteFeatureTracking
+// 3. Active phase continuation signals -> RouteFeatureTracking
+// 4. Architectural breaking changes -> RouteFeatureTracking
+// 5. Large mapping / multi-file write / full verification signals -> RouteDelegatedWorker
+// 6. Proactive multi-module signals -> SuggestFeature
+// 7. Default -> RouteInline
+func DetectODDRoute(content string) ODDTriggerResult {
+	trimmed := strings.TrimSpace(content)
+	if trimmed == "" {
+		return ODDTriggerResult{
+			Route:  RouteInline,
+			Reason: "empty input",
+		}
+	}
+
+	// 1. Explicit inline commands
+	if strings.HasPrefix(trimmed, InlineCommandPrefix) {
+		return ODDTriggerResult{
+			Route:  RouteInline,
+			Reason: "user requested /inline execution",
+		}
+	}
+	if strings.HasPrefix(trimmed, LegacyDirectCommandPrefix) {
+		return ODDTriggerResult{
+			Route:             RouteInline,
+			IsDeprecatedAlias: true,
+			Reason:            "user requested legacy /direct — executing inline",
+		}
+	}
+
+	// 2. Explicit feature/pipeline commands
+	if strings.HasPrefix(trimmed, ODDCommandPrefix) {
+		return ODDTriggerResult{
+			Route:  RouteFeatureTracking,
+			Reason: "user requested /odd feature tracking",
+		}
+	}
+	if strings.HasPrefix(trimmed, LegacySDDCommandPrefix) {
+		return ODDTriggerResult{
+			Route:             RouteFeatureTracking,
+			IsDeprecatedAlias: true,
+			Reason:            "user requested legacy /sdd — routing to feature tracking",
+		}
+	}
+
+	lower := strings.ToLower(trimmed)
+
+	// 3. Active phase continuation tokens
+	for _, ps := range SDDActivePhaseSignals {
+		if strings.Contains(lower, ps) {
+			return ODDTriggerResult{
+				Route:  RouteFeatureTracking,
+				Reason: "active phase continuation signal detected: '" + ps + "'",
+			}
+		}
+	}
+
+	// 4. Architectural breaking change signals
+	for _, kw := range SDDKeywords {
+		if strings.Contains(lower, kw) {
+			return ODDTriggerResult{
+				Route:  RouteFeatureTracking,
+				Reason: "architectural breaking keyword '" + kw + "' detected",
+			}
+		}
+	}
+
+	// 5. Worker delegation triggers
+	for _, s := range ExplorerSignals {
+		if strings.Contains(lower, s) {
+			return ODDTriggerResult{
+				Route:      RouteDelegatedWorker,
+				WorkerRole: "explorer",
+				Reason:     "read-only mapping signal detected: '" + s + "'",
+			}
+		}
+	}
+
+	for _, s := range WriterSignals {
+		if strings.Contains(lower, s) {
+			return ODDTriggerResult{
+				Route:      RouteDelegatedWorker,
+				WorkerRole: "writer",
+				Reason:     "multi-file write signal detected: '" + s + "'",
+			}
+		}
+	}
+
+	for _, s := range VerifierSignals {
+		if strings.Contains(lower, s) {
+			return ODDTriggerResult{
+				Route:      RouteDelegatedWorker,
+				WorkerRole: "verifier",
+				Reason:     "full verification signal detected: '" + s + "'",
+			}
+		}
+	}
+
+	// 6. Proactive feature suggestion signals
+	for _, sig := range SDDProactiveSignals {
+		if strings.Contains(lower, sig) {
+			return ODDTriggerResult{
+				Route:          RouteInline,
+				SuggestFeature: true,
+				Reason:         "substantial multi-module signal '" + sig + "' detected",
+			}
+		}
+	}
+
+	// 7. Default to inline direct execution
+	return ODDTriggerResult{
+		Route:  RouteInline,
+		Reason: "within inline execution budget",
+	}
+}

@@ -126,6 +126,7 @@ Closes the change:
 - Validates review receipt gate (approved receipt required)
 - Syncs delta specs into main specs
 - Moves change folder to archive with date prefix
+- **Deferred Delivery Outbox Hook**: In `deferred` delivery mode (autonomous / overnight runs), generates PR title/body and enqueues the `DeliveryItem` into `.gaia/delivery/queue.json` in `standby` status without remote network transport.
 - Records audit trail (observation IDs in Engram for traceability)
 
 ### 10. Onboard (`sdd-onboard`)
@@ -154,6 +155,18 @@ Strict TDD (`internal/agent/sdd/tdd.go`) enforces the test-driven development cy
 - **GREEN Phase**: Requires minimal production code to make the failing test pass 100%.
 - **REFACTOR Phase**: Allows optimizing and cleaning code while ensuring tests remain green.
 - **Discipline Feedback**: Violations or testing errors are recorded in the subagent's domain memory.
+
+---
+
+## Edit Authority Guard & Consent Envelopes
+
+To prevent unauthorized repository mutations, SDD enforces strict **Edit Authority Isolation** (`internal/agent/sdd/edit_authority.go`):
+
+- **Narrow Allowed Edit Roots**: Every task plan specifies `allowedEditRoots` (e.g. `["internal/review/", "internal/agent/ops/"]`).
+- **Anti-Wildcard Discipline**: Broad roots such as `.`, `/`, absolute paths, or path traversal escaping sequences (`..`) are strictly rejected during validation.
+- **Missing Root Consent (`gaia.sdd.consent/v1`)**: If an implementer targets files outside the authorized roots, execution halts immediately with `blocked(edit_authority_missing)` and presents a typed consent envelope:
+  - **`granted`**: Authorizes the missing directory roots for this change and unblocks execution.
+  - **`declined`**: Rejects modification outside scope and requires editing `tasks.md` to stay within authorized boundaries.
 
 ---
 

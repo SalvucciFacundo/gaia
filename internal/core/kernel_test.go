@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"gaia/internal/core/domain"
 	"gaia/internal/core/ports"
@@ -434,4 +435,204 @@ func searchSubstring(s, substr string) bool {
 		}
 	}
 	return false
+}
+
+type recordingKGStore struct {
+	facts []domain.KnowledgeFact
+}
+
+func (m *recordingKGStore) AddFact(_ context.Context, fact domain.KnowledgeFact) (string, error) {
+	m.facts = append(m.facts, fact)
+	return fmt.Sprintf("fact-%d", len(m.facts)), nil
+}
+
+func (m *recordingKGStore) GetFactsByTopic(_ context.Context, topic string) ([]domain.KnowledgeFact, error) {
+	var res []domain.KnowledgeFact
+	for _, f := range m.facts {
+		if f.Topic == topic {
+			res = append(res, f)
+		}
+	}
+	return res, nil
+}
+
+func (m *recordingKGStore) GetFactsByConcept(_ context.Context, topic, concept string) ([]domain.KnowledgeFact, error) {
+	var res []domain.KnowledgeFact
+	for _, f := range m.facts {
+		if f.Topic == topic && f.Concept == concept {
+			res = append(res, f)
+		}
+	}
+	return res, nil
+}
+
+func (m *recordingKGStore) SearchFacts(_ context.Context, query string) ([]domain.KnowledgeFact, error) {
+	var res []domain.KnowledgeFact
+	for _, f := range m.facts {
+		if strings.Contains(strings.ToLower(f.Fact), strings.ToLower(query)) ||
+			strings.Contains(strings.ToLower(f.Concept), strings.ToLower(query)) {
+			res = append(res, f)
+		}
+	}
+	return res, nil
+}
+
+func (m *recordingKGStore) GetRecentFacts(_ context.Context, limit int) ([]domain.KnowledgeFact, error) {
+	if len(m.facts) <= limit {
+		return m.facts, nil
+	}
+	return m.facts[len(m.facts)-limit:], nil
+}
+
+func (m *recordingKGStore) GetAllTopics(_ context.Context) ([]string, error) {
+	seen := make(map[string]bool)
+	var topics []string
+	for _, f := range m.facts {
+		if !seen[f.Topic] {
+			seen[f.Topic] = true
+			topics = append(topics, f.Topic)
+		}
+	}
+	return topics, nil
+}
+
+func (m *recordingKGStore) GetRecentTopics(_ context.Context, _ time.Duration) ([]string, error) {
+	return m.GetAllTopics(context.Background())
+}
+
+type dummyWriteModule struct{}
+
+func (d *dummyWriteModule) Name() string                     { return "fileops" }
+func (d *dummyWriteModule) Description() string              { return "file operations" }
+func (d *dummyWriteModule) GetTools() []domain.ToolCall {
+	return []domain.ToolCall{{Name: "file_write"}}
+}
+func (d *dummyWriteModule) Execute(_ context.Context, _ string, _ map[string]interface{}) (*domain.ToolResult, error) {
+	return &domain.ToolResult{
+		Success: true,
+		Output:  "file written successfully",
+	}, nil
+}
+
+func TestBrain_DirectAction_MemoryPersistence(t *testing.T) {
+	prov := &stubProvider{}
+	repo := &stubRepo{}
+	ui := &stubUI{}
+	budget := domain.BudgetConfig{MaxIterations: 5}
+
+	brain := NewBrain(prov, repo, ui, nil, budget)
+	kg := &recordingKGStore{}
+	brain.SetKnowledgeGraphStore(kg)
+
+	// Register dummy module
+	brain.RegisterModule(&dummyWriteModule{})
+
+	msg := &domain.Message{
+		Role: domain.RoleAssistant,
+		ToolCalls: []domain.ToolCall{
+			{
+				ID:   "call-1",
+				Name: "file_write",
+				Arguments: map[string]interface{}{
+					"path":    "internal/auth/login.go",
+					"content": "package auth\n",
+				},
+			},
+		},
+	}
+
+	err := brain.handleToolCalls(context.Background(), msg)
+	if err != nil {
+		t.Fatalf("handleToolCalls failed: %v", err)
+	}
+
+	if len(kg.facts) == 0 {
+		t.Fatal("expected direct action tool execution to persist a fact in KnowledgeGraph")
+	}
+
+	fact := kg.facts[0]
+	if fact.Topic != "DirectAction" {
+		t.Errorf("expected Topic 'DirectAction', got %q", fact.Topic)
+	}
+	if fact.Concept != "internal/auth/login.go" {
+		t.Errorf("expected Concept 'internal/auth/login.go', got %q", fact.Concept)
+	}
+	if !strings.Contains(fact.Fact, "login.go") {
+		t.Errorf("expected Fact to describe file modification, got %q", fact.Fact)
+	}
+}
+
+func TestBrain_SkillResolver_ProgressiveLoading(t *testing.T) {
+	prov := &stubProvider{}
+	repo := &stubRepo{}
+	ui := &stubUI{}
+	budget := domain.BudgetConfig{MaxIterations: 5}
+
+	brain := NewBrain(prov, repo, ui, nil, budget)
+
+	// Set up skill lister, matcher, and path resolver
+	brain.SetSkillLister(func() []string {
+		return []string{"go-testing", "git-workflow", "security-audit"}
+	})
+	brain.SetSkillMatcher(func(taskDesc string, _ []string) []string {
+		if strings.Contains(taskDesc, "test") {
+			return []string{"go-testing"}
+		}
+		return nil
+	})
+	brain.SetSkillPathResolver(func(skills []string) []string {
+		var paths []string
+		for _, s := range skills {
+			paths = append(paths, fmt.Sprintf("skills/%s/SKILL.md", s))
+		}
+		return paths
+	})
+
+	task := domain.SubagentTask{
+		ID:          "task-1",
+		Description: "Write tests for auth package",
+	}
+
+	brain.populateSkillRegistry(&task)
+
+	// Check catalog
+	if len(task.SkillRegistry) != 3 {
+		t.Errorf("expected 3 skills in catalog, got %d", len(task.SkillRegistry))
+	}
+
+	// Check resolved matching skill
+	if len(task.Skills) != 1 || task.Skills[0] != "go-testing" {
+		t.Errorf("expected matched skill 'go-testing', got %v", task.Skills)
+	}
+
+	// Check resolved path for lazy loading
+	if len(task.SkillPaths) != 1 || task.SkillPaths[0] != "skills/go-testing/SKILL.md" {
+		t.Errorf("expected SkillPath 'skills/go-testing/SKILL.md', got %v", task.SkillPaths)
+	}
+}
+
+func TestBrain_ProcessMessage_ProactiveSDDSuggestion(t *testing.T) {
+	prov := &stubProvider{}
+	repo := &stubRepo{}
+	ui := &stubUI{}
+	budget := domain.BudgetConfig{MaxIterations: 5}
+
+	brain := NewBrain(prov, repo, ui, nil, budget)
+
+	err := brain.ProcessMessage(context.Background(), "crea un nuevo subsistema de colas para entrega diferida")
+	if err != nil {
+		t.Fatalf("ProcessMessage failed: %v", err)
+	}
+
+	if len(ui.displayed) == 0 {
+		t.Fatal("expected UI display output with proactive SDD suggestion")
+	}
+
+	lastMsg := ui.displayed[len(ui.displayed)-1]
+	if !strings.Contains(lastMsg.Content, "Architectural Scope Detected") {
+		t.Errorf("expected proactive suggestion in output, got: %s", lastMsg.Content)
+	}
+	if !strings.Contains(lastMsg.Content, "/sdd") || !strings.Contains(lastMsg.Content, "/direct") {
+		t.Errorf("expected /sdd and /direct choices in output, got: %s", lastMsg.Content)
+	}
 }

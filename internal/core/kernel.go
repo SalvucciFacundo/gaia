@@ -66,7 +66,9 @@ type Brain struct {
 	availableProviders map[string]ports.LLMProvider // named providers for /model switching
 	auditLog      []AuditEntry                // audit trail for policy-audited tools (/audit)
 	sessionMgr    *SessionManager             // routes messages across platforms
-	skillLister   func() []string             // returns available skill names for progressive loading
+	skillLister       func() []string             // returns available skill names for progressive loading
+	skillPathResolver func([]string) []string     // resolves skill names to SKILL.md file paths
+	skillMatcher      func(string, []string) []string // matches skills by task intent and file context
 	mcpMgr        *mcp.Manager                 // MCP server connection manager
 	pendingImages []domain.ImageContent       // images queued for the next ProcessMessage
 	fastModeEnabled bool                      // whether /fast mode is active
@@ -131,6 +133,7 @@ func (b *Brain) SetSubagentPort(sp ports.SubagentPort) {
 // subagent task KGContext fields. Pass nil to disable.
 func (b *Brain) SetKnowledgeGraphStore(kg ports.KnowledgeGraphStore) {
 	b.kgStore = kg
+	b.kgEnabled = (kg != nil)
 }
 
 // SetPolicyGuard wires the policy guard into the Brain for tool call evaluation.
@@ -153,6 +156,16 @@ func (b *Brain) SetSessionManager(sm *SessionManager) {
 // SetSkillLister wires a function that returns available skill names.
 func (b *Brain) SetSkillLister(lister func() []string) {
 	b.skillLister = lister
+}
+
+// SetSkillPathResolver wires a function that resolves skill names to file paths.
+func (b *Brain) SetSkillPathResolver(resolver func([]string) []string) {
+	b.skillPathResolver = resolver
+}
+
+// SetSkillMatcher wires a function that matches skills by task intent and target files.
+func (b *Brain) SetSkillMatcher(matcher func(string, []string) []string) {
+	b.skillMatcher = matcher
 }
 
 // SetReasoningEffort changes the reasoning effort level for the current provider.
@@ -2510,18 +2523,31 @@ func (b *Brain) getHistory(ctx context.Context, limit int) ([]domain.Message, er
 // After a successful delegation, it automatically saves subagent discoveries
 // to the shared knowledge graph for cross-pollination.
 // Returns nil, error if no subagent port is wired or the subagent is unknown.
-// populateSkillRegistry fills the task's SkillRegistry with available skill names.
+// populateSkillRegistry fills the task's SkillRegistry with available skill names,
+// matches relevant skills by task intent and file context, and resolves their paths
+// for lazy loading via file_read to avoid context saturation.
 func (b *Brain) populateSkillRegistry(task *domain.SubagentTask) {
-	if b.skillLister == nil {
-		return
+	if b.skillLister != nil {
+		task.SkillRegistry = b.skillLister()
 	}
-	task.SkillRegistry = b.skillLister()
+	// If specific skills were not already passed, match skills from task description
+	if len(task.Skills) == 0 && b.skillMatcher != nil && task.Description != "" {
+		matched := b.skillMatcher(task.Description, nil)
+		if len(matched) > 0 {
+			task.Skills = matched
+		}
+	}
+	// Resolve file paths for matched skills to enable progressive path-based loading
+	if len(task.Skills) > 0 && b.skillPathResolver != nil && len(task.SkillPaths) == 0 {
+		task.SkillPaths = b.skillPathResolver(task.Skills)
+	}
 }
 
 func (b *Brain) Delegate(ctx context.Context, name string, task domain.SubagentTask) (*domain.SubagentResult, error) {
 	if b.subagentPort == nil {
 		return nil, fmt.Errorf("subagent port not wired")
 	}
+	b.populateSkillRegistry(&task)
 	result, err := b.subagentPort.Spawn(ctx, name, task)
 	if err == nil && result != nil && result.Status != domain.SubagentBlocked {
 		b.saveSubagentDiscoveries(ctx, name, task.Description, result)
@@ -2635,6 +2661,67 @@ func (b *Brain) saveSubagentDiscoveries(ctx context.Context, name, description s
 			Role:    domain.RoleSystem,
 			Content: fmt.Sprintf("Saved %d knowledge facts from @%s.", saved, name),
 		})
+	}
+}
+
+// saveDirectActionFact records direct inline tool mutations (file writes, git commits, configuration changes)
+// into the knowledge graph so direct parent decisions and actions are not lost during compactions or session restarts.
+func (b *Brain) saveDirectActionFact(ctx context.Context, toolName string, args map[string]interface{}, result *domain.ToolResult) {
+	if b.kgStore == nil || result == nil || !result.Success {
+		return
+	}
+
+	now := time.Now()
+	switch toolName {
+	case "file_write", "file_edit", "write_file", "edit_file":
+		filePath := ""
+		if p, ok := args["path"].(string); ok {
+			filePath = p
+		} else if f, ok := args["file"].(string); ok {
+			filePath = f
+		}
+		if filePath == "" {
+			return
+		}
+
+		_, _ = b.kgStore.AddFact(ctx, domain.KnowledgeFact{
+			Topic:       "DirectAction",
+			Concept:     filePath,
+			Fact:        fmt.Sprintf("Directly modified file %s via %s", filePath, toolName),
+			SourceAgent: "brain",
+			Labels:      []string{"direct-action", "mutation", "file-change"},
+			CreatedAt:   now,
+		})
+
+	case "git_commit", "git_stage", "git_ops":
+		action := ""
+		if a, ok := args["action"].(string); ok {
+			action = a
+		}
+		_, _ = b.kgStore.AddFact(ctx, domain.KnowledgeFact{
+			Topic:       "DirectAction",
+			Concept:     "git-operation",
+			Fact:        fmt.Sprintf("Executed direct git action %q: %s", action, result.Output),
+			SourceAgent: "brain",
+			Labels:      []string{"direct-action", "git-ops"},
+			CreatedAt:   now,
+		})
+
+	case "shell_exec":
+		cmd := ""
+		if c, ok := args["command"].(string); ok {
+			cmd = c
+		}
+		if strings.HasPrefix(cmd, "go test") || strings.HasPrefix(cmd, "go build") || strings.HasPrefix(cmd, "npm ") || strings.HasPrefix(cmd, "cargo ") {
+			_, _ = b.kgStore.AddFact(ctx, domain.KnowledgeFact{
+				Topic:       "DirectAction",
+				Concept:     "build-test",
+				Fact:        fmt.Sprintf("Direct shell execution %q: %s", cmd, result.Output),
+				SourceAgent: "brain",
+				Labels:      []string{"direct-action", "shell-exec"},
+				CreatedAt:   now,
+			})
+		}
 	}
 }
 
@@ -2986,10 +3073,54 @@ func (b *Brain) ProcessMessage(ctx context.Context, content string) error {
 		return b.KGClear(ctx)
 	}
 
-	// 1. SDD trigger detection
+	// 1. ODD / SDD trigger detection
+	odd := DetectODDRoute(content)
 	trigger := DetectSDDTrigger(content)
-	if trigger.ShouldSDD {
+
+	if odd.Route == RouteFeatureTracking {
 		return b.handleSDDTrigger(ctx, content, trigger)
+	}
+
+	if odd.SuggestFeature && !trigger.ForceDirect {
+		suggestion := fmt.Sprintf(
+			"💡 **Architectural Scope Detected** (%s).\n"+
+				"This change involves multi-module scope or architectural decisions where durable specs and tasks protect quality.\n\n"+
+				"Would you like to run the formal feature tracking workflow? Use **`/odd %s`** (or `/sdd`) or continue inline with **`/inline %s`** (or `/direct`).",
+			odd.Reason, content, content)
+		msg := domain.Message{Role: domain.RoleAssistant, Content: suggestion}
+		_ = b.repo.SaveMessage(ctx, msg)
+		return b.ui.Display(msg)
+	}
+
+	if odd.Route == RouteDelegatedWorker && b.subagentPort != nil && !trigger.ForceDirect {
+		targetAgent := odd.WorkerRole
+		if targetAgent == "writer" {
+			targetAgent = "implementer"
+		}
+		isAvailable := false
+		for _, a := range b.subagentPort.Available() {
+			if a == targetAgent {
+				isAvailable = true
+				break
+			}
+		}
+		if isAvailable {
+			task := domain.SubagentTask{
+				ID:          "odd-worker",
+				Description: content,
+				Mode:        "execute",
+				KGContext:   b.queryKGContext(ctx, content),
+			}
+			result, err := b.Delegate(ctx, targetAgent, task)
+			if err == nil && result != nil {
+				workerMsg := domain.Message{
+					Role:    domain.RoleAssistant,
+					Content: fmt.Sprintf("🤖 **ODD Delegated Worker (%s)** completed:\n\n%s", targetAgent, result.Summary),
+				}
+				_ = b.repo.SaveMessage(ctx, workerMsg)
+				return b.ui.Display(workerMsg)
+			}
+		}
 	}
 
 	// 2. Create user message
@@ -3202,6 +3333,9 @@ func (b *Brain) handleToolCalls(ctx context.Context, msg *domain.Message) error 
 		// Audit log: record tool execution if policy has audit override
 		b.logAudit(tc.Name, tc.Arguments, result.Success)
 
+		// Parent Hot Memory: persist direct inline tool execution / mutations into KnowledgeGraph
+		b.saveDirectActionFact(ctx, tc.Name, tc.Arguments, result)
+
 		output := result.Output
 		if !result.Success {
 			output = fmt.Sprintf("Error: %s", result.Error)
@@ -3264,6 +3398,7 @@ func (b *Brain) handleDirectSubagent(ctx context.Context, content string) error 
 	// Try async spawn first
 	asyncPort, isAsync := b.subagentPort.(ports.AsyncSpawner)
 	if isAsync {
+		b.populateSkillRegistry(&task)
 		taskID, err := asyncPort.SpawnAsync(ctx, name, task)
 		if err != nil {
 			return b.ui.Display(domain.Message{
@@ -3311,8 +3446,10 @@ func (b *Brain) handleSDDTrigger(ctx context.Context, content string, trigger Tr
 
 	// Strip command prefix if present
 	taskDesc := content
-	if trigger.ForceSDD {
-		taskDesc = content[len("+/sdd"):]
+	if strings.HasPrefix(taskDesc, ODDCommandPrefix) {
+		taskDesc = strings.TrimSpace(taskDesc[len(ODDCommandPrefix):])
+	} else if strings.HasPrefix(taskDesc, LegacySDDCommandPrefix) {
+		taskDesc = strings.TrimSpace(taskDesc[len(LegacySDDCommandPrefix):])
 	}
 
 	// Build the SDD pipeline phases
