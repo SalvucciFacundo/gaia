@@ -135,18 +135,22 @@ EOF
 
 ---
 
-## Progressive Loading & Path-Based Ingestion
+## Progressive Loading & Intent-Driven Discovery
+
+To avoid context saturation and save tokens, GAIA implements **Intent-Driven Discovery & Lazy Path Loading**:
 
 ```text
-Level 0 (always in context):   [{name, description, tags}, ...]   ~3k tokens
-Level 1 (on demand):           Relative paths (## Skills to load before work)
-Level 2 (on demand):           Full SKILL.md content read via file_read
+Level 0 (Index only):       Lightweight SkillMeta catalog in context (names, triggers, tags)
+Level 1 (Intent matching):  MatchSkills resolves relevant skills from task description & file context
+Level 2 (Path injection):   Exact SKILL.md paths injected under '## Skills to load before work'
+Level 3 (Lazy reading):     Subagent reads full SKILL.md on demand using file_read
 ```
 
-The orchestrator and spawner only keep Level 0 in context. When a subagent is spawned:
-1. The Spawner resolves skill paths (`skills/<name>/SKILL.md`) using `ResolveSkillPaths`.
-2. It injects a clean header: `## Skills to load before work` containing only the file paths.
-3. The subagent reads the full `SKILL.md` body on demand using `file_read`, **saving 70%+ of prompt tokens**.
+### How it Works:
+1. **Catalog Awareness**: The Brain maintains only lightweight metadata (`SkillMeta`) without loading full markdown bodies into the orchestrator prompt.
+2. **Intent Matching**: When a task is dispatched, `MatchSkills` evaluates the task intent against skill triggers and tags.
+3. **Path Resolution**: `ResolveSkillPaths` maps matched skills to concrete file paths.
+4. **On-Demand Loading**: The subagent reads the full `SKILL.md` body using `file_read` only when needed, **saving 80%+ of prompt tokens** and keeping context windows lean.
 
 ---
 

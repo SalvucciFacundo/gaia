@@ -24,12 +24,13 @@ Receipt-Driven Development (RDD) review is **opt-in and disabled by default**:
 - When **enabled**, gates enforce content-bound receipts (`post-apply → pre-commit → pre-push → pre-PR → release`).
 - Scope can be configured per repository clone (`--scope clone`) or globally across the user machine (`--scope global`).
 
-### Correction Line Budget
+### Correction Line Budget & Single-Correction Limit
 
 When review findings require surgical fixes:
 - The correction budget is capped mathematically: `min(200, ceil(original_changed_lines / 2))`.
-- Ordinary review permits at most **1 correction transaction**.
-- Excess line modifications or failed corrections trigger escalation to human review.
+- Ordinary review permits at most **1 correction transaction** per candidate.
+- **No Loop-Until-Clean**: If a fix fails tests, exceeds budget, or leaves unresolved blockers, the review escalates immediately to `StateEscalated` for human decision instead of running continuous loops.
+- Budget consumption (`CorrectionUsed`) is validated dynamically against the ceiling before applying filesystem fixes.
 
 ### Content-Addressable Receipt Authority (Git CAS & Fallback)
 
@@ -55,13 +56,13 @@ The engine classifies each change using 8 risk codes:
 | `service_token` | Credential changes | New API keys, tokens in code |
 | `shell_source` | Subprocess changes | Shell scripts, Makefile, subprocess calls |
 
-Risk level is determined by combining codes:
+Risk level is determined by combining codes into a 3-tier lens allocation:
 
-| Risk Level | Condition | Lenses |
-|---|---|---|
-| **Low** | Only `non_executable_only` | No lens needed (auto-approve) |
-| **Medium** | Any other single reason | 1 dominant lens |
-| **High** | `hot_path` OR `large_change` OR `service_token` OR `shell_source` | All 4 lenses |
+| Risk Level | Condition | Lenses Allocated | Execution Behavior |
+|---|---|---|---|
+| **Low** | Only `non_executable_only` (docs, comments, formatting) | **0 Lenses** | **Structural Readback**: Passive snapshot verification without LLM calls (0 token cost). |
+| **Medium** | Single non-critical risk (config, tests, service logic) | **1 Focus Lens** | Runs the dominant lens (`review-risk`, `review-reliability`, `review-readability`, or `review-resilience`). |
+| **High** | `hot_path` OR `large_change` OR `service_token` OR `shell_source` | **4 Canonical Lenses** | Runs all 4 lenses (`risk`, `resilience`, `readability`, `reliability`). |
 
 ---
 
@@ -116,8 +117,8 @@ flowchart TD
   "selected_lenses": ["review-risk", "review-readability"],
   "risk_level": "medium",
   "risk_reasons": ["configuration_change"],
-  "correction_budget": 85,
-  "correction_used": 0,
+  "correction_budget": 50,
+  "correction_used": 6,
   "state": "approved",
   "findings": [
     {

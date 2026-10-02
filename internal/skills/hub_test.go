@@ -515,3 +515,53 @@ func names(metas []SkillMeta) []string {
 	sort.Strings(names)
 	return names
 }
+
+func TestHub_MatchSkills(t *testing.T) {
+	bundledDir := createTempSkillsDir(t, "bundled", map[string]string{
+		"go-testing": `---
+name: go-testing
+description: Test helper for Go
+triggers:
+  - testing
+  - unit test
+tags:
+  - golang
+  - tdd
+---
+# Go Testing
+`,
+		"git-workflow": `---
+name: git-workflow
+description: Git branching helper
+triggers:
+  - commit
+  - branch
+---
+# Git Workflow
+`,
+	})
+	installedDir := createTempSkillsDir(t, "installed", nil)
+	hub := NewHub(bundledDir, installedDir)
+
+	// Activate both skills
+	_ = hub.Activate("go-testing")
+	_ = hub.Activate("git-workflow")
+
+	// Match by trigger "unit test"
+	matched := hub.MatchSkills("Please write a unit test for login module", nil)
+	if len(matched) != 1 || matched[0] != "go-testing" {
+		t.Errorf("expected matched 'go-testing', got %v", matched)
+	}
+
+	// Match by name "git-workflow"
+	matchedGit := hub.MatchSkills("Use git-workflow to prepare branch", nil)
+	if len(matchedGit) != 1 || matchedGit[0] != "git-workflow" {
+		t.Errorf("expected matched 'git-workflow', got %v", matchedGit)
+	}
+
+	// Unrelated task
+	matchedNone := hub.MatchSkills("Explain quantum computing", nil)
+	if len(matchedNone) != 0 {
+		t.Errorf("expected 0 matched skills, got %v", matchedNone)
+	}
+}

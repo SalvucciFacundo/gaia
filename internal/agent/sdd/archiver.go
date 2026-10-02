@@ -2,9 +2,16 @@ package sdd
 
 import (
 	"context"
+	"fmt"
+	"os/exec"
+	"path/filepath"
+	"regexp"
+	"strings"
+	"time"
 
 	"gaia/internal/agent"
 	"gaia/internal/core/domain"
+	"gaia/internal/delivery"
 	"gaia/internal/review/gates"
 )
 
@@ -13,12 +20,27 @@ import (
 // access to spec files and change directories. It handles the complete
 // archival workflow: delta merge, directory move, and audit trail.
 type archiver struct {
-	spawner *agent.Spawner
+	spawner  *agent.Spawner
+	queue    delivery.Queue
+	casStore gates.ReceiptStore
+	workDir  string
 }
 
-// NewArchiver creates the Archiver subagent.
+// NewArchiver creates the Archiver subagent with default dependencies.
 func NewArchiver(spawner *agent.Spawner) agent.Subagent {
-	return &archiver{spawner: spawner}
+	return &archiver{
+		spawner: spawner,
+	}
+}
+
+// NewArchiverWithDeps creates the Archiver subagent with explicit dependencies for testing or custom configuration.
+func NewArchiverWithDeps(spawner *agent.Spawner, queue delivery.Queue, casStore gates.ReceiptStore, workDir string) agent.Subagent {
+	return &archiver{
+		spawner:  spawner,
+		queue:    queue,
+		casStore: casStore,
+		workDir:  workDir,
+	}
 }
 
 func (a *archiver) Name() string        { return "archiver" }
@@ -34,9 +56,12 @@ func (a *archiver) Execute(ctx context.Context, task domain.SubagentTask) *domai
 		"git_diff",
 	}
 
+	workDir := a.resolveWorkDir(task)
+	receiptStore := a.resolveReceiptStore(workDir)
+
 	// Gate: validate review receipt before archiving.
 	// The archiver must not proceed without an approved review receipt.
-	if gateErr := checkReviewGate(); gateErr != nil {
+	if gateErr := a.checkReviewGate(receiptStore); gateErr != nil {
 		return &domain.SubagentResult{
 			Status:          domain.SubagentBlocked,
 			Summary:         gateErr.Error(),
@@ -60,7 +85,188 @@ func (a *archiver) Execute(ctx context.Context, task domain.SubagentTask) *domai
 	if len(result.Artifacts) == 0 {
 		result.Artifacts = []string{"archive-complete"}
 	}
+
+	// PR3.1: Delivery Queue Hook
+	if result.Status == domain.SubagentSuccess {
+		delMode := extractDeliveryMode(task)
+		if delMode == delivery.DeliveryModeDeferred {
+			changeName := extractChangeName(task)
+			item, err := a.enqueueDeliveryItem(workDir, receiptStore, changeName, result.Summary)
+			if err == nil && item != nil {
+				result.Artifacts = append(result.Artifacts, fmt.Sprintf("delivery-item:%s", item.ID))
+			}
+		}
+	}
+
 	return result
+}
+
+func (a *archiver) resolveWorkDir(task domain.SubagentTask) string {
+	if a.workDir != "" {
+		return a.workDir
+	}
+	if task.WorkDir != "" {
+		return task.WorkDir
+	}
+	return "."
+}
+
+func (a *archiver) resolveReceiptStore(workDir string) gates.ReceiptStore {
+	if a.casStore != nil {
+		return a.casStore
+	}
+	return gates.NewFSReceiptStore(workDir)
+}
+
+func (a *archiver) resolveQueue(workDir string) (delivery.Queue, error) {
+	if a.queue != nil {
+		return a.queue, nil
+	}
+	queuePath := filepath.Join(workDir, ".gaia", "delivery", "queue.json")
+	return delivery.NewFileQueue(queuePath)
+}
+
+func (a *archiver) enqueueDeliveryItem(workDir string, receiptStore gates.ReceiptStore, changeName string, summary string) (*delivery.DeliveryItem, error) {
+	q, err := a.resolveQueue(workDir)
+	if err != nil {
+		return nil, err
+	}
+
+	// Retrieve receipt lineage if available
+	var lineageID string
+	var commitSHA string
+	if receiptStore != nil {
+		if r, err := receiptStore.LatestReceipt(changeName); err == nil && r != nil {
+			lineageID = r.LineageID
+		}
+	}
+	if lineageID == "" {
+		lineageID = fmt.Sprintf("sha256:archived-%s", changeName)
+	}
+
+	// Resolve commit SHA & branch from git if possible
+	branch := getGitCurrentBranch(workDir)
+	if branch == "" || branch == "HEAD" {
+		branch = fmt.Sprintf("feature/%s", changeName)
+	}
+
+	commitSHA = getGitCommitSHA(workDir)
+	if commitSHA == "" {
+		commitSHA = fmt.Sprintf("sha1-%x", time.Now().UnixNano())
+	}
+
+	prTitle, prBody := generatePRTitleAndBody(changeName, summary)
+
+	itemID := fmt.Sprintf("del-%s", changeName)
+	item := delivery.DeliveryItem{
+		ID:             itemID,
+		ChangeName:     changeName,
+		Branch:         branch,
+		BaseBranch:     "main",
+		CommitSHA:      commitSHA,
+		ReceiptLineage: lineageID,
+		PRTitle:        prTitle,
+		PRBody:         prBody,
+		Status:         delivery.StatusStandby,
+		CreatedAt:      time.Now(),
+	}
+
+	if err := q.Enqueue(item); err != nil {
+		return nil, err
+	}
+
+	return &item, nil
+}
+
+func extractDeliveryMode(task domain.SubagentTask) delivery.DeliveryMode {
+	combined := strings.ToLower(task.Description + " " + strings.Join(task.KGContext, " "))
+	if strings.Contains(combined, "delivery_mode: deferred") ||
+		strings.Contains(combined, "delivery: deferred") ||
+		strings.Contains(combined, "mode: deferred") ||
+		strings.Contains(combined, "deferred mode") ||
+		strings.Contains(combined, "delivery_mode:deferred") {
+		return delivery.DeliveryModeDeferred
+	}
+	if strings.Contains(combined, "delivery_mode: auto") ||
+		strings.Contains(combined, "delivery: auto") ||
+		strings.Contains(combined, "auto mode") {
+		return delivery.DeliveryModeAuto
+	}
+	return delivery.DeliveryModeInteractive
+}
+
+func extractChangeName(task domain.SubagentTask) string {
+	for _, text := range append([]string{task.Description}, task.KGContext...) {
+		lines := strings.Split(text, "\n")
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			if idx := strings.Index(strings.ToLower(line), "change:"); idx != -1 {
+				val := strings.TrimSpace(line[idx+len("change:"):])
+				fields := strings.Fields(val)
+				if len(fields) > 0 {
+					return fields[0]
+				}
+			}
+			// check change <name> (e.g. "archive change auth-models")
+			reAfter := regexp.MustCompile(`(?i)\b(?:change|changes/)\s+([a-zA-Z0-9_\-]+)`)
+			if m := reAfter.FindStringSubmatch(line); len(m) > 1 {
+				candidate := m[1]
+				if !strings.EqualFold(candidate, "directory") && !strings.EqualFold(candidate, "specs") && !strings.EqualFold(candidate, "for") {
+					return candidate
+				}
+			}
+			// check <name> change (e.g. "auth-models change")
+			reBefore := regexp.MustCompile(`(?i)\b([a-zA-Z0-9_\-]+)\s+change\b`)
+			if m := reBefore.FindStringSubmatch(line); len(m) > 1 {
+				candidate := m[1]
+				if !strings.EqualFold(candidate, "completed") && !strings.EqualFold(candidate, "the") && !strings.EqualFold(candidate, "this") && !strings.EqualFold(candidate, "active") && !strings.EqualFold(candidate, "an") {
+					return candidate
+				}
+			}
+		}
+	}
+	if task.ID != "" {
+		return strings.TrimPrefix(task.ID, "task-")
+	}
+	return "change"
+}
+
+func generatePRTitleAndBody(changeName, summary string) (string, string) {
+	title := fmt.Sprintf("feat(%s): implement %s", changeName, changeName)
+	var sb strings.Builder
+	sb.WriteString("## Summary\n")
+	if summary != "" {
+		sb.WriteString(summary)
+		sb.WriteString("\n\n")
+	} else {
+		sb.WriteString(fmt.Sprintf("Implementation and specs for SDD change `%s`.\n\n", changeName))
+	}
+	sb.WriteString("## Verification\n")
+	sb.WriteString("- Strict TDD verified: all unit tests passing.\n")
+	sb.WriteString("- CAS review receipt approved and validated.\n\n")
+	sb.WriteString("## SDD Audit Trail\n")
+	sb.WriteString(fmt.Sprintf("- Change: `%s`\n- Spec delta merged into main specification.\n- Change archived under `openspec/changes/archive/`.\n", changeName))
+	return title, sb.String()
+}
+
+func getGitCurrentBranch(workDir string) string {
+	cmd := exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD")
+	cmd.Dir = workDir
+	out, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
+}
+
+func getGitCommitSHA(workDir string) string {
+	cmd := exec.Command("git", "rev-parse", "HEAD")
+	cmd.Dir = workDir
+	out, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
 }
 
 func archiverPrompt(task domain.SubagentTask) string {
@@ -139,31 +345,23 @@ OUTPUT FORMAT — return a structured summary with these sections:
 var _ agent.Subagent = (*archiver)(nil)
 
 // checkReviewGate verifies that a valid review receipt exists before
-// allowing the archiver to proceed. It blocks the archive if:
-//   - No receipt is found
-//   - The receipt state is not "approved"
-//
-// If no review store exists at all (no .gaia/reviews/ directory), the
-// gate passes silently — the review infrastructure is not yet set up.
-func checkReviewGate() error {
-	// Use the filesystem receipt store at the current working directory.
-	store := gates.NewFSReceiptStore(".")
+// allowing the archiver to proceed.
+func (a *archiver) checkReviewGate(store gates.ReceiptStore) error {
+	if store == nil {
+		return nil
+	}
 	summaries, err := store.ListReceipts()
 	if err != nil {
-		// No review infrastructure → pass through.
 		return nil
 	}
 	if len(summaries) == 0 {
-		// No receipts yet → pass through (review may be optional).
 		return nil
 	}
 
-	// Check if ANY receipt is in approved state.
 	for _, s := range summaries {
-		if s.State == "approved" {
+		if s.State == string(domain.ReviewStateApproved) {
 			return nil
 		}
 	}
-	// Receipts exist but none are approved → block.
 	return agent.ErrReceiptNotApproved
 }

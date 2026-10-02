@@ -69,6 +69,18 @@ gaia skills add-tap https://github.com/owner/repo
 | `gaia review validate --gate <gate>` | Validate receipt at gate (`pre-commit`, `pre-push`, `pre-pr`) |
 | `gaia review staged` | Review staged changes |
 
+## Delivery
+
+| Command | Description |
+|---|---|
+| `gaia delivery list` | List all queued delivery items (outbox) |
+| `gaia delivery list --status <status>` | Filter queued items by status (`standby`, `released`, `discarded`, `failed`) |
+| `gaia delivery status` | Show queue metrics summary |
+| `gaia delivery release <id>` | Release a specific delivery item by ID (with CAS receipt verification) |
+| `gaia delivery release --all` | Release all standby items in topological stacked branch order |
+| `gaia delivery discard <id>` | Mark a queued item as discarded |
+| `gaia delivery diff <id>` | Inspect PR title, body, and git diff stat for a queued item |
+
 ## Gateway
 
 | Command | Description |

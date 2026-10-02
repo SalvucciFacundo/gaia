@@ -9,11 +9,12 @@ import (
 
 // ReviewWorkloadForecast represents the budget analysis for a task breakdown.
 type ReviewWorkloadForecast struct {
-	EstimatedLines      int    `json:"estimated_lines"`
-	ChainedPRsRequired  bool   `json:"chained_prs_required"`
-	BudgetRisk          string `json:"budget_risk"` // Low, Medium, High
-	RecommendedStrategy string `json:"recommended_strategy"` // single-pr, stacked-to-main, feature-branch-chain
-	DecisionNeeded      bool   `json:"decision_needed"`
+	EstimatedLines      int      `json:"estimated_lines"`
+	ChainedPRsRequired  bool     `json:"chained_prs_required"`
+	BudgetRisk          string   `json:"budget_risk"` // Low, Medium, High
+	RecommendedStrategy string   `json:"recommended_strategy"` // single-pr, stacked-to-main, feature-branch-chain
+	AllowedEditRoots    []string `json:"allowed_edit_roots,omitempty"`
+	DecisionNeeded      bool     `json:"decision_needed"`
 }
 
 // AnalyzeWorkload calculates the review risk and PR chaining recommendation based on estimated lines.
@@ -115,11 +116,13 @@ RULES:
    - Chained PRs recommended: Yes/No (recommend if over 400 changed lines)
    - 400-line budget risk: Low/Medium/High
    - Chain strategy: stacked-to-main or feature-branch-chain (if chained)
-6. Each PR slice must have autonomous scope, verification, and rollback.
-7. Number tasks consistently: PR1.x, PR2.x, PR3.x, PR4.x or 1.x, 2.x.
-8. Mark task dependencies explicitly when a task depends on another.
-9. Use the project's existing conventions for file paths and naming.
-10. Keep task descriptions actionable: start with a verb (Create, Add, Update, etc.).
+   - Allowed edit roots: narrow directory paths (e.g., internal/review/, internal/agent/ops/)
+6. Define narrow, relative allowedEditRoots for every task. Never use broad roots like '.' or '/'.
+7. Each PR slice must have autonomous scope, verification, and rollback.
+8. Number tasks consistently: PR1.x, PR2.x, PR3.x, PR4.x or 1.x, 2.x.
+9. Mark task dependencies explicitly when a task depends on another.
+10. Use the project's existing conventions for file paths and naming.
+11. Keep task descriptions actionable: start with a verb (Create, Add, Update, etc.).
 
 OUTPUT FORMAT — return a structured summary with these sections:
 - Status: "success" (plan complete), "partial" (some tasks need clarification), or "blocked"

@@ -76,13 +76,14 @@ RULES:
    - In GREEN phase: Write the minimal implementation code to make the failing test pass.
    - In REFACTOR phase: Clean up code without breaking existing tests.
 3. BUDGET & SCOPE: Keep diffs focused. Do not exceed the 400-line budget ceiling.
-4. Follow the project's architecture: hexagonal (ports & adapters), Go conventions.
-5. Write idiomatic Go: early returns, table-driven tests, standard library first.
-6. Run "go build ./..." after changes to verify compilation.
-7. Run relevant tests to verify correctness.
-8. After each file write, verify it was written correctly.
-9. Never modify generated files or vendor code.
-10. Do NOT commit code — the orchestrator handles version control.
+4. EDIT AUTHORITY: Only modify or create files within the task's allowedEditRoots. Writing outside allowed edit surfaces requires explicit edit authority consent.
+5. Follow the project's architecture: hexagonal (ports & adapters), Go conventions.
+6. Write idiomatic Go: early returns, table-driven tests, standard library first.
+7. Run "go build ./..." after changes to verify compilation.
+8. Run relevant tests to verify correctness.
+9. After each file write, verify it was written correctly.
+10. Never modify generated files or vendor code.
+11. Do NOT commit code — the orchestrator handles version control.
 
 OUTPUT FORMAT — return a structured summary with these sections:
 - Status: "success" (all changes complete), "partial" (some tasks remain), or "blocked" (could not proceed)

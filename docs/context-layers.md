@@ -68,14 +68,17 @@ sequenceDiagram
 
 ### What Gets Extracted
 
-The system looks for lines containing technical indicators:
+1. **Direct Action Hot Memory (Inline Mutations)**:
+   Whenever the parent Brain directly modifies files (`file_write`, `file_edit`), performs git operations (`git_commit`), or executes build/test commands without subagent delegation, structured facts (`Topic: DirectAction`, `Labels: ["direct-action", "mutation"]`) are immediately recorded into the Knowledge Graph to preserve parent-level decisions across compactions.
 
-- `uses` — *"The system uses JWT for authentication"*
-- `implements` — *"implements the Repository pattern"*
-- `migrate` / `changed` / `refactored` — *"migrated from MySQL to PostgreSQL"*
-- `decision:` — *"decision: use refresh tokens"*
-- `recommend` — *"recommend 7-day expiry"*
-- `configured` — *"configured with 25 connection pool"*
+2. **Technical Conversation Indicators**:
+   The system extracts key architectural indicators from responses:
+   - `uses` — *"The system uses JWT for authentication"*
+   - `implements` — *"implements the Repository pattern"*
+   - `migrate` / `changed` / `refactored` — *"migrated from MySQL to PostgreSQL"*
+   - `decision:` — *"decision: use refresh tokens"*
+   - `recommend` — *"recommend 7-day expiry"*
+   - `configured` — *"configured with 25 connection pool"*
 
 ### What Does NOT Get Extracted
 

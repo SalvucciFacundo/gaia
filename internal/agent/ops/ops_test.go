@@ -3,6 +3,7 @@ package ops
 import (
 	"context"
 	"io"
+	"os"
 	"strings"
 	"testing"
 
@@ -623,5 +624,98 @@ func TestLearnerDescription_ContainsPropose(t *testing.T) {
 	desc := sa.Description()
 	if !strings.Contains(strings.ToLower(desc), "propos") {
 		t.Error("learner description should mention proposing skills")
+	}
+}
+
+func TestReviewer_Execute_LowRisk_ZeroLenses(t *testing.T) {
+	docFile := "test_review_doc.md"
+	if err := os.WriteFile(docFile, []byte("# Test Document\nInitial content\n"), 0644); err != nil {
+		t.Fatalf("failed to create test file: %v", err)
+	}
+	t.Cleanup(func() { os.Remove(docFile) })
+
+	spawner := newOpsSpawner()
+	sa := NewReviewer(spawner)
+	task := domain.SubagentTask{
+		ID:          "task-low-risk-review",
+		Description: "+ # Doc update\n+ Minor typo fix in documentation",
+		Mode:        "plan",
+		KGContext:   []string{"file: " + docFile},
+	}
+
+	result := sa.Execute(context.Background(), task)
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	if result.Status != domain.SubagentSuccess {
+		t.Fatalf("expected success for low-risk zero-lens review, got %q (summary: %s)", result.Status, result.Summary)
+	}
+	if !strings.Contains(result.Summary, "Risk: low") {
+		t.Errorf("summary should indicate low risk, got: %s", result.Summary)
+	}
+	if !strings.Contains(result.Summary, "none (structural readback)") {
+		t.Errorf("summary should describe zero-lens structural readback, got: %s", result.Summary)
+	}
+}
+
+func TestReviewer_Execute_MediumRisk_FocusLens(t *testing.T) {
+	cfgFile := "test_config.yaml"
+	if err := os.WriteFile(cfgFile, []byte("database:\n  host: localhost\n"), 0644); err != nil {
+		t.Fatalf("failed to create test file: %v", err)
+	}
+	t.Cleanup(func() { os.Remove(cfgFile) })
+
+	spawner := newOpsSpawner()
+	sa := NewReviewer(spawner)
+	task := domain.SubagentTask{
+		ID:          "task-med-risk-review",
+		Description: "+ DB_PORT=5432",
+		Mode:        "plan",
+		KGContext:   []string{"file: " + cfgFile},
+	}
+
+	result := sa.Execute(context.Background(), task)
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	if result.Status != domain.SubagentSuccess {
+		t.Fatalf("expected success for medium-risk focus-lens review, got %q (summary: %s)", result.Status, result.Summary)
+	}
+	if !strings.Contains(result.Summary, "Risk: medium") {
+		t.Errorf("summary should indicate medium risk, got: %s", result.Summary)
+	}
+	if !strings.Contains(result.Summary, "review-risk") {
+		t.Errorf("summary should indicate focus lens 'review-risk', got: %s", result.Summary)
+	}
+}
+
+func TestReviewer_Execute_HighRisk_FourLenses(t *testing.T) {
+	authFile := "test_auth.go"
+	if err := os.WriteFile(authFile, []byte("package main\nfunc Login() {}\n"), 0644); err != nil {
+		t.Fatalf("failed to create test file: %v", err)
+	}
+	t.Cleanup(func() { os.Remove(authFile) })
+
+	spawner := newOpsSpawner()
+	sa := NewReviewer(spawner)
+	task := domain.SubagentTask{
+		ID:          "task-high-risk-review",
+		Description: "+ func AuthenticateUser() { /* secret token */ }\n" + strings.Repeat("+ hot line\n", 401),
+		Mode:        "plan",
+		KGContext:   []string{"file: " + authFile},
+	}
+
+	result := sa.Execute(context.Background(), task)
+	if result == nil {
+		t.Fatal("expected non-nil result")
+	}
+	if result.Status != domain.SubagentSuccess {
+		t.Fatalf("expected success for high-risk four-lenses review, got %q (summary: %s)", result.Status, result.Summary)
+	}
+	if !strings.Contains(result.Summary, "Risk: high") {
+		t.Errorf("summary should indicate high risk, got: %s", result.Summary)
+	}
+	if !strings.Contains(result.Summary, "review-risk") || !strings.Contains(result.Summary, "review-resilience") {
+		t.Errorf("summary should list all 4 lenses, got: %s", result.Summary)
 	}
 }

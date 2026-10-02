@@ -278,8 +278,8 @@ func isTestFile(base, ext string) bool {
 		strings.Contains(base, "_test.")
 }
 
-// diffLineCount estimates the number of changed lines in a diff.
-func diffLineCount(diff string) int {
+// DiffLineCount estimates the number of changed lines in a diff.
+func DiffLineCount(diff string) int {
 	count := 0
 	for _, line := range strings.Split(diff, "\n") {
 		trimmed := strings.TrimSpace(line)
@@ -291,6 +291,10 @@ func diffLineCount(diff string) int {
 		}
 	}
 	return count
+}
+
+func diffLineCount(diff string) int {
+	return DiffLineCount(diff)
 }
 
 // hasServiceToken checks for API keys, tokens, or secrets in the diff.

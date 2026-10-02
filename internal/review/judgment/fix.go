@@ -84,6 +84,8 @@ func ApplyFixes(ctx context.Context, tx *review.Transaction, findings []domain.R
 
 	// Transition back through state machine for re-judging.
 	if tx != nil {
+		tx.CorrectionAttempts++
+		tx.CorrectionUsed += result.BudgetUsed
 		if err := review.Transition(tx.State, review.StateFixValidating); err == nil {
 			tx.State = review.StateFixValidating
 		}

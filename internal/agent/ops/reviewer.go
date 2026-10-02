@@ -69,21 +69,21 @@ func (r *reviewer) Execute(ctx context.Context, task domain.SubagentTask) *domai
 	// Phase 2: Classify risk.
 	diff := task.Description // Use task description as diff context
 	riskCodes, riskLevel := engine.ClassifyRisk(diff, tx.Files)
+	tx.ChangedLines = review.DiffLineCount(diff)
 
 	// Phase 3: Select and run lenses.
 	lensNames := engine.SelectLenses(riskLevel, tx.Files)
 
-	var findings []domain.ReviewFinding
-	if len(lensNames) > 0 {
-		findings, err = engine.RunLenses(ctx, tx, lensNames)
-		if err != nil {
-			return &domain.SubagentResult{
-				Status:          domain.SubagentPartial,
-				Summary:         fmt.Sprintf("Review lenses partially failed: %s", err),
-				NextRecommended: "none",
-				Risks:           riskCodeStrings(riskCodes),
-				SkillResolution: "none",
-			}
+	// RunLenses handles both active lenses and 0-lens structural readback,
+	// advancing the state machine to StateFindingsFrozen.
+	findings, err := engine.RunLenses(ctx, tx, lensNames)
+	if err != nil {
+		return &domain.SubagentResult{
+			Status:          domain.SubagentPartial,
+			Summary:         fmt.Sprintf("Review lenses partially failed: %s", err),
+			NextRecommended: "none",
+			Risks:           riskCodeStrings(riskCodes),
+			SkillResolution: "none",
 		}
 	}
 
@@ -100,10 +100,14 @@ func (r *reviewer) Execute(ctx context.Context, task domain.SubagentTask) *domai
 	}
 
 	// Build summary.
+	lensDesc := strings.Join(lensNames, ", ")
+	if len(lensNames) == 0 {
+		lensDesc = "none (structural readback)"
+	}
 	summary := fmt.Sprintf(
 		"Review complete. Risk: %s. Lenses: %s. Findings: %d BLOCKER, %d WARNING, %d SUGGESTION.",
 		riskLevel,
-		strings.Join(lensNames, ", "),
+		lensDesc,
 		countBySeverity(findings, "BLOCKER"),
 		countBySeverity(findings, "WARNING"),
 		countBySeverity(findings, "SUGGESTION"),

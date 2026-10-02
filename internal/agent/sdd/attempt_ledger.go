@@ -35,18 +35,19 @@ type AttemptRecord struct {
 
 // WorkUnitEntry tracks execution attempts, line budgets, and learning history for a work unit.
 type WorkUnitEntry struct {
-	ChangeName      string          `json:"change_name"`
-	WorkUnit        string          `json:"work_unit"`
-	SubagentName    string          `json:"subagent_name"`
-	EvidenceGoal    string          `json:"evidence_goal"`
-	MaxAttempts     int             `json:"max_attempts"`
-	MaxChangedLines int             `json:"max_changed_lines"`
-	CurrentAttempt  int             `json:"current_attempt"`
-	State           AttemptState    `json:"state"`
-	BlockedReason   string          `json:"blocked_reason,omitempty"`
-	ActiveToken     string          `json:"active_token,omitempty"`
-	Attempts        []AttemptRecord `json:"attempts"`
-	LearnedInsights []string        `json:"learned_insights"`
+	ChangeName       string          `json:"change_name"`
+	WorkUnit         string          `json:"work_unit"`
+	SubagentName     string          `json:"subagent_name"`
+	EvidenceGoal     string          `json:"evidence_goal"`
+	AllowedEditRoots []string        `json:"allowed_edit_roots,omitempty"`
+	MaxAttempts      int             `json:"max_attempts"`
+	MaxChangedLines  int             `json:"max_changed_lines"`
+	CurrentAttempt   int             `json:"current_attempt"`
+	State            AttemptState    `json:"state"`
+	BlockedReason    string          `json:"blocked_reason,omitempty"`
+	ActiveToken      string          `json:"active_token,omitempty"`
+	Attempts         []AttemptRecord `json:"attempts"`
+	LearnedInsights  []string        `json:"learned_insights"`
 }
 
 // AttemptLedger manages execution budgets and feeds attempt outcomes into permanent subagent learning loops.
@@ -68,21 +69,23 @@ func NewAttemptLedger(ns *memory.NamespaceManager, loop *learn.LearningLoop) *At
 
 // AcquireRequest contains the parameters to acquire an attempt slot.
 type AcquireRequest struct {
-	ChangeName      string
-	WorkUnit        string
-	SubagentName    string
-	EvidenceGoal    string
-	MaxAttempts     int
-	MaxChangedLines int
+	ChangeName       string
+	WorkUnit         string
+	SubagentName     string
+	EvidenceGoal     string
+	AllowedEditRoots []string
+	MaxAttempts      int
+	MaxChangedLines  int
 }
 
 // AcquireResponse contains the authorization result from the ledger.
 type AcquireResponse struct {
-	State           AttemptState `json:"state"`
-	Token           string       `json:"token,omitempty"`
-	AttemptNumber   int          `json:"attempt_number"`
-	BlockedReason   string       `json:"blocked_reason,omitempty"`
-	LearnedContext  []string     `json:"learned_context,omitempty"`
+	State          AttemptState          `json:"state"`
+	Token          string                `json:"token,omitempty"`
+	AttemptNumber  int                   `json:"attempt_number"`
+	BlockedReason  string                `json:"blocked_reason,omitempty"`
+	Consent        *EditAuthorityConsent `json:"consent,omitempty"`
+	LearnedContext []string              `json:"learned_context,omitempty"`
 }
 
 // Acquire reserves an attempt execution slot under budget guards.
@@ -109,14 +112,15 @@ func (l *AttemptLedger) Acquire(ctx context.Context, req AcquireRequest) (*Acqui
 	entry, exists := l.entries[key]
 	if !exists {
 		entry = &WorkUnitEntry{
-			ChangeName:      req.ChangeName,
-			WorkUnit:        req.WorkUnit,
-			SubagentName:    req.SubagentName,
-			EvidenceGoal:    req.EvidenceGoal,
-			MaxAttempts:     req.MaxAttempts,
-			MaxChangedLines: req.MaxChangedLines,
-			State:           StateProceed,
-			Attempts:        make([]AttemptRecord, 0),
+			ChangeName:       req.ChangeName,
+			WorkUnit:         req.WorkUnit,
+			SubagentName:     req.SubagentName,
+			EvidenceGoal:     req.EvidenceGoal,
+			AllowedEditRoots: req.AllowedEditRoots,
+			MaxAttempts:      req.MaxAttempts,
+			MaxChangedLines:  req.MaxChangedLines,
+			State:            StateProceed,
+			Attempts:         make([]AttemptRecord, 0),
 			LearnedInsights: make([]string, 0),
 		}
 		l.entries[key] = entry
@@ -304,4 +308,47 @@ func (l *AttemptLedger) GetStatus(changeName, workUnit string) (*WorkUnitEntry, 
 	copied.LearnedInsights = make([]string, len(entry.LearnedInsights))
 	copy(copied.LearnedInsights, entry.LearnedInsights)
 	return &copied, true
+}
+
+// CheckEditAuthority validates if the given target files are covered by the work unit's allowed edit roots.
+// If unauthorized paths exist, it returns a typed EditAuthorityConsent envelope.
+func (l *AttemptLedger) CheckEditAuthority(changeName, workUnit string, targetFiles []string) *EditAuthorityConsent {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+
+	key := fmt.Sprintf("%s:%s", changeName, workUnit)
+	entry, exists := l.entries[key]
+	if !exists || len(entry.AllowedEditRoots) == 0 {
+		return nil
+	}
+
+	return EvaluateEditAuthority(targetFiles, entry.AllowedEditRoots)
+}
+
+// GrantEditRoots adds newly approved edit roots to the work unit's allowed edit roots.
+func (l *AttemptLedger) GrantEditRoots(changeName, workUnit string, newRoots []string) error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	if err := ValidateEditRoots(newRoots); err != nil {
+		return fmt.Errorf("grant edit roots: %w", err)
+	}
+
+	key := fmt.Sprintf("%s:%s", changeName, workUnit)
+	entry, exists := l.entries[key]
+	if !exists {
+		return fmt.Errorf("work unit %q not found in change %q", workUnit, changeName)
+	}
+
+	seen := make(map[string]bool)
+	for _, r := range entry.AllowedEditRoots {
+		seen[r] = true
+	}
+	for _, r := range newRoots {
+		if !seen[r] {
+			entry.AllowedEditRoots = append(entry.AllowedEditRoots, r)
+			seen[r] = true
+		}
+	}
+	return nil
 }

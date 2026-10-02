@@ -23,15 +23,19 @@ type Engine struct {
 
 // Transaction tracks a single review lifecycle.
 type Transaction struct {
-	ID           string                 // unique transaction identifier (SHA256 prefix)
-	ChangeName   string                 // human-readable change name
-	State        domain.ReviewState     // current state in the review state machine
-	SnapshotHash string                 // hash of the initial file snapshot
-	Files        []string               // paths of files under review
-	Receipt      *domain.ReviewReceipt  // populated when state reaches "approved"
-	Findings     []domain.ReviewFinding // accumulated findings from lenses
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	ID                 string                 // unique transaction identifier (SHA256 prefix)
+	ChangeName         string                 // human-readable change name
+	State              domain.ReviewState     // current state in the review state machine
+	SnapshotHash       string                 // hash of the initial file snapshot
+	Files              []string               // paths of files under review
+	ChangedLines       int                    // count of changed lines in candidate diff
+	CorrectionAttempts int                    // count of correction attempts performed
+	CorrectionUsed     int                    // count of correction lines/tokens used
+	MaxCorrections     int                    // maximum allowed correction attempts (default: 1)
+	Receipt            *domain.ReviewReceipt  // populated when state reaches "approved"
+	Findings           []domain.ReviewFinding // accumulated findings from lenses
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
 }
 
 // NewEngine creates a review engine for the given project. It attempts
@@ -67,13 +71,14 @@ func (e *Engine) Start(files []string) (*Transaction, error) {
 	now := time.Now()
 
 	tx := &Transaction{
-		ID:           generateTxID(files, snapshotHash),
-		ChangeName:   deriveChangeName(files),
-		State:        StateReviewing,
-		SnapshotHash: snapshotHash,
-		Files:        files,
-		CreatedAt:    now,
-		UpdatedAt:    now,
+		ID:                 generateTxID(files, snapshotHash),
+		ChangeName:         deriveChangeName(files),
+		State:              StateReviewing,
+		SnapshotHash:       snapshotHash,
+		Files:              files,
+		MaxCorrections:     1,
+		CreatedAt:          now,
+		UpdatedAt:          now,
 	}
 	return tx, nil
 }
@@ -135,6 +140,44 @@ func (e *Engine) RunLenses(ctx context.Context, tx *Transaction, lensNames []str
 	return allFindings, nil
 }
 
+// RequestCorrection checks the single-correction budget and transitions the transaction
+// to StateFixRequired. If the maximum number of corrections (default 1) has been reached,
+// it escalates to human review (StateEscalated) and returns an error.
+func (e *Engine) RequestCorrection(tx *Transaction) error {
+	maxCorrections := tx.MaxCorrections
+	if maxCorrections <= 0 {
+		maxCorrections = 1
+	}
+
+	if tx.CorrectionAttempts >= maxCorrections {
+		_ = Transition(tx.State, StateEscalated)
+		tx.State = StateEscalated
+		tx.UpdatedAt = time.Now()
+		return fmt.Errorf("single-correction limit exceeded: maximum %d correction attempt allowed per review candidate", maxCorrections)
+	}
+
+	if err := Transition(tx.State, StateFixRequired); err != nil {
+		return fmt.Errorf("request correction: %w", err)
+	}
+
+	tx.CorrectionAttempts++
+	tx.State = StateFixRequired
+	tx.UpdatedAt = time.Now()
+	return nil
+}
+
+// RecordCorrectionUsage records the number of changed lines/tokens consumed by a fix
+// and verifies it does not exceed the mathematical ceiling min(200, ceil(changed_lines / 2)).
+func (e *Engine) RecordCorrectionUsage(tx *Transaction, lines int) error {
+	budget := CalculateCorrectionBudget(tx.ChangedLines)
+	if tx.CorrectionUsed+lines > budget {
+		return fmt.Errorf("correction budget exceeded: attempted to use %d (already used %d, budget ceiling %d)", lines, tx.CorrectionUsed, budget)
+	}
+	tx.CorrectionUsed += lines
+	tx.UpdatedAt = time.Now()
+	return nil
+}
+
 // GenerateReceipt creates a bounded review receipt from the transaction
 // and findings. It computes the lineage_id, transitions state to
 // approved, and returns the populated receipt.
@@ -175,6 +218,9 @@ func (e *Engine) GenerateReceipt(tx *Transaction, findings []domain.ReviewFindin
 	// Compute lineage_id as SHA256 of the snapshot hash + transaction ID.
 	lineageID := computeLineageID(tx.SnapshotHash, tx.ID)
 
+	// Compute correction budget using the mathematical definition: min(200, ceil(lines / 2))
+	correctionBudget := CalculateCorrectionBudget(tx.ChangedLines)
+
 	now := time.Now()
 	receipt := &domain.ReviewReceipt{
 		Schema:                "gaia.review-receipt/v1",
@@ -183,8 +229,8 @@ func (e *Engine) GenerateReceipt(tx *Transaction, findings []domain.ReviewFindin
 		SelectedLenses:        lensNames,
 		RiskLevel:             riskLevel,
 		RiskReasons:           riskReasons,
-		CorrectionBudget:      85, // default correction budget
-		CorrectionUsed:        0,
+		CorrectionBudget:      correctionBudget,
+		CorrectionUsed:        tx.CorrectionUsed,
 		State:                 StateApproved,
 		FinalVerificationHash: "",
 		Findings:              findings,

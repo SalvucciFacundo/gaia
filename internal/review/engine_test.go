@@ -317,9 +317,14 @@ func TestStateTransitions(t *testing.T) {
 		{name: "findings_frozen → evidence_classified", from: StateFindingsFrozen, to: StateEvidenceClassified, wantErr: false},
 		{name: "evidence_classified → fix_required", from: StateEvidenceClassified, to: StateFixRequired, wantErr: false},
 		{name: "evidence_classified → ready_final_verification", from: StateEvidenceClassified, to: StateReadyFinalVerification, wantErr: false},
+		{name: "evidence_classified → escalated", from: StateEvidenceClassified, to: StateEscalated, wantErr: false},
 		{name: "fix_required → fixing", from: StateFixRequired, to: StateFixing, wantErr: false},
+		{name: "fix_required → escalated", from: StateFixRequired, to: StateEscalated, wantErr: false},
 		{name: "fixing → fix_validating", from: StateFixing, to: StateFixValidating, wantErr: false},
+		{name: "fixing → escalated", from: StateFixing, to: StateEscalated, wantErr: false},
 		{name: "fix_validating → evidence_classified", from: StateFixValidating, to: StateEvidenceClassified, wantErr: false},
+		{name: "fix_validating → ready_final_verification", from: StateFixValidating, to: StateReadyFinalVerification, wantErr: false},
+		{name: "fix_validating → escalated", from: StateFixValidating, to: StateEscalated, wantErr: false},
 		{name: "ready_final_verification → final_verifying", from: StateReadyFinalVerification, to: StateFinalVerifying, wantErr: false},
 		{name: "final_verifying → approved", from: StateFinalVerifying, to: StateApproved, wantErr: false},
 		{name: "final_verifying → escalated", from: StateFinalVerifying, to: StateEscalated, wantErr: false},
@@ -458,6 +463,146 @@ func TestRiskCodeCount(t *testing.T) {
 	}
 	if len(allCodes) != 8 {
 		t.Errorf("Expected 8 risk codes, got %d", len(allCodes))
+	}
+}
+
+func TestEngine_LowRisk_ZeroLens_StructuralReadback(t *testing.T) {
+	llm := &mockLensLLM{}
+	engine := NewEngine("../..", llm)
+
+	// Low risk change on doc files.
+	files := []string{"README.md"}
+	tx, err := engine.Start(files)
+	if err != nil {
+		t.Fatalf("Start() failed: %v", err)
+	}
+
+	diff := "+ # Updated Documentation"
+	riskCodes, riskLevel := engine.ClassifyRisk(diff, files)
+	if riskLevel != "low" {
+		t.Fatalf("expected riskLevel 'low', got %q (codes: %v)", riskLevel, riskCodes)
+	}
+
+	lensNames := engine.SelectLenses(riskLevel, files)
+	if len(lensNames) != 0 {
+		t.Fatalf("expected 0 lenses for low risk, got %v", lensNames)
+	}
+
+	// RunLenses with 0 lenses should execute structural readback and transition state cleanly.
+	findings, err := engine.RunLenses(context.Background(), tx, lensNames)
+	if err != nil {
+		t.Fatalf("RunLenses with 0 lenses failed: %v", err)
+	}
+	if len(findings) != 0 {
+		t.Errorf("expected 0 findings, got %d", len(findings))
+	}
+	if tx.State != StateFindingsFrozen {
+		t.Errorf("expected state %s, got %s", StateFindingsFrozen, tx.State)
+	}
+
+	// Generate receipt should succeed and reach StateApproved.
+	receipt, err := engine.GenerateReceipt(tx, findings, riskCodes, riskLevel)
+	if err != nil {
+		t.Fatalf("GenerateReceipt failed: %v", err)
+	}
+	if receipt.State != StateApproved {
+		t.Errorf("expected receipt state %s, got %s", StateApproved, receipt.State)
+	}
+	if len(receipt.SelectedLenses) != 0 {
+		t.Errorf("expected 0 selected lenses in receipt, got %v", receipt.SelectedLenses)
+	}
+}
+
+func TestEngine_SingleCorrection_AllowedOnceAndEscalatesOnSecondAttempt(t *testing.T) {
+	llm := &mockLensLLM{}
+	engine := NewEngine("../..", llm)
+
+	files := []string{"README.md"}
+	tx, err := engine.Start(files)
+	if err != nil {
+		t.Fatalf("Start() failed: %v", err)
+	}
+	tx.ChangedLines = 100
+
+	// Advance to StateFindingsFrozen -> StateEvidenceClassified
+	if _, err := engine.RunLenses(context.Background(), tx, nil); err != nil {
+		t.Fatalf("RunLenses failed: %v", err)
+	}
+	if err := Transition(tx.State, StateEvidenceClassified); err != nil {
+		t.Fatalf("Transition to evidence_classified failed: %v", err)
+	}
+	tx.State = StateEvidenceClassified
+
+	// First correction attempt should succeed
+	err = engine.RequestCorrection(tx)
+	if err != nil {
+		t.Fatalf("first RequestCorrection should succeed, got: %v", err)
+	}
+	if tx.CorrectionAttempts != 1 {
+		t.Errorf("expected CorrectionAttempts=1, got %d", tx.CorrectionAttempts)
+	}
+	if tx.State != StateFixRequired {
+		t.Errorf("expected state %s, got %s", StateFixRequired, tx.State)
+	}
+
+	// Advance through fixing -> fix_validating -> evidence_classified
+	if err := Transition(tx.State, StateFixing); err != nil {
+		t.Fatalf("transition to fixing failed: %v", err)
+	}
+	tx.State = StateFixing
+	if err := Transition(tx.State, StateFixValidating); err != nil {
+		t.Fatalf("transition to fix_validating failed: %v", err)
+	}
+	tx.State = StateFixValidating
+	if err := Transition(tx.State, StateEvidenceClassified); err != nil {
+		t.Fatalf("transition to evidence_classified failed: %v", err)
+	}
+	tx.State = StateEvidenceClassified
+
+	// Second correction attempt MUST be rejected and transition to StateEscalated
+	err = engine.RequestCorrection(tx)
+	if err == nil {
+		t.Fatal("second RequestCorrection should fail (no loop-until-clean)")
+	}
+	if !strings.Contains(err.Error(), "single-correction limit exceeded") {
+		t.Errorf("expected 'single-correction limit exceeded' error, got: %v", err)
+	}
+	if tx.State != StateEscalated {
+		t.Errorf("expected state to escalate to %s, got %s", StateEscalated, tx.State)
+	}
+}
+
+func TestEngine_CorrectionBudget_ExceededProtection(t *testing.T) {
+	llm := &mockLensLLM{}
+	engine := NewEngine("../..", llm)
+
+	tx, err := engine.Start([]string{"README.md"})
+	if err != nil {
+		t.Fatalf("Start() failed: %v", err)
+	}
+	// 20 changed lines -> budget is ceil(20/2) = 10
+	tx.ChangedLines = 20
+	budget := CalculateCorrectionBudget(tx.ChangedLines)
+	if budget != 10 {
+		t.Fatalf("expected budget 10, got %d", budget)
+	}
+
+	// Record valid usage
+	err = engine.RecordCorrectionUsage(tx, 6)
+	if err != nil {
+		t.Fatalf("recording 6 tokens/lines out of 10 should succeed: %v", err)
+	}
+	if tx.CorrectionUsed != 6 {
+		t.Errorf("expected CorrectionUsed=6, got %d", tx.CorrectionUsed)
+	}
+
+	// Record usage that exceeds budget ceiling
+	err = engine.RecordCorrectionUsage(tx, 5) // 6 + 5 = 11 > 10
+	if err == nil {
+		t.Fatal("exceeding correction budget ceiling should return an error")
+	}
+	if !strings.Contains(err.Error(), "correction budget exceeded") {
+		t.Errorf("expected 'correction budget exceeded' error, got: %v", err)
 	}
 }
 

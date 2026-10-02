@@ -105,7 +105,11 @@ func (jd *JudgmentDay) Run(ctx context.Context, tx *review.Transaction) (*Judgme
 		if len(blockers) > 0 || len(warnings) > 0 {
 			fixable := filterFixable(merged)
 			if len(fixable) > 0 {
-				if _, err := ApplyFixes(ctx, tx, fixable, 85); err != nil {
+				budget := 85
+				if tx != nil && tx.ChangedLines > 0 {
+					budget = review.CalculateCorrectionBudget(tx.ChangedLines)
+				}
+				if _, err := ApplyFixes(ctx, tx, fixable, budget); err != nil {
 					return nil, fmt.Errorf("round %d fix: %w", round, err)
 				}
 			}

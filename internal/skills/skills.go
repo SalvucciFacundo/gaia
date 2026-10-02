@@ -20,6 +20,7 @@ import (
 type SkillMeta struct {
 	Name        string   `yaml:"name"`
 	Description string   `yaml:"description"`
+	Triggers    []string `yaml:"triggers"`
 	Tags        []string `yaml:"tags"`
 	Language    string   `yaml:"language"`
 	Category    string   `yaml:"category"`

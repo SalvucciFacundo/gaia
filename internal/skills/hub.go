@@ -257,6 +257,55 @@ func FormatSkillsPromptHeader(skillPaths []string) string {
 	return b.String()
 }
 
+// MatchSkills searches active skills whose name, triggers, or tags match the task description or target files.
+func (h *Hub) MatchSkills(taskDesc string, files []string) []string {
+	h.ensureIndex()
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	descLower := strings.ToLower(taskDesc)
+	seen := make(map[string]bool)
+	var matched []string
+
+	for _, m := range h.index {
+		if !h.active[m.Name] {
+			continue
+		}
+		// Match by name
+		if strings.Contains(descLower, strings.ToLower(m.Name)) {
+			if !seen[m.Name] {
+				seen[m.Name] = true
+				matched = append(matched, m.Name)
+			}
+			continue
+		}
+		// Match by triggers
+		for _, trigger := range m.Triggers {
+			if trigger != "" && strings.Contains(descLower, strings.ToLower(trigger)) {
+				if !seen[m.Name] {
+					seen[m.Name] = true
+					matched = append(matched, m.Name)
+					break
+				}
+			}
+		}
+		if seen[m.Name] {
+			continue
+		}
+		// Match by tags
+		for _, tag := range m.Tags {
+			if tag != "" && strings.Contains(descLower, strings.ToLower(tag)) {
+				if !seen[m.Name] {
+					seen[m.Name] = true
+					matched = append(matched, m.Name)
+					break
+				}
+			}
+		}
+	}
+	return matched
+}
+
 // RecommendFor returns skills matching the given project language.
 // Used by the first-run wizard to suggest relevant skills.
 func (h *Hub) RecommendFor(language string) []SkillMeta {
