@@ -6,6 +6,7 @@ import (
 	"sort"
 
 	"gaia/internal/core/domain"
+	"gaia/internal/review"
 	"gaia/internal/review/gates"
 )
 
@@ -57,6 +58,7 @@ func (e *Engine) Release(ctx context.Context, itemID string) (*ReleaseResult, er
 
 	// CAS Receipt Verification
 	if e.casStore != nil {
+		modeStatus := review.IsEnabled(e.repoRoot)
 		receipt, err := e.casStore.LatestReceipt(item.ChangeName)
 		if err != nil {
 			failReason := fmt.Sprintf("failed to load review receipt: %v", err)
@@ -69,7 +71,8 @@ func (e *Engine) Release(ctx context.Context, itemID string) (*ReleaseResult, er
 			}, err
 		}
 
-		if receipt == nil {
+		receiptRequired := (item.ReceiptLineage != "") || (modeStatus.Mode == review.ModeEnabled)
+		if receiptRequired && receipt == nil {
 			driftErr := fmt.Errorf("%w: no review receipt found for %q", ErrContentDrift, item.ChangeName)
 			_ = e.queue.MarkFailed(itemID, driftErr.Error())
 			return &ReleaseResult{
@@ -80,26 +83,28 @@ func (e *Engine) Release(ctx context.Context, itemID string) (*ReleaseResult, er
 			}, driftErr
 		}
 
-		if receipt.State != domain.ReviewStateApproved {
-			driftErr := fmt.Errorf("%w: review receipt is in state %q, expected %q", ErrContentDrift, receipt.State, domain.ReviewStateApproved)
-			_ = e.queue.MarkFailed(itemID, driftErr.Error())
-			return &ReleaseResult{
-				ItemID:  item.ID,
-				Branch:  item.Branch,
-				Success: false,
-				Error:   driftErr.Error(),
-			}, driftErr
-		}
+		if receipt != nil {
+			if receipt.State != domain.ReviewStateApproved {
+				driftErr := fmt.Errorf("%w: review receipt is in state %q, expected %q", ErrContentDrift, receipt.State, domain.ReviewStateApproved)
+				_ = e.queue.MarkFailed(itemID, driftErr.Error())
+				return &ReleaseResult{
+					ItemID:  item.ID,
+					Branch:  item.Branch,
+					Success: false,
+					Error:   driftErr.Error(),
+				}, driftErr
+			}
 
-		if item.ReceiptLineage != "" && receipt.LineageID != "" && item.ReceiptLineage != receipt.LineageID {
-			driftErr := fmt.Errorf("%w: receipt lineage mismatch (item=%s, receipt=%s)", ErrContentDrift, item.ReceiptLineage, receipt.LineageID)
-			_ = e.queue.MarkFailed(itemID, driftErr.Error())
-			return &ReleaseResult{
-				ItemID:  item.ID,
-				Branch:  item.Branch,
-				Success: false,
-				Error:   driftErr.Error(),
-			}, driftErr
+			if item.ReceiptLineage != "" && receipt.LineageID != "" && item.ReceiptLineage != receipt.LineageID {
+				driftErr := fmt.Errorf("%w: receipt lineage mismatch (item=%s, receipt=%s)", ErrContentDrift, item.ReceiptLineage, receipt.LineageID)
+				_ = e.queue.MarkFailed(itemID, driftErr.Error())
+				return &ReleaseResult{
+					ItemID:  item.ID,
+					Branch:  item.Branch,
+					Success: false,
+					Error:   driftErr.Error(),
+				}, driftErr
+			}
 		}
 	}
 

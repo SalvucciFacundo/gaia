@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"context"
+	"time"
 
 	"gaia/internal/adapters/db"
 	"gaia/internal/adapters/llm"
@@ -220,6 +221,12 @@ func main() {
 
 	// 7b. Initialize Engram namespace manager for per-subagent memory isolation
 	namespaceMgr := memory.NewNamespaceManager(projectName)
+	sessionName := fmt.Sprintf("session-%s", time.Now().Format("2006-01-02-15-04"))
+	sessionID, err := repo.CreateSession(context.Background(), sessionName)
+	if err == nil && sessionID != "" {
+		repo.SetSessionID(sessionID)
+		namespaceMgr.SetSessionID(sessionID)
+	}
 
 	// 7b2. Initialize Knowledge Graph store for cross-domain facts.
 	kgStore := db.NewKnowledgeGraph(repo.DB())

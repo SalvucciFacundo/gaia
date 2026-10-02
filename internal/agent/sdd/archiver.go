@@ -12,6 +12,7 @@ import (
 	"gaia/internal/agent"
 	"gaia/internal/core/domain"
 	"gaia/internal/delivery"
+	"gaia/internal/review"
 	"gaia/internal/review/gates"
 )
 
@@ -58,10 +59,11 @@ func (a *archiver) Execute(ctx context.Context, task domain.SubagentTask) *domai
 
 	workDir := a.resolveWorkDir(task)
 	receiptStore := a.resolveReceiptStore(workDir)
+	changeName := extractChangeName(task)
 
 	// Gate: validate review receipt before archiving.
 	// The archiver must not proceed without an approved review receipt.
-	if gateErr := a.checkReviewGate(receiptStore); gateErr != nil {
+	if gateErr := a.checkReviewGate(receiptStore, workDir, changeName); gateErr != nil {
 		return &domain.SubagentResult{
 			Status:          domain.SubagentBlocked,
 			Summary:         gateErr.Error(),
@@ -345,20 +347,43 @@ OUTPUT FORMAT — return a structured summary with these sections:
 var _ agent.Subagent = (*archiver)(nil)
 
 // checkReviewGate verifies that a valid review receipt exists before
-// allowing the archiver to proceed.
-func (a *archiver) checkReviewGate(store gates.ReceiptStore) error {
+// allowing the archiver to proceed, when review mode is enabled or receipts exist.
+func (a *archiver) checkReviewGate(store gates.ReceiptStore, workDir, changeName string) error {
 	if store == nil {
 		return nil
 	}
+	// Only enforce when review mode is enabled
+	if workDir != "" && review.IsEnabled(workDir).Mode != review.ModeEnabled {
+		// If review mode is disabled, still check if receipts exist in store
+		summaries, err := store.ListReceipts()
+		if err != nil || len(summaries) == 0 {
+			return nil
+		}
+		// If receipts exist for this change, ensure none are blocking/unapproved
+		for _, s := range summaries {
+			if changeName != "" && s.ChangeName != changeName {
+				continue
+			}
+			if s.State != string(domain.ReviewStateApproved) {
+				return agent.ErrReceiptNotApproved
+			}
+			return nil
+		}
+		return nil
+	}
+
 	summaries, err := store.ListReceipts()
 	if err != nil {
 		return nil
 	}
 	if len(summaries) == 0 {
-		return nil
+		return agent.ErrReceiptNotApproved
 	}
 
 	for _, s := range summaries {
+		if changeName != "" && s.ChangeName != changeName {
+			continue
+		}
 		if s.State == string(domain.ReviewStateApproved) {
 			return nil
 		}
