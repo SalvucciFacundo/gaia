@@ -3158,7 +3158,8 @@ func (b *Brain) ProcessMessage(ctx context.Context, content string) error {
 		})
 	}
 
-	// 3. Iteration loop with budget
+	// 3. Iteration loop with budget & in-flight ODD delegation monitor
+	midTurnTracker := NewMidTurnBudgetTracker()
 	for iter := 0; iter < b.budget.MaxIterations; iter++ {
 		history, err := b.getHistory(ctx, 50)
 		if err != nil {
@@ -3203,9 +3204,44 @@ func (b *Brain) ProcessMessage(ctx context.Context, content string) error {
 
 		// 4. Handle tool calls
 		if len(response.ToolCalls) > 0 {
-			if err := b.handleToolCalls(ctx, response); err != nil {
+			if err := b.handleToolCalls(ctx, response, midTurnTracker); err != nil {
 				return err
 			}
+
+			// In-Flight Mid-Turn Delegation Check (ODD Contract):
+			// If inline evidence budget or write boundaries are crossed mid-turn,
+			// dynamically delegate the continuation to a specialized subagent worker.
+			if targetRole, reason, shouldDelegate := midTurnTracker.CheckDelegationTrigger(); shouldDelegate && b.subagentPort != nil && !trigger.ForceDirect {
+				agentName := targetRole
+				if agentName == "writer" {
+					agentName = "implementer"
+				}
+				isAvailable := false
+				for _, a := range b.subagentPort.Available() {
+					if a == agentName {
+						isAvailable = true
+						break
+					}
+				}
+				if isAvailable {
+					delegateTask := domain.SubagentTask{
+						ID:          fmt.Sprintf("odd-midturn-%s", targetRole),
+						Description: fmt.Sprintf("Continue execution (%s). Context task: %s", reason, content),
+						Mode:        "execute",
+						KGContext:   b.queryKGContext(ctx, content),
+					}
+					delRes, delErr := b.Delegate(ctx, agentName, delegateTask)
+					if delErr == nil && delRes != nil {
+						delMsg := domain.Message{
+							Role:    domain.RoleAssistant,
+							Content: fmt.Sprintf("🤖 **ODD Mid-Turn Dynamic Delegation (%s)** [%s]:\n\n%s", agentName, reason, delRes.Summary),
+						}
+						_ = b.repo.SaveMessage(ctx, delMsg)
+						return b.ui.Display(delMsg)
+					}
+				}
+			}
+
 			continue // Let LLM see results
 		}
 
@@ -3260,7 +3296,11 @@ func (b *Brain) readStream(ctx context.Context, reader io.Reader) (*domain.Messa
 	return response, scanner.Err()
 }
 
-func (b *Brain) handleToolCalls(ctx context.Context, msg *domain.Message) error {
+func (b *Brain) handleToolCalls(ctx context.Context, msg *domain.Message, tracker ...*MidTurnBudgetTracker) error {
+	var tr *MidTurnBudgetTracker
+	if len(tracker) > 0 {
+		tr = tracker[0]
+	}
 	for _, tc := range msg.ToolCalls {
 		// Policy guard evaluation (additive — runs before ConfirmGuard)
 		if b.policy != nil {
@@ -3343,6 +3383,11 @@ func (b *Brain) handleToolCalls(ctx context.Context, msg *domain.Message) error 
 
 		// Apply message redaction to tool output
 		output, _ = b.RedactToolOutput(output)
+
+		// Record tool execution into MidTurnBudgetTracker if wired
+		if tr != nil {
+			tr.RecordToolCall(tc.Name, tc.Arguments, output)
+		}
 
 		toolMsg := domain.Message{
 			Role:    domain.RoleTool,

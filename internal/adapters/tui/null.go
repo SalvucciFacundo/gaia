@@ -43,6 +43,14 @@ func (n *NullUI) PromptConfirmation(prompt string) (bool, error) {
 	return n.autoApprove, nil
 }
 
+// PromptChoice returns the first option token if autoApprove is true, or empty string.
+func (n *NullUI) PromptChoice(envelope domain.ChoiceEnvelope) (string, error) {
+	if n.autoApprove && len(envelope.Questions) > 0 && len(envelope.Questions[0].Options) > 0 {
+		return envelope.Questions[0].Options[0].Token, nil
+	}
+	return "", nil
+}
+
 // Run is a no-op — headless mode has no interactive loop.
 func (n *NullUI) Run() error {
 	return nil

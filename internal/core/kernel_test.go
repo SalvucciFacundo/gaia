@@ -91,6 +91,12 @@ func (u *stubUI) Display(msg domain.Message) error {
 }
 func (u *stubUI) AppendToken(content string) error { return nil }
 func (u *stubUI) PromptConfirmation(prompt string) (bool, error)   { return true, nil }
+func (u *stubUI) PromptChoice(envelope domain.ChoiceEnvelope) (string, error) {
+	if len(envelope.Questions) > 0 && len(envelope.Questions[0].Options) > 0 {
+		return envelope.Questions[0].Options[0].Token, nil
+	}
+	return "", nil
+}
 func (u *stubUI) Run() error                                        { return nil }
 
 func TestBrain_BudgetExhausted(t *testing.T) {

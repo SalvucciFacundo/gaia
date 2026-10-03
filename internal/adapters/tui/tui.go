@@ -11,6 +11,7 @@ import (
 
 	"gaia/internal/agent"
 	"gaia/internal/core"
+	"gaia/internal/core/blocking"
 	"gaia/internal/core/domain"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -169,6 +170,10 @@ type Model struct {
 	confirming bool
 	confirmMsg string
 	confirmCh  chan bool
+	choosing   bool
+	choiceEnv  *domain.ChoiceEnvelope
+	choiceCh   chan string
+	choiceErr  string
 	streaming  string // current in-progress AI response text
 
 	brain       MessageProcessor
@@ -375,6 +380,45 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					ch <- (val == "y" || val == "s")
 				}
 				return m, nil
+			}
+
+			// Choice envelope prompt mode — validate input against choice domain.
+			if m.choosing {
+				inputVal := strings.TrimSpace(m.textInput.Value())
+				if inputVal == "" {
+					return m, nil
+				}
+				if m.choiceEnv != nil && len(m.choiceEnv.Questions) > 0 {
+					q := m.choiceEnv.Questions[0]
+					res, err := blocking.ValidateChoiceResponse(inputVal, q)
+					if err != nil {
+						m.mu.Lock()
+						m.choiceErr = err.Error()
+						m.textInput.SetValue("")
+						m.mu.Unlock()
+						return m, nil
+					}
+					if res.IsMeta {
+						// Meta-question: display explanation and keep prompt blocked
+						m.mu.Lock()
+						m.choiceErr = fmt.Sprintf("ℹ️ %s (please choose an option to proceed)", res.Explanation)
+						m.textInput.SetValue("")
+						m.mu.Unlock()
+						return m, nil
+					}
+					// Valid option selected
+					m.mu.Lock()
+					m.choosing = false
+					m.choiceErr = ""
+					ch := m.choiceCh
+					m.textInput.SetValue("")
+					m.textInput.Placeholder = "Talk to GAIA..."
+					m.mu.Unlock()
+					if ch != nil && len(res.MatchedTokens) > 0 {
+						ch <- res.MatchedTokens[0]
+					}
+					return m, nil
+				}
 			}
 
 			input := m.textInput.Value()
@@ -1036,6 +1080,15 @@ func (m *Model) View() string {
 			lipgloss.NewStyle().Foreground(lipgloss.Color("#FF5F00")).Render("!!! CONFIRMACIÓN REQUERIDA"),
 			m.confirmMsg,
 			m.textInput.View())
+	} else if m.choosing && m.choiceEnv != nil {
+		errStr := ""
+		if m.choiceErr != "" {
+			errStr = fmt.Sprintf("\n%s", lipgloss.NewStyle().Foreground(lipgloss.Color("#FF0055")).Render(m.choiceErr))
+		}
+		footer = fmt.Sprintf("\n%s%s\nChoice: %s",
+			blocking.FormatLosslessEnvelope(*m.choiceEnv),
+			errStr,
+			m.textInput.View())
 	}
 
 	return fmt.Sprintf("%s\n%s\n%s\n%s", header, taskPane, m.viewport.View(), footer)
@@ -1130,6 +1183,32 @@ func (m *Model) PromptConfirmation(prompt string) (bool, error) {
 	m.textInput.Placeholder = "Talk to GAIA..."
 	m.mu.Unlock()
 	return confirmed, nil
+}
+
+// PromptChoice blocks until the user responds to a lossless choice prompt via the TUI.
+// Implements ports.UIService.
+func (m *Model) PromptChoice(envelope domain.ChoiceEnvelope) (string, error) {
+	m.mu.Lock()
+	m.choosing = true
+	m.choiceEnv = &envelope
+	m.choiceErr = ""
+	m.textInput.SetValue("")
+	m.textInput.Placeholder = "Enter choice (1, first, label)..."
+	ch := make(chan string, 1)
+	m.choiceCh = ch
+	m.mu.Unlock()
+
+	selected := <-ch
+
+	m.mu.Lock()
+	m.choosing = false
+	m.choiceEnv = nil
+	m.choiceCh = nil
+	m.choiceErr = ""
+	m.textInput.Placeholder = "Talk to GAIA..."
+	m.mu.Unlock()
+
+	return selected, nil
 }
 
 // taskPaneHeight returns the number of lines the task pane occupies.

@@ -380,6 +380,24 @@ func main() {
 	if err := ui.Run(); err != nil {
 		log.Fatalf("TUI error: %v", err)
 	}
+
+	// 11. Graceful Shutdown & Engram Session Close Protocol
+	// Persist a clean session close summary so the next session starts with full context.
+	if sessionID != "" {
+		engramHelper := memory.NewEngramProtocolHelper(projectName, sessionID)
+		summaryText := memory.BuildSessionSummaryText(memory.SessionSummaryInput{
+			Goal: fmt.Sprintf("GAIA interactive session (%s)", sessionName),
+			Accomplished: []string{
+				fmt.Sprintf("Completed session in workspace %s", projectName),
+			},
+		})
+		summaryMsg := domain.Message{
+			Role:    domain.RoleSystem,
+			Content: fmt.Sprintf("ENGRAM_SESSION_CLOSE_SUMMARY:\n%s", summaryText),
+		}
+		_ = repo.SaveMessage(context.Background(), summaryMsg)
+		_ = engramHelper // Preserves helper for MCP or sidecar bridge integration
+	}
 }
 
 // autoCreateSkill generates a SKILL.md for a subagent that reached the learning threshold.

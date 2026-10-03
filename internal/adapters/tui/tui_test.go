@@ -246,3 +246,51 @@ func TestTUI_DisplayClearsStreaming(t *testing.T) {
 		t.Error("expected final message in history")
 	}
 }
+
+func TestTUI_PromptChoice(t *testing.T) {
+	model := NewTUI()
+	model.ready = true
+
+	envelope := domain.ChoiceEnvelope{
+		WhyRequired: "Subagent requests permissions",
+		Questions: []domain.ChoiceQuestion{
+			{
+				Header:   "Elevation",
+				Question: "Allow action?",
+				Options: []domain.ChoiceOption{
+					{Token: "allow", Label: "Allow"},
+					{Token: "deny", Label: "Deny"},
+				},
+			},
+		},
+	}
+
+	resultCh := make(chan string, 1)
+	go func() {
+		tok, _ := model.PromptChoice(envelope)
+		resultCh <- tok
+	}()
+
+	time.Sleep(50 * time.Millisecond)
+
+	model.mu.Lock()
+	if !model.choosing {
+		model.mu.Unlock()
+		t.Fatal("expected choosing=true")
+	}
+	model.mu.Unlock()
+
+	// Simulate selecting option 1
+	model.textInput.SetValue("1")
+	model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+
+	select {
+	case tok := <-resultCh:
+		if tok != "allow" {
+			t.Errorf("expected token 'allow', got %q", tok)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout waiting for PromptChoice to resolve")
+	}
+}
+

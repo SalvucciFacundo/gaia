@@ -19,6 +19,8 @@ type DesktopUI struct {
 	listeners    []chan string // event listeners for frontend push
 	confirmChan  chan bool     // channel for confirmation responses (set per prompt)
 	confirmMutex sync.Mutex    // guards confirmChan
+	choiceChan   chan string   // channel for choice responses
+	choiceMutex  sync.Mutex    // guards choiceChan
 }
 
 // NewDesktopUI creates a new DesktopUI adapter.
@@ -104,6 +106,46 @@ func (d *DesktopUI) PromptConfirmation(prompt string) (bool, error) {
 		return result, nil
 	case <-context.Background().Done():
 		return false, fmt.Errorf("confirmation cancelled")
+	}
+}
+
+// PromptChoice blocks until a choice token or answer is received from the frontend.
+// Implements ports.UIService.
+func (d *DesktopUI) PromptChoice(envelope domain.ChoiceEnvelope) (string, error) {
+	d.choiceMutex.Lock()
+	ch := make(chan string, 1)
+	d.choiceChan = ch
+	d.choiceMutex.Unlock()
+
+	d.mu.Lock()
+	choiceMsg := "[choice] " + envelope.WhyRequired
+	d.messages = append(d.messages, choiceMsg)
+	listeners := make([]chan string, len(d.listeners))
+	copy(listeners, d.listeners)
+	d.mu.Unlock()
+
+	for _, l := range listeners {
+		select {
+		case l <- choiceMsg:
+		default:
+		}
+	}
+
+	select {
+	case result := <-ch:
+		return result, nil
+	case <-context.Background().Done():
+		return "", fmt.Errorf("choice prompt cancelled")
+	}
+}
+
+// RespondChoice sends the user's selected choice token back to a pending PromptChoice.
+func (d *DesktopUI) RespondChoice(token string) {
+	d.choiceMutex.Lock()
+	defer d.choiceMutex.Unlock()
+	if d.choiceChan != nil {
+		d.choiceChan <- token
+		d.choiceChan = nil
 	}
 }
 

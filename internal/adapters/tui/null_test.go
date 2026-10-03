@@ -106,6 +106,7 @@ type uiService interface {
 	Display(msg domain.Message) error
 	AppendToken(content string) error
 	PromptConfirmation(prompt string) (bool, error)
+	PromptChoice(envelope domain.ChoiceEnvelope) (string, error)
 	Run() error
 }
 

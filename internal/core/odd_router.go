@@ -2,6 +2,7 @@
 package core
 
 import (
+	"fmt"
 	"strings"
 )
 
@@ -174,3 +175,77 @@ func DetectODDRoute(content string) ODDTriggerResult {
 		Reason: "within inline execution budget",
 	}
 }
+
+// In-Flight Mid-Turn Delegation Triggers and Budget Limits (ODD Contract):
+// - Evidence budget: <= 3 calls, <= 10,000 tokens
+// - Sequential lookups / mapping: > 5 lookups -> delegate to explorer
+// - Non-trivial writes: 2+ non-trivial file modifications -> delegate to writer
+const (
+	MaxInlineEvidenceCalls  = 3
+	MaxInlineEvidenceTokens = 10000
+	MaxInlineSequentialRead = 5
+	MaxInlineFileWrites     = 2
+)
+
+// MidTurnBudgetTracker monitors in-flight tool calls and resource usage during an inline turn.
+type MidTurnBudgetTracker struct {
+	EvidenceCalls  int
+	EvidenceTokens int
+	SequentialRead int
+	FilesWritten   map[string]bool
+}
+
+// NewMidTurnBudgetTracker creates an initialized tracker for a single turn.
+func NewMidTurnBudgetTracker() *MidTurnBudgetTracker {
+	return &MidTurnBudgetTracker{
+		FilesWritten: make(map[string]bool),
+	}
+}
+
+// RecordToolCall updates tracker state based on tool execution.
+func (t *MidTurnBudgetTracker) RecordToolCall(name string, args map[string]interface{}, output string) {
+	lowerName := strings.ToLower(name)
+
+	// Approximate token count: chars / 4
+	tokens := len(output) / 4
+
+	// Read / investigation tools
+	if strings.Contains(lowerName, "read") || strings.Contains(lowerName, "grep") ||
+		strings.Contains(lowerName, "search") || strings.Contains(lowerName, "find") ||
+		strings.Contains(lowerName, "list") {
+		t.EvidenceCalls++
+		t.EvidenceTokens += tokens
+		t.SequentialRead++
+	}
+
+	// Write / edit tools
+	if strings.Contains(lowerName, "write") || strings.Contains(lowerName, "edit") ||
+		strings.Contains(lowerName, "patch") || strings.Contains(lowerName, "create") {
+		if path, ok := args["path"].(string); ok && path != "" {
+			t.FilesWritten[path] = true
+		} else if file, ok := args["file"].(string); ok && file != "" {
+			t.FilesWritten[file] = true
+		} else if target, ok := args["target"].(string); ok && target != "" {
+			t.FilesWritten[target] = true
+		}
+	}
+}
+
+// CheckDelegationTrigger checks if in-flight thresholds were exceeded.
+// Returns targetRole ("explorer" or "writer"), reason, and true if delegation is required.
+func (t *MidTurnBudgetTracker) CheckDelegationTrigger() (string, string, bool) {
+	if t.SequentialRead > MaxInlineSequentialRead {
+		return "explorer", fmt.Sprintf("sequential lookups (%d) exceeded budget (> %d)", t.SequentialRead, MaxInlineSequentialRead), true
+	}
+	if t.EvidenceCalls > MaxInlineEvidenceCalls {
+		return "explorer", fmt.Sprintf("evidence calls (%d) exceeded budget (> %d)", t.EvidenceCalls, MaxInlineEvidenceCalls), true
+	}
+	if t.EvidenceTokens > MaxInlineEvidenceTokens {
+		return "explorer", fmt.Sprintf("evidence tokens (~%d) exceeded budget (> %d)", t.EvidenceTokens, MaxInlineEvidenceTokens), true
+	}
+	if len(t.FilesWritten) >= MaxInlineFileWrites {
+		return "writer", fmt.Sprintf("multi-file edits (%d files) reached write boundary (>= %d)", len(t.FilesWritten), MaxInlineFileWrites), true
+	}
+	return "", "", false
+}
+

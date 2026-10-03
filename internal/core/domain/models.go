@@ -245,6 +245,27 @@ func DefaultBudget() BudgetConfig {
 	}
 }
 
+// ChoiceOption represents a single selectable choice in a ChoiceEnvelope.
+type ChoiceOption struct {
+	Token       string `json:"token"`       // Canonical token (e.g. "approved", "declined")
+	Label       string `json:"label"`       // Display label (e.g. "Grant edit authority")
+	Description string `json:"description"` // Detailed explanation or effect
+}
+
+// ChoiceQuestion represents a question or group within a ChoiceEnvelope.
+type ChoiceQuestion struct {
+	Header        string         `json:"header,omitempty"`
+	Question      string         `json:"question"`
+	Options       []ChoiceOption `json:"options"`
+	IsMultiSelect bool           `json:"is_multi_select"`
+}
+
+// ChoiceEnvelope encapsulates a lossless blocking prompt envelope.
+type ChoiceEnvelope struct {
+	WhyRequired string           `json:"why_required"` // Why user intervention is blocking progress
+	Questions   []ChoiceQuestion `json:"questions"`
+}
+
 // SubagentStatus represents the outcome of a subagent execution.
 type SubagentStatus string
 
