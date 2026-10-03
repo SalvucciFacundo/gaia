@@ -279,8 +279,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		vpCmd tea.Cmd
 	)
 
+	m.mu.Lock()
 	m.textInput, tiCmd = m.textInput.Update(msg)
 	m.viewport, vpCmd = m.viewport.Update(msg)
+	m.mu.Unlock()
 
 	// Route to diff viewer when active
 	if m.diffViewer != nil {
@@ -1049,6 +1051,9 @@ For details: gaia help or check the README.`
 }
 
 func (m *Model) View() string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	// Render diff viewer when active
 	if m.diffViewer != nil {
 		return m.diffViewer.View()
@@ -1219,11 +1224,8 @@ func (m *Model) taskPaneHeight() int {
 	return 1 + len(m.tasks) // header + one line per task
 }
 
-// renderTaskPane builds the async task status bar.
+// renderTaskPane builds the async task status bar. Caller must hold m.mu.
 func (m *Model) renderTaskPane() string {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
 	if len(m.tasks) == 0 {
 		return ""
 	}

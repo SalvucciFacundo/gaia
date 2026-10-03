@@ -215,18 +215,19 @@ func (tm *TaskManager) CancelTask(taskID string) error {
 // WaitTask blocks until the task reaches a terminal state or the context is done.
 // Returns the final TaskState, or an error if the context is cancelled first.
 func (tm *TaskManager) WaitTask(ctx context.Context, taskID string) (*TaskState, error) {
-	// Fast path: check if already terminal
+	// Fast path: check if already terminal under read lock
 	tm.mu.RLock()
 	entry, ok := tm.tasks[taskID]
-	tm.mu.RUnlock()
-
 	if !ok {
+		tm.mu.RUnlock()
 		return nil, fmt.Errorf("task %s not found", taskID)
 	}
+	isTerminal := entry.state.Status == TaskCompleted || entry.state.Status == TaskFailed || entry.state.Status == TaskCancelled
+	state := entry.state
+	tm.mu.RUnlock()
 
 	// If already terminal, return immediately
-	if entry.state.Status == TaskCompleted || entry.state.Status == TaskFailed || entry.state.Status == TaskCancelled {
-		state := entry.state
+	if isTerminal {
 		return &state, nil
 	}
 

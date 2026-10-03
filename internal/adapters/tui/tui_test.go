@@ -136,7 +136,9 @@ func TestTUI_PromptConfirmationAsyncChannel(t *testing.T) {
 	model.mu.Unlock()
 
 	// Simulate user typing "y" and pressing Enter.
+	model.mu.Lock()
 	model.textInput.SetValue("y")
+	model.mu.Unlock()
 	_, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	if cmd != nil {
 		t.Log("got cmd from confirmation Enter — running it")
@@ -178,7 +180,9 @@ func TestTUI_PromptConfirmationDenial(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 
 	// Simulate user typing "n" and pressing Enter.
+	model.mu.Lock()
 	model.textInput.SetValue("n")
+	model.mu.Unlock()
 	model.Update(tea.KeyMsg{Type: tea.KeyEnter})
 
 	select {
