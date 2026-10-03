@@ -58,14 +58,14 @@ func TestDeliveryItem_Validation(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "missing ReceiptLineage",
+			name: "missing ReceiptLineage is permitted when unreviewed",
 			item: DeliveryItem{
 				ID:        "del-1",
 				Branch:    "feature/auth",
 				CommitSHA: "a1b2c3d4",
 				Status:    StatusStandby,
 			},
-			wantErr: true,
+			wantErr: false,
 		},
 	}
 

@@ -16,6 +16,7 @@ func parseSDDResult(resp *domain.Message, defaultNext string) *domain.SubagentRe
 			Summary:         "No response from LLM.",
 			NextRecommended: "none",
 			SkillResolution: "none",
+			Error:           "no response from LLM",
 		}
 	}
 
@@ -145,6 +146,11 @@ func parseSDDResult(resp *domain.Message, defaultNext string) *domain.SubagentRe
 		if r != "" && !strings.EqualFold(r, "none") {
 			result.Risks = append(result.Risks, r)
 		}
+	}
+
+	if strings.Contains(content, "Subagent budget exhausted") {
+		result.Status = domain.SubagentBlocked
+		result.Error = strings.TrimSpace(content)
 	}
 
 	return result

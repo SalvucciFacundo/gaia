@@ -450,6 +450,22 @@ func TestEngineStart(t *testing.T) {
 	}
 }
 
+func TestEngineStartWithChangeName(t *testing.T) {
+	llm := &mockLensLLM{}
+	engine := NewEngine(".", llm)
+
+	tx, err := engine.StartWithChangeName(context.Background(), "auth-models", []string{})
+	if err != nil {
+		t.Fatalf("StartWithChangeName() failed: %v", err)
+	}
+	if tx.ChangeName != "auth-models" {
+		t.Errorf("expected ChangeName = auth-models, got %s", tx.ChangeName)
+	}
+	if tx.State != StateReviewing {
+		t.Errorf("StartWithChangeName() state = %s, want %s", tx.State, StateReviewing)
+	}
+}
+
 func TestRiskCodeCount(t *testing.T) {
 	allCodes := []RiskCode{
 		RiskConfigurationChange,

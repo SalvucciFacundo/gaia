@@ -656,6 +656,20 @@ func TestParseSDDResult_NilResponse(t *testing.T) {
 	}
 }
 
+func TestParseSDDResult_BudgetExhausted(t *testing.T) {
+	resp := &domain.Message{
+		Role:    domain.RoleAssistant,
+		Content: "Subagent budget exhausted after 5 iterations.",
+	}
+	result := parseSDDResult(resp, "sdd-implement")
+	if result.Status != domain.SubagentBlocked {
+		t.Errorf("expected SubagentBlocked, got %v", result.Status)
+	}
+	if result.Error == "" {
+		t.Errorf("expected non-empty Error field, got empty")
+	}
+}
+
 func TestParseSDDResult_EmptyContent(t *testing.T) {
 	resp := &domain.Message{
 		Role:    domain.RoleAssistant,

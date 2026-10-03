@@ -642,3 +642,106 @@ func TestBrain_ProcessMessage_ProactiveSDDSuggestion(t *testing.T) {
 		t.Errorf("expected /sdd and /direct choices in output, got: %s", lastMsg.Content)
 	}
 }
+
+func TestBrain_ProcessMessage_ModelsAlias(t *testing.T) {
+	prov := &stubProvider{}
+	repo := &stubRepo{}
+	ui := &stubUI{}
+	budget := domain.BudgetConfig{MaxIterations: 5}
+
+	brain := NewBrain(prov, repo, ui, nil, budget)
+	brain.availableProviders = map[string]ports.LLMProvider{
+		"primary":  prov,
+		"fallback": prov,
+	}
+	brain.providerName = "primary"
+
+	err := brain.ProcessMessage(context.Background(), "/models")
+	if err != nil {
+		t.Fatalf("ProcessMessage with /models failed: %v", err)
+	}
+
+	if len(ui.displayed) == 0 {
+		t.Fatal("expected UI display for /models")
+	}
+
+	lastMsg := ui.displayed[len(ui.displayed)-1]
+	if !strings.Contains(lastMsg.Content, "Available models") {
+		t.Errorf("expected model listing in output, got: %s", lastMsg.Content)
+	}
+
+	// Also test switching with /models alias
+	err = brain.ProcessMessage(context.Background(), "/models fallback")
+	if err != nil {
+		t.Fatalf("ProcessMessage with /models fallback failed: %v", err)
+	}
+	if brain.providerName != "fallback" {
+		t.Errorf("expected providerName to be fallback, got %q", brain.providerName)
+	}
+}
+
+type stubSubagentPort struct {
+	available   []string
+	spawnResult *domain.SubagentResult
+	spawnErr    error
+}
+
+func (s *stubSubagentPort) Available() []string {
+	return s.available
+}
+
+func (s *stubSubagentPort) Spawn(ctx context.Context, name string, task domain.SubagentTask) (*domain.SubagentResult, error) {
+	return s.spawnResult, s.spawnErr
+}
+
+func TestBrain_DelegateMidTurnODD_PostTurnHooks(t *testing.T) {
+	prov := &stubProvider{
+		resp: &domain.Message{
+			Role:    domain.RoleAssistant,
+			Content: "Processed queued response",
+		},
+	}
+	repo := &stubRepo{}
+	ui := &stubUI{}
+	budget := domain.BudgetConfig{MaxIterations: 5}
+
+	brain := NewBrain(prov, repo, ui, nil, budget)
+	brain.SetSubagentPort(&stubSubagentPort{
+		available: []string{"explorer"},
+		spawnResult: &domain.SubagentResult{
+			Status:  domain.SubagentSuccess,
+			Summary: "Exploration completed mid-turn",
+		},
+	})
+
+	// Enqueue a follow-up message to verify post-turn hook processes it
+	brain.messageQueue = append(brain.messageQueue, "check queued task")
+
+	tracker := NewMidTurnBudgetTracker()
+	tracker.SequentialRead = MaxInlineSequentialRead + 1
+
+	handled, err := brain.delegateMidTurnODD(context.Background(), "search codebase for handler", tracker, TriggerResult{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !handled {
+		t.Fatal("expected delegateMidTurnODD to handle mid-turn trigger")
+	}
+
+	// Verify post-turn hook processQueuedMessages drained the messageQueue
+	if len(brain.messageQueue) != 0 {
+		t.Errorf("expected messageQueue to be drained by post-turn hooks, remaining: %d", len(brain.messageQueue))
+	}
+
+	// Verify delegation UI output was displayed
+	foundDelegation := false
+	for _, m := range ui.displayed {
+		if strings.Contains(m.Content, "ODD Mid-Turn Dynamic Delegation (explorer)") {
+			foundDelegation = true
+			break
+		}
+	}
+	if !foundDelegation {
+		t.Error("expected delegation display message in UI")
+	}
+}

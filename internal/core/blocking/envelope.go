@@ -138,7 +138,16 @@ func ValidateChoiceResponse(input string, question domain.ChoiceQuestion) (*Matc
 }
 
 func matchSingleOption(trimmed string, question domain.ChoiceQuestion) (*MatchResult, error) {
+	trimmed = strings.TrimSpace(trimmed)
+	if trimmed == "" {
+		return nil, fmt.Errorf("empty option token")
+	}
+
 	lower := strings.ToLower(trimmed)
+	fields := strings.Fields(lower)
+	if len(fields) == 0 {
+		return nil, fmt.Errorf("empty option token")
+	}
 
 	// Helper to resolve an index 1-based to option token
 	resolveByIndex := func(idx int) (string, error) {
@@ -150,7 +159,7 @@ func matchSingleOption(trimmed string, question domain.ChoiceQuestion) (*MatchRe
 
 	// If user included rationale (e.g. "1 porque es necesario" or "opcion 1 ya que..."),
 	// extract the leading token or ordinal phrase if separated by space.
-	firstWord := strings.Fields(lower)[0]
+	firstWord := fields[0]
 	if num, err := strconv.Atoi(firstWord); err == nil {
 		tok, err := resolveByIndex(num)
 		if err == nil {

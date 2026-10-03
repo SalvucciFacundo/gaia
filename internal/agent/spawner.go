@@ -255,17 +255,7 @@ func (s *Spawner) RunLoop(ctx context.Context, task domain.SubagentTask, systemP
 						}
 
 						if targetPath != "" {
-							cleanTarget := filepath.Clean(targetPath)
-							allowed := false
-							for _, root := range task.AllowedEditRoots {
-								cleanRoot := filepath.Clean(root)
-								if cleanRoot == "." || cleanTarget == cleanRoot || strings.HasPrefix(cleanTarget, cleanRoot+string(filepath.Separator)) {
-									allowed = true
-									break
-								}
-							}
-
-							if !allowed {
+							if !checkEditAuthority(targetPath, task.AllowedEditRoots) {
 								deniedOutput := fmt.Sprintf("Edit Authority Denied: target path %q is outside allowed edit roots (%v)",
 									targetPath, task.AllowedEditRoots)
 								messages = append(messages, domain.Message{
@@ -329,6 +319,36 @@ func (s *Spawner) RunLoop(ctx context.Context, task domain.SubagentTask, systemP
 		Role:    domain.RoleAssistant,
 		Content: fmt.Sprintf("Subagent budget exhausted after %d iterations.", s.cfg.Budget.MaxIterations),
 	}, nil
+}
+
+// checkEditAuthority validates whether targetPath falls within any of the allowedRoots.
+// Resolves both root and target path to absolute cleaned paths using filepath.Abs and filepath.Clean.
+// Uses filepath.Rel(absRoot, absTarget) to verify the target does NOT start with ".." and is not an escape.
+func checkEditAuthority(targetPath string, allowedRoots []string) bool {
+	if len(allowedRoots) == 0 {
+		return false
+	}
+	cleanTarget := filepath.Clean(targetPath)
+	absTarget, err := filepath.Abs(cleanTarget)
+	if err != nil {
+		return false
+	}
+
+	for _, root := range allowedRoots {
+		cleanRoot := filepath.Clean(root)
+		absRoot, err := filepath.Abs(cleanRoot)
+		if err != nil {
+			continue
+		}
+		rel, err := filepath.Rel(absRoot, absTarget)
+		if err != nil {
+			continue
+		}
+		if rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))) {
+			return true
+		}
+	}
+	return false
 }
 
 // BuildSystemPrompt constructs a system prompt for a subagent from the task context.

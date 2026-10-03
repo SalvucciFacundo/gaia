@@ -142,9 +142,8 @@ func (a *archiver) enqueueDeliveryItem(workDir string, receiptStore gates.Receip
 			lineageID = r.LineageID
 		}
 	}
-	if lineageID == "" {
-		lineageID = fmt.Sprintf("sha256:archived-%s", changeName)
-	}
+	// If review mode is disabled and no receipt exists, do not fabricate synthetic lineage.
+	// item.ReceiptLineage can remain empty ("") or be unreviewed.
 
 	// Resolve commit SHA & branch from git if possible
 	branch := getGitCurrentBranch(workDir)

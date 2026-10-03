@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 
 	"gaia/internal/adapters/db"
 	"gaia/internal/adapters/llm"
@@ -33,7 +34,8 @@ func handleExec(args []string) {
 	yes := fs.Bool("yes", false, "Auto-confirm all tool executions")
 	policyTier := fs.String("policy-tier", "", "Policy tier: read, sandbox, or full (default: full)")
 
-	fs.Parse(args)
+	reordered := reorderExecArgs(args)
+	fs.Parse(reordered)
 
 	task := fs.Arg(0)
 	if task == "" {
@@ -191,4 +193,36 @@ func handleExec(args []string) {
 	default:
 		fmt.Println(result.FormatText(*quiet, *verbose))
 	}
+}
+
+// reorderExecArgs reorders CLI arguments so that flags appearing after
+// positional task arguments (e.g., gaia exec "task" --json) are placed before
+// positional arguments for standard flag parsing.
+func reorderExecArgs(args []string) []string {
+	var flagArgs []string
+	var posArgs []string
+	stringFlags := map[string]bool{
+		"policy-tier": true,
+	}
+
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		if arg == "--" {
+			posArgs = append(posArgs, args[i:]...)
+			break
+		}
+		if strings.HasPrefix(arg, "-") {
+			flagArgs = append(flagArgs, arg)
+			name := strings.TrimLeft(arg, "-")
+			if idx := strings.Index(name, "="); idx != -1 {
+				name = name[:idx]
+			} else if stringFlags[name] && i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
+				i++
+				flagArgs = append(flagArgs, args[i])
+			}
+		} else {
+			posArgs = append(posArgs, arg)
+		}
+	}
+	return append(flagArgs, posArgs...)
 }

@@ -57,8 +57,6 @@ func (item *DeliveryItem) Validate() error {
 	if strings.TrimSpace(item.CommitSHA) == "" {
 		return fmt.Errorf("delivery commit SHA is required")
 	}
-	if strings.TrimSpace(item.ReceiptLineage) == "" {
-		return fmt.Errorf("delivery receipt lineage is required")
-	}
+	// Note: ReceiptLineage may be empty or unreviewed when review mode is disabled.
 	return nil
 }

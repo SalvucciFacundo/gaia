@@ -51,8 +51,21 @@ echo "[GAIA] Running %s gate validation..."
 if [ "$GATE" = "pre-commit" ]; then
     FILES=$(cd "$REPO_ROOT" && git diff --cached --name-only --diff-filter=ACM)
 elif [ "$GATE" = "pre-push" ]; then
-    # For pre-push, validate all tracked files in the HEAD commit.
-    FILES=$(cd "$REPO_ROOT" && git diff --name-only HEAD --diff-filter=ACM)
+    # For pre-push, read refs and commit range from stdin: local_ref local_sha remote_ref remote_sha
+    FILES=""
+    while read -r local_ref local_sha remote_ref remote_sha; do
+        if [ "$local_sha" = "0000000000000000000000000000000000000000" ]; then
+            continue
+        fi
+        if [ "$remote_sha" = "0000000000000000000000000000000000000000" ] || [ -z "$remote_sha" ]; then
+            PUSH_FILES=$(cd "$REPO_ROOT" && git diff-tree -r --no-commit-id --name-only --diff-filter=ACM "$local_sha" 2>/dev/null || git diff --name-only "$local_sha" --diff-filter=ACM 2>/dev/null)
+        else
+            PUSH_FILES=$(cd "$REPO_ROOT" && git diff --name-only "$remote_sha..$local_sha" --diff-filter=ACM 2>/dev/null)
+        fi
+        if [ -n "$PUSH_FILES" ]; then
+            FILES="$FILES $PUSH_FILES"
+        fi
+    done
 else
     FILES=$(cd "$REPO_ROOT" && git ls-files --exclude-standard)
 fi
@@ -63,7 +76,7 @@ if [ -z "$FILES" ]; then
 fi
 
 # Convert files to a comma-separated list for the CLI.
-FILE_LIST=$(echo "$FILES" | tr '\n' ',' | sed 's/,$//')
+FILE_LIST=$(echo "$FILES" | tr -s ' \t\n' '\n' | sed '/^$/d' | sort -u | tr '\n' ',' | sed 's/,$//')
 
 # Run gate validation via the GAIA CLI.
 cd "$REPO_ROOT"

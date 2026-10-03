@@ -68,6 +68,16 @@ func TestExecFlagParsing(t *testing.T) {
 			wantYes:  true,
 			wantTask: "install dependencies",
 		},
+		{
+			name:     "flags after task",
+			args:     []string{"explain this code", "--json", "--yes"},
+			wantJSON: true,
+			wantDry:  false,
+			wantQuiet: false,
+			wantVerb: false,
+			wantYes:  true,
+			wantTask: "explain this code",
+		},
 	}
 
 	for _, tt := range tests {
@@ -79,7 +89,7 @@ func TestExecFlagParsing(t *testing.T) {
 			dryRun := fs.Bool("dry-run", false, "")
 			yes := fs.Bool("yes", false, "")
 
-			err := fs.Parse(tt.args)
+			err := fs.Parse(reorderExecArgs(tt.args))
 			if err != nil {
 				t.Fatalf("unexpected parse error: %v", err)
 			}

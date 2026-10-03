@@ -82,6 +82,7 @@ func (d *DynamicSubagent) Execute(ctx context.Context, task domain.SubagentTask)
 			Summary:         fmt.Sprintf("Dynamic subagent %q execution failed: %s", d.def.Name, err.Error()),
 			NextRecommended: "none",
 			SkillResolution: "none",
+			Error:           err.Error(),
 		}
 	}
 
@@ -267,6 +268,7 @@ func parseDynamicResult(resp *domain.Message, name string) *domain.SubagentResul
 			Summary:         "No response from LLM.",
 			NextRecommended: "none",
 			SkillResolution: "none",
+			Error:           "no response from LLM",
 		}
 	}
 
@@ -358,6 +360,11 @@ func parseDynamicResult(resp *domain.Message, name string) *domain.SubagentResul
 		result.Summary = strings.Join(summaryLines, " ")
 	} else {
 		result.Summary = fmt.Sprintf("[%s] %s", name, firstNLinesDynamic(content, 3))
+	}
+
+	if strings.Contains(content, "Subagent budget exhausted") {
+		result.Status = domain.SubagentBlocked
+		result.Error = strings.TrimSpace(content)
 	}
 
 	return result

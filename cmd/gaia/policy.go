@@ -17,16 +17,23 @@ func handlePolicyCLI(args []string) {
 	tier := fs.String("tier", "sandbox", "Default tier: read, sandbox, or full")
 	isGlobal := fs.Bool("global", false, "Create global policy instead of project-level")
 
-	fs.Parse(args)
+	var flagArgs []string
+	hasInit := false
+	for _, arg := range args {
+		if arg == "init" && !hasInit {
+			hasInit = true
+			continue
+		}
+		flagArgs = append(flagArgs, arg)
+	}
 
-	sub := fs.Arg(0)
-	switch sub {
-	case "init":
-		handlePolicyInit(*tier, *isGlobal)
-	default:
+	if !hasInit {
 		fmt.Fprintln(os.Stderr, "Usage: gaia policy init [--tier=read|sandbox|full] [--global]")
 		os.Exit(1)
 	}
+
+	fs.Parse(flagArgs)
+	handlePolicyInit(*tier, *isGlobal)
 }
 
 func handlePolicyInit(tier string, isGlobal bool) {

@@ -106,6 +106,12 @@ func TestValidateChoiceResponse(t *testing.T) {
 		{input: "4", wantErr: true},
 		{input: "algo inventado", wantErr: true},
 		{input: "", wantErr: true},
+		{input: "   ", wantErr: true},
+		{input: "0", wantErr: true},
+		{input: "-1", wantErr: true},
+		{input: "99", wantErr: true},
+		{input: "opción 0", wantErr: true},
+		{input: "opción 99", wantErr: true},
 	}
 
 	for _, tt := range tests {
@@ -157,6 +163,30 @@ func TestValidateChoiceResponse_MultiSelect(t *testing.T) {
 			input:   "1, invalid",
 			wantErr: true,
 		},
+		{
+			input:   "1,",
+			wantErr: true,
+		},
+		{
+			input:   "1, , 2",
+			wantErr: true,
+		},
+		{
+			input:   ",,",
+			wantErr: true,
+		},
+		{
+			input:   "   ",
+			wantErr: true,
+		},
+		{
+			input:   "0, 1",
+			wantErr: true,
+		},
+		{
+			input:   "1, 99",
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -178,6 +208,58 @@ func TestValidateChoiceResponse_MultiSelect(t *testing.T) {
 				if tok != tt.wantTokens[i] {
 					t.Errorf("index %d: got %s, want %s", i, tok, tt.wantTokens[i])
 				}
+			}
+		})
+	}
+}
+
+func TestValidateChoiceResponse_AdversarialAndBounds(t *testing.T) {
+	singleQ := sampleEnvelope().Questions[0]
+	multiQ := sampleMultiSelectEnvelope().Questions[0]
+
+	adversarialInputs := []string{
+		"1,",
+		"1, , 2",
+		"   ",
+		",,",
+		",",
+		",,,",
+		"   ,   ",
+		"0",
+		"-1",
+		"99",
+		"opción 0",
+		"opción 99",
+		"option -10",
+		"el 0",
+		"la 99",
+	}
+
+	for _, input := range adversarialInputs {
+		t.Run("single_"+input, func(t *testing.T) {
+			res, err := ValidateChoiceResponse(input, singleQ)
+			if err == nil {
+				t.Fatalf("expected error for single-select input %q, got result: %v", input, res)
+			}
+		})
+		t.Run("multi_"+input, func(t *testing.T) {
+			res, err := ValidateChoiceResponse(input, multiQ)
+			if err == nil {
+				t.Fatalf("expected error for multi-select input %q, got result: %v", input, res)
+			}
+		})
+	}
+
+	// Direct matchSingleOption boundary tests
+	emptyTokens := []string{"", " ", "   ", "\t", "\n"}
+	for _, tok := range emptyTokens {
+		t.Run("matchSingleOption_empty_"+tok, func(t *testing.T) {
+			res, err := matchSingleOption(tok, singleQ)
+			if err == nil {
+				t.Fatalf("expected error for empty token %q, got %v", tok, res)
+			}
+			if res != nil {
+				t.Fatalf("expected nil result for empty token %q, got %v", tok, res)
 			}
 		})
 	}

@@ -292,9 +292,14 @@ func (s *FSReceiptStore) ListReceipts() ([]ReceiptSummary, error) {
 
 		// Derive change name from filename.
 		baseName := strings.TrimSuffix(entry.Name(), ".json")
-		// Format: {changeName}-{lineagePrefix} (split on last hyphen)
+		// Format: {changeName}-{lineagePrefix} (lineagePrefix is up to 16 chars)
 		changeName := baseName
-		if lastDash := strings.LastIndex(baseName, "-"); lastDash > 0 {
+		if len(receipt.LineageID) > 0 {
+			lineagePrefix := receipt.LineageID[:min(16, len(receipt.LineageID))]
+			if strings.HasSuffix(baseName, "-"+lineagePrefix) {
+				changeName = strings.TrimSuffix(baseName, "-"+lineagePrefix)
+			}
+		} else if lastDash := strings.LastIndex(baseName, "-"); lastDash > 0 {
 			changeName = baseName[:lastDash]
 		}
 

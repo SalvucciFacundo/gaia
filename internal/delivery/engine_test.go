@@ -223,6 +223,37 @@ func TestEngine_Release_ContentDriftProtection(t *testing.T) {
 			t.Errorf("expected StatusFailed, got %s", updated.Status)
 		}
 	})
+
+	// 4. Disabled review mode with empty ReceiptLineage succeeds (no ErrContentDrift)
+	t.Run("disabled_mode_empty_lineage", func(t *testing.T) {
+		engine, queue, transport, _ := newTestEngine(t)
+		// review mode in newTestEngine temp dir is disabled by default
+		item := DeliveryItem{
+			ID:             "del-unreviewed-allowed",
+			ChangeName:     "feat-quick-fix",
+			Branch:         "feature/quick-fix",
+			CommitSHA:      "sha1",
+			ReceiptLineage: "", // Empty lineage when unreviewed
+			PRTitle:        "fix: quick patch",
+			PRBody:         "body",
+			Status:         StatusStandby,
+			CreatedAt:      time.Now(),
+		}
+		if err := queue.Enqueue(item); err != nil {
+			t.Fatalf("Enqueue failed: %v", err)
+		}
+
+		res, err := engine.Release(ctx, "del-unreviewed-allowed")
+		if err != nil {
+			t.Fatalf("expected release to succeed when review mode disabled and lineage empty, got: %v", err)
+		}
+		if !res.Success {
+			t.Errorf("expected success=true, got error: %s", res.Error)
+		}
+		if len(transport.PushedBranches) != 1 || transport.PushedBranches[0] != "feature/quick-fix" {
+			t.Errorf("expected branch pushed, got %v", transport.PushedBranches)
+		}
+	})
 }
 
 func TestEngine_ReleaseAll_TopologicalOrder(t *testing.T) {

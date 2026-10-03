@@ -346,6 +346,7 @@ type SubagentResult struct {
 	NextRecommended string         // Next recommended phase, or "none"
 	Risks           []string       // Risks discovered during execution
 	SkillResolution string         // How skills were resolved (paths-injected, fallback-registry, none)
+	Error           string         // Error message if subagent was blocked or failed
 }
 
 // CronJob represents a scheduled task definition.

@@ -59,9 +59,15 @@ func (e *Engine) Standards() *agentsmd.Standards {
 	return e.standards
 }
 
-// Start initiates a review for the given files. It snapshots the files,
-// creates a transaction, and sets the state to "reviewing".
+// Start initiates a review for the given files with an auto-derived change name.
+// It snapshots the files, creates a transaction, and sets the state to "reviewing".
 func (e *Engine) Start(files []string) (*Transaction, error) {
+	return e.StartWithChangeName(context.Background(), deriveChangeName(files), files)
+}
+
+// StartWithChangeName initiates a review for the given files under an explicit change name.
+// It snapshots the files, creates a transaction, and sets the state to "reviewing".
+func (e *Engine) StartWithChangeName(ctx context.Context, changeName string, files []string) (*Transaction, error) {
 	snapshots, err := SnapshotFiles(e.projectRoot, files)
 	if err != nil {
 		return nil, fmt.Errorf("start review: %w", err)
@@ -70,9 +76,13 @@ func (e *Engine) Start(files []string) (*Transaction, error) {
 	snapshotHash := ComputeSnapshotHash(snapshots)
 	now := time.Now()
 
+	if strings.TrimSpace(changeName) == "" {
+		changeName = deriveChangeName(files)
+	}
+
 	tx := &Transaction{
 		ID:                 generateTxID(files, snapshotHash),
-		ChangeName:         deriveChangeName(files),
+		ChangeName:         changeName,
 		State:              StateReviewing,
 		SnapshotHash:       snapshotHash,
 		Files:              files,

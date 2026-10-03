@@ -2,11 +2,36 @@ package agent
 
 import (
 	"context"
+	"fmt"
+	"os"
 	"testing"
 
 	"gaia/internal/core"
 	"gaia/internal/core/domain"
+	"gaia/internal/core/ports"
 )
+
+type multiRespProvider struct {
+	idx       int
+	responses []*domain.Message
+}
+
+func (m *multiRespProvider) Chat(ctx context.Context, msgs []domain.Message, opts ...ports.ChatOpt) (*domain.Message, error) {
+	if m.idx < len(m.responses) {
+		resp := m.responses[m.idx]
+		m.idx++
+		return resp, nil
+	}
+	return &domain.Message{Role: domain.RoleAssistant, Content: "Done"}, nil
+}
+
+func (m *multiRespProvider) Stream(ctx context.Context, msgs []domain.Message, opts ...ports.ChatOpt) (ports.TokenStream, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
+func (m *multiRespProvider) Tools() []domain.ToolDef { return nil }
+
+func (m *multiRespProvider) ListModels(ctx context.Context) ([]string, error) { return nil, nil }
 
 // =============================================================================
 // 4.7 — Spawner.RunLoop Gating with PolicyGuard
@@ -197,5 +222,123 @@ func TestSpawnerRunLoop_PolicyContextCancellation(t *testing.T) {
 	_, err := spawner.RunLoop(ctx, task, prompt)
 	if err == nil {
 		t.Error("expected context cancellation error")
+	}
+}
+
+func TestCheckEditAuthority_BoundaryAndEscapes(t *testing.T) {
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get working dir: %v", err)
+	}
+
+	rootsList := [][]string{
+		{"."},
+		{wd},
+	}
+
+	for _, roots := range rootsList {
+		label := roots[0]
+		// Forbidden escape paths
+		escapes := []string{
+			"/etc/passwd",
+			"/etc/shadow",
+			"../../secret",
+			"../../../etc/passwd",
+			"../outside.txt",
+		}
+		for _, target := range escapes {
+			if checkEditAuthority(target, roots) {
+				t.Errorf("root %q: expected target %q to be rejected, but was allowed", label, target)
+			}
+		}
+
+		// Legitimate child paths
+		allowed := []string{
+			"foo.txt",
+			"./foo.txt",
+			"subdir/bar.go",
+			"./subdir/bar.go",
+		}
+		for _, target := range allowed {
+			if !checkEditAuthority(target, roots) {
+				t.Errorf("root %q: expected target %q to be allowed, but was rejected", label, target)
+			}
+		}
+	}
+}
+
+func TestSpawnerRunLoop_EditAuthorityRejectsEscapesEvenWhenRootIsDot(t *testing.T) {
+	prov := &multiRespProvider{
+		responses: []*domain.Message{
+			{
+				Role: domain.RoleAssistant,
+				ToolCalls: []domain.ToolCall{
+					{
+						ID:   "call_1",
+						Name: "write_file",
+						Arguments: map[string]interface{}{
+							"path": "/etc/passwd",
+						},
+					},
+				},
+			},
+			{
+				Role:    domain.RoleAssistant,
+				Content: "Finished after edit check",
+			},
+		},
+	}
+
+	spawner := newTestSpawner(prov)
+	task := newTask()
+	task.AllowedEditRoots = []string{"."}
+
+	resp, err := spawner.RunLoop(context.Background(), task, "Write to passwd")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp == nil {
+		t.Fatal("expected non-nil response")
+	}
+	if resp.Content != "Finished after edit check" {
+		t.Errorf("unexpected response content: %q", resp.Content)
+	}
+}
+
+func TestSpawnerRunLoop_EditAuthorityRejectsParentTraversalEvenWhenRootIsDot(t *testing.T) {
+	prov := &multiRespProvider{
+		responses: []*domain.Message{
+			{
+				Role: domain.RoleAssistant,
+				ToolCalls: []domain.ToolCall{
+					{
+						ID:   "call_1",
+						Name: "edit_file",
+						Arguments: map[string]interface{}{
+							"path": "../../secret",
+						},
+					},
+				},
+			},
+			{
+				Role:    domain.RoleAssistant,
+				Content: "Finished after secret check",
+			},
+		},
+	}
+
+	spawner := newTestSpawner(prov)
+	task := newTask()
+	task.AllowedEditRoots = []string{"."}
+
+	resp, err := spawner.RunLoop(context.Background(), task, "Write to secret")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp == nil {
+		t.Fatal("expected non-nil response")
+	}
+	if resp.Content != "Finished after secret check" {
+		t.Errorf("unexpected response content: %q", resp.Content)
 	}
 }

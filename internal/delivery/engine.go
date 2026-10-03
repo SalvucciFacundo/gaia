@@ -3,7 +3,9 @@ package delivery
 import (
 	"context"
 	"fmt"
+	"os/exec"
 	"sort"
+	"strings"
 
 	"gaia/internal/core/domain"
 	"gaia/internal/review"
@@ -71,7 +73,8 @@ func (e *Engine) Release(ctx context.Context, itemID string) (*ReleaseResult, er
 			}, err
 		}
 
-		receiptRequired := (item.ReceiptLineage != "") || (modeStatus.Mode == review.ModeEnabled)
+		isUnreviewed := item.ReceiptLineage == "" || item.ReceiptLineage == "unreviewed"
+		receiptRequired := (!isUnreviewed) || (modeStatus.Mode == review.ModeEnabled)
 		if receiptRequired && receipt == nil {
 			driftErr := fmt.Errorf("%w: no review receipt found for %q", ErrContentDrift, item.ChangeName)
 			_ = e.queue.MarkFailed(itemID, driftErr.Error())
@@ -104,6 +107,16 @@ func (e *Engine) Release(ctx context.Context, itemID string) (*ReleaseResult, er
 					Success: false,
 					Error:   driftErr.Error(),
 				}, driftErr
+			}
+
+			if err := e.verifyContentDrift(item, receipt); err != nil {
+				_ = e.queue.MarkFailed(itemID, err.Error())
+				return &ReleaseResult{
+					ItemID:  item.ID,
+					Branch:  item.Branch,
+					Success: false,
+					Error:   err.Error(),
+				}, err
 			}
 		}
 	}
@@ -255,4 +268,64 @@ func sortTopological(items []DeliveryItem) []DeliveryItem {
 	}
 
 	return sorted
+}
+
+// verifyContentDrift checks git commits and snapshots to detect content drift
+// between current local state and the approved review receipt snapshot.
+func (e *Engine) verifyContentDrift(item *DeliveryItem, receipt *domain.ReviewReceipt) error {
+	if receipt == nil || e.repoRoot == "" {
+		return nil
+	}
+
+	// 1. If git is available, verify git commit/branch snapshot
+	if item.CommitSHA != "" && item.Branch != "" {
+		cmdRev := exec.Command("git", "rev-parse", item.Branch)
+		cmdRev.Dir = e.repoRoot
+		if revOut, err := cmdRev.Output(); err == nil {
+			branchSHA := strings.TrimSpace(string(revOut))
+			if branchSHA != "" && branchSHA != item.CommitSHA {
+				return fmt.Errorf("%w: commit SHA mismatch for branch %s (item=%s, current=%s)", ErrContentDrift, item.Branch, item.CommitSHA, branchSHA)
+			}
+		}
+	}
+
+	// 2. Discover changed files via git diff/diff-tree if available
+	var files []string
+	if item.BaseBranch != "" && item.Branch != "" {
+		cmd := exec.Command("git", "diff", "--name-only", item.BaseBranch+".."+item.Branch)
+		cmd.Dir = e.repoRoot
+		if out, err := cmd.Output(); err == nil {
+			for _, line := range strings.Split(string(out), "\n") {
+				line = strings.TrimSpace(line)
+				if line != "" {
+					files = append(files, line)
+				}
+			}
+		}
+	}
+	if len(files) == 0 && item.CommitSHA != "" {
+		cmdTree := exec.Command("git", "diff-tree", "-r", "--no-commit-id", "--name-only", item.CommitSHA)
+		cmdTree.Dir = e.repoRoot
+		if treeOut, err := cmdTree.Output(); err == nil {
+			for _, line := range strings.Split(string(treeOut), "\n") {
+				line = strings.TrimSpace(line)
+				if line != "" {
+					files = append(files, line)
+				}
+			}
+		}
+	}
+
+	// 3. Compute SnapshotFiles and verify snapshot hash matches receipt
+	if len(files) > 0 && receipt.SnapshotHash != "" {
+		snapshots, err := review.SnapshotFiles(e.repoRoot, files)
+		if err == nil && len(snapshots) > 0 {
+			currentHash := review.ComputeSnapshotHash(snapshots)
+			if currentHash != receipt.SnapshotHash {
+				return fmt.Errorf("%w: snapshot hash mismatch (current=%s, receipt=%s)", ErrContentDrift, currentHash, receipt.SnapshotHash)
+			}
+		}
+	}
+
+	return nil
 }

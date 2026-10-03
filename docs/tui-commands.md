@@ -78,6 +78,7 @@ This document provides a comprehensive reference for all in-session interactive 
 | `/branches` | Lists all saved branch points. |
 | `/snapshot save <name>` | Saves the raw conversation state to a JSON file in `%TEMP%/gaia-snapshots/` (useful for backups/transfer). |
 | `/snapshot load <name>` | Restores a previously saved snapshot, inserting all messages into the current conversation. |
+| `/diff` | Opens the interactive terminal diff viewer showing uncommitted modifications in the working tree. Use `/diff --staged` (or `--cached`) to inspect staged changes. |
 
 ---
 
@@ -115,9 +116,9 @@ This document provides a comprehensive reference for all in-session interactive 
 
 | Command | Description |
 |---------|-------------|
-| `/model` | Lists all available LLM providers. The active provider is marked with `➤`. |
-| `/model <name>` | Switches the active LLM provider mid-session (e.g., `/model anthropic`). |
-| `/models` | Lists all available models from the current provider. Switch to a model with `/model <name>`. |
+| `/permisos` | Opens the interactive Policy Guard panel to view the active security tier (`read`, `sandbox`, `full`), inspect tool policies, and configure runtime overrides. |
+| `/model` or `/models` | Lists all available models and LLM providers configured in the fallback chain. The active provider is marked with `➤`. |
+| `/model <name>` or `/models <name>` | Switches the active LLM provider/model mid-session (e.g., `/model anthropic`). |
 | `/fast` or `/fast on` | Enables fast mode, temporarily switching to a lightweight/fast model (`gpt-4o-mini`, `claude-3-5-haiku`). Use `/fast off` to restore the original model. |
 | `/busy <mode>` | Controls Enter key input handling while the agent is executing tools. Modes: `queue` (default), `steer` (injects input as mid-loop steering), `ignore`. |
 | `/reasoning <level>` | Changes the reasoning effort of the LLM. Accepts `low`, `medium`, or `high`. |

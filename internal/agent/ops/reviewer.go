@@ -3,6 +3,8 @@ package ops
 import (
 	"context"
 	"fmt"
+	"path/filepath"
+	"regexp"
 	"strings"
 
 	"gaia/internal/agent"
@@ -56,7 +58,8 @@ func (r *reviewer) Execute(ctx context.Context, task domain.SubagentTask) *domai
 	}
 
 	// Phase 1: Start review — snapshot files.
-	tx, err := engine.Start(files)
+	changeName := extractChangeName(task, files)
+	tx, err := engine.StartWithChangeName(ctx, changeName, files)
 	if err != nil {
 		return &domain.SubagentResult{
 			Status:          domain.SubagentBlocked,
@@ -156,6 +159,59 @@ func (s *spawnerLLM) Chat(ctx context.Context, systemPrompt, userMessage string)
 		return "", err
 	}
 	return resp.Content, nil
+}
+
+// extractChangeName extracts the OpenSpec change name from files or task context.
+func extractChangeName(task domain.SubagentTask, files []string) string {
+	// 1. Check if files point to an OpenSpec change directory
+	for _, f := range files {
+		f = filepath.ToSlash(f)
+		if strings.HasPrefix(f, "openspec/changes/") {
+			rel := strings.TrimPrefix(f, "openspec/changes/")
+			parts := strings.Split(rel, "/")
+			if len(parts) > 0 && parts[0] != "" && parts[0] != "archive" {
+				return parts[0]
+			}
+		}
+	}
+
+	// 2. Check task context and description
+	for _, text := range append([]string{task.Description}, task.KGContext...) {
+		lines := strings.Split(text, "\n")
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			if idx := strings.Index(strings.ToLower(line), "change:"); idx != -1 {
+				val := strings.TrimSpace(line[idx+len("change:"):])
+				fields := strings.Fields(val)
+				if len(fields) > 0 {
+					return fields[0]
+				}
+			}
+			reAfter := regexp.MustCompile(`(?i)\b(?:change|changes/)\s+([a-zA-Z0-9_\-]+)`)
+			if m := reAfter.FindStringSubmatch(line); len(m) > 1 {
+				candidate := m[1]
+				if !strings.EqualFold(candidate, "directory") && !strings.EqualFold(candidate, "specs") && !strings.EqualFold(candidate, "for") && !strings.EqualFold(candidate, "these") {
+					return candidate
+				}
+			}
+			reBefore := regexp.MustCompile(`(?i)\b([a-zA-Z0-9_\-]+)\s+change\b`)
+			if m := reBefore.FindStringSubmatch(line); len(m) > 1 {
+				candidate := m[1]
+				if !strings.EqualFold(candidate, "completed") && !strings.EqualFold(candidate, "the") && !strings.EqualFold(candidate, "this") && !strings.EqualFold(candidate, "active") && !strings.EqualFold(candidate, "an") {
+					return candidate
+				}
+			}
+		}
+	}
+
+	if task.ID != "" && !strings.HasPrefix(task.ID, "lens-") && task.ID != "task-review" {
+		candidate := strings.TrimPrefix(task.ID, "task-")
+		if candidate != "" {
+			return candidate
+		}
+	}
+
+	return ""
 }
 
 // extractFiles extracts file paths from the task context.

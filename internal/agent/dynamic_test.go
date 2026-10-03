@@ -386,6 +386,20 @@ func TestDynamicSubagent_AllowedEditRootsPrompt(t *testing.T) {
 	}
 }
 
+func TestParseDynamicResult_BudgetExhausted(t *testing.T) {
+	resp := &domain.Message{
+		Role:    domain.RoleAssistant,
+		Content: "Subagent budget exhausted after 5 iterations.",
+	}
+	result := parseDynamicResult(resp, "test-agent")
+	if result.Status != domain.SubagentBlocked {
+		t.Errorf("expected SubagentBlocked, got %v", result.Status)
+	}
+	if result.Error == "" {
+		t.Errorf("expected non-empty Error field, got empty")
+	}
+}
+
 
 // --- Helpers ---
 

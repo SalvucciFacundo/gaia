@@ -15,6 +15,7 @@ import (
 	"gaia/internal/core"
 	"gaia/internal/core/domain"
 	"gaia/internal/core/ports"
+	"gaia/internal/review"
 	"gaia/internal/review/gates"
 )
 
@@ -30,14 +31,16 @@ func handleReviewCLI(args []string) {
 	cmdArgs := args[1:]
 
 	switch cmd {
+	case "mode":
+		handleReviewMode(cmdArgs)
 	case "start":
 		handleReviewStart(cmdArgs)
 	case "status":
-		handleReviewStatus()
+		handleReviewStatus(cmdArgs)
 	case "validate":
 		handleReviewValidate(cmdArgs)
 	case "list":
-		handleReviewList()
+		handleReviewList(cmdArgs)
 	case "install-hooks":
 		handleReviewInstallHooks()
 	default:
@@ -51,11 +54,15 @@ func printReviewUsage() {
 	fmt.Println("Usage: gaia review <command> [flags]")
 	fmt.Println()
 	fmt.Println("Commands:")
+	fmt.Println("  mode            Manage review mode (enable, disable, status)")
 	fmt.Println("  start           Start a review of staged files")
 	fmt.Println("  status          Show current review status")
 	fmt.Println("  validate        Validate a review gate (used by git hooks)")
 	fmt.Println("  list            List all reviews")
 	fmt.Println("  install-hooks   Install git hook scripts (pre-commit, pre-push)")
+	fmt.Println()
+	fmt.Println("Mode flags:")
+	fmt.Println("  --scope <scope>  Scope for review mode: clone (default) or global")
 	fmt.Println()
 	fmt.Println("Start flags:")
 	fmt.Println("  --files <list>   Comma-separated file list to review")
@@ -71,6 +78,55 @@ func printReviewUsage() {
 	fmt.Println()
 	fmt.Println("List flags:")
 	fmt.Println("  --state <state>  Filter by state (approved, escalated, invalidated)")
+}
+
+// handleReviewMode manages review mode (enable, disable, status).
+// Usage: gaia review mode <enable|disable|status> [--scope clone|global]
+func handleReviewMode(args []string) {
+	if len(args) == 0 {
+		fmt.Fprintln(os.Stderr, "Usage: gaia review mode <enable|disable|status> [--scope clone|global]")
+		os.Exit(1)
+	}
+
+	action := args[0]
+	fs := flag.NewFlagSet("review-mode", flag.ExitOnError)
+	scopeFlag := fs.String("scope", "clone", "Scope for review mode: clone or global")
+	fs.Parse(args[1:])
+
+	projectRoot, err := os.Getwd()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+
+	scope := review.ReviewScope(*scopeFlag)
+	if scope != review.ScopeClone && scope != review.ScopeGlobal {
+		fmt.Fprintf(os.Stderr, "Error: invalid scope %q. Use 'clone' or 'global'.\n", *scopeFlag)
+		os.Exit(1)
+	}
+
+	switch action {
+	case "enable":
+		if err := review.SetMode(review.ModeEnabled, scope, projectRoot); err != nil {
+			fmt.Fprintf(os.Stderr, "Error enabling review mode: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("Review mode enabled (scope: %s).\n", scope)
+	case "disable":
+		if err := review.SetMode(review.ModeDisabled, scope, projectRoot); err != nil {
+			fmt.Fprintf(os.Stderr, "Error disabling review mode: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("Review mode disabled (scope: %s).\n", scope)
+	case "status":
+		status := review.IsEnabled(projectRoot)
+		fmt.Printf("Review Mode: %s\n", status.Mode)
+		fmt.Printf("Deciding Source: %s\n", status.DecidingSource)
+		fmt.Printf("Scope: %s\n", status.Scope)
+	default:
+		fmt.Fprintf(os.Stderr, "Unknown mode action %q. Use: enable, disable, or status.\n", action)
+		os.Exit(1)
+	}
 }
 
 // handleReviewStart starts a new review for the given files.
@@ -139,7 +195,11 @@ func handleReviewStart(args []string) {
 
 // handleReviewStatus shows the current review status.
 // Usage: gaia review status [--change <name>]
-func handleReviewStatus() {
+func handleReviewStatus(args []string) {
+	fs := flag.NewFlagSet("review-status", flag.ExitOnError)
+	changeFlag := fs.String("change", "", "Specific change name to check")
+	fs.Parse(args)
+
 	projectRoot, err := os.Getwd()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
@@ -147,6 +207,33 @@ func handleReviewStatus() {
 	}
 
 	store := gates.NewCASReceiptStore(projectRoot)
+
+	if *changeFlag != "" {
+		receipt, err := store.LatestReceipt(*changeFlag)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error loading receipt for %q: %v\n", *changeFlag, err)
+			os.Exit(1)
+		}
+		if receipt == nil {
+			fmt.Printf("No review receipt found for change %q.\n", *changeFlag)
+			return
+		}
+		fmt.Printf("Change: %s\n", *changeFlag)
+		fmt.Printf("State: %s\n", receipt.State)
+		fmt.Printf("Risk Level: %s\n", receipt.RiskLevel)
+		if len(receipt.RiskReasons) > 0 {
+			fmt.Printf("Risk Reasons: %s\n", strings.Join(receipt.RiskReasons, ", "))
+		}
+		fmt.Printf("Lineage ID: %s\n", receipt.LineageID)
+		fmt.Printf("Snapshot Hash: %s\n", receipt.SnapshotHash)
+		if len(receipt.SelectedLenses) > 0 {
+			fmt.Printf("Selected Lenses: %s\n", strings.Join(receipt.SelectedLenses, ", "))
+		}
+		fmt.Printf("Correction Budget: %d (used: %d)\n", receipt.CorrectionBudget, receipt.CorrectionUsed)
+		fmt.Printf("Findings: %d\n", len(receipt.Findings))
+		fmt.Printf("Created: %s\n", receipt.CreatedAt.Format("2006-01-02 15:04:05"))
+		return
+	}
 
 	// Try to find the latest receipt.
 	summaries, err := store.ListReceipts()
@@ -245,7 +332,11 @@ func handleReviewValidate(args []string) {
 
 // handleReviewList lists all review receipts.
 // Usage: gaia review list [--state <state>]
-func handleReviewList() {
+func handleReviewList(args []string) {
+	fs := flag.NewFlagSet("review-list", flag.ExitOnError)
+	stateFlag := fs.String("state", "", "Filter by state (approved, escalated, invalidated)")
+	fs.Parse(args)
+
 	projectRoot, err := os.Getwd()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
@@ -259,15 +350,27 @@ func handleReviewList() {
 		os.Exit(1)
 	}
 
-	if len(summaries) == 0 {
-		fmt.Println("No review receipts found.")
+	var filtered []gates.ReceiptSummary
+	for _, s := range summaries {
+		if *stateFlag != "" && !strings.EqualFold(s.State, *stateFlag) {
+			continue
+		}
+		filtered = append(filtered, s)
+	}
+
+	if len(filtered) == 0 {
+		if *stateFlag != "" {
+			fmt.Printf("No review receipts found with state %q.\n", *stateFlag)
+		} else {
+			fmt.Println("No review receipts found.")
+		}
 		return
 	}
 
-	fmt.Printf("Review Receipts (%d):\n\n", len(summaries))
+	fmt.Printf("Review Receipts (%d):\n\n", len(filtered))
 	fmt.Printf("%-30s  %-12s  %-8s  %s\n", "CHANGE", "STATE", "RISK", "DATE")
 	fmt.Println(strings.Repeat("-", 80))
-	for _, s := range summaries {
+	for _, s := range filtered {
 		fmt.Printf("%-30s  %-12s  %-8s  %s\n",
 			truncate(s.ChangeName, 30), s.State, s.RiskLevel,
 			s.CreatedAt.Format("2006-01-02 15:04"))

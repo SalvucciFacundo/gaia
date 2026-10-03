@@ -2891,11 +2891,14 @@ func (b *Brain) ProcessMessage(ctx context.Context, content string) error {
 	}
 
 	// 0s. /model — switch LLM model/provider mid-session
-	if content == "/model" {
+	if content == "/model" || content == "/models" {
 		return b.ListModels(ctx)
 	}
 	if strings.HasPrefix(content, "/model ") {
 		return b.SwitchModel(ctx, strings.TrimSpace(content[7:]))
+	}
+	if strings.HasPrefix(content, "/models ") {
+		return b.SwitchModel(ctx, strings.TrimSpace(content[8:]))
 	}
 
 	// 0t. /memory approve|reject — review pending memory writes
@@ -3212,53 +3215,8 @@ func (b *Brain) ProcessMessage(ctx context.Context, content string) error {
 			// In-Flight Mid-Turn Delegation Check (ODD Contract):
 			// If inline evidence budget or write boundaries are crossed mid-turn,
 			// dynamically delegate the continuation to a specialized subagent worker.
-			if targetRole, reason, shouldDelegate := midTurnTracker.CheckDelegationTrigger(); shouldDelegate && b.subagentPort != nil && !trigger.ForceDirect {
-				agentName := targetRole
-				if agentName == "writer" {
-					agentName = "implementer"
-				}
-				isAvailable := false
-				for _, a := range b.subagentPort.Available() {
-					if a == agentName {
-						isAvailable = true
-						break
-					}
-				}
-				if isAvailable {
-					intermediateContext := ""
-					if len(midTurnTracker.ToolHistory) > 0 {
-						intermediateContext = fmt.Sprintf("\n\n### Intermediate Execution Progress:\nTools executed so far in parent turn:\n- %s\n",
-							strings.Join(midTurnTracker.ToolHistory, "\n- "))
-					}
-					if len(midTurnTracker.FilesWritten) > 0 {
-						files := make([]string, 0, len(midTurnTracker.FilesWritten))
-						for f := range midTurnTracker.FilesWritten {
-							files = append(files, f)
-						}
-						intermediateContext += fmt.Sprintf("Files touched: %s\n", strings.Join(files, ", "))
-					}
-
-					delegateTask := domain.SubagentTask{
-						ID:               fmt.Sprintf("odd-midturn-%s", targetRole),
-						Description:      fmt.Sprintf("Continue execution (%s). Original request: %s%s", reason, content, intermediateContext),
-						Mode:             "execute",
-						KGContext:        b.queryKGContext(ctx, content),
-						AllowedEditRoots: []string{"."},
-					}
-					delRes, delErr := b.Delegate(ctx, agentName, delegateTask)
-					if delErr == nil && delRes != nil {
-						delMsg := domain.Message{
-							Role:    domain.RoleAssistant,
-							Content: fmt.Sprintf("🤖 **ODD Mid-Turn Dynamic Delegation (%s)** [%s]:\n\n%s", agentName, reason, delRes.Summary),
-						}
-						_ = b.repo.SaveMessage(ctx, delMsg)
-						return b.ui.Display(delMsg)
-					}
-					// If delegation failed or was unavailable, reset tracker counters to avoid busy loop
-					midTurnTracker.Reset()
-				} else {
-					midTurnTracker.Reset()
-				}
+			if handled, err := b.delegateMidTurnODD(ctx, content, midTurnTracker, trigger); handled {
+				return err
 			}
 
 			continue // Let LLM see results
@@ -3293,6 +3251,76 @@ func (b *Brain) ProcessMessage(ctx context.Context, content string) error {
 	b.processQueuedMessages(ctx)
 	b.checkGoalAfterTurn(ctx)
 	return nil
+}
+
+// delegateMidTurnODD checks and performs mid-turn dynamic delegation under the ODD contract.
+// If delegation is triggered and succeeds, it displays the message, executes post-turn hooks
+// (extractKGFacts, processQueuedMessages, checkGoalAfterTurn), and returns (true, nil).
+// If delegation was not triggered or was skipped/failed, it returns (false, nil).
+func (b *Brain) delegateMidTurnODD(ctx context.Context, content string, midTurnTracker *MidTurnBudgetTracker, trigger TriggerResult) (bool, error) {
+	if midTurnTracker == nil || b.subagentPort == nil || trigger.ForceDirect {
+		return false, nil
+	}
+
+	targetRole, reason, shouldDelegate := midTurnTracker.CheckDelegationTrigger()
+	if !shouldDelegate {
+		return false, nil
+	}
+
+	agentName := targetRole
+	if agentName == "writer" {
+		agentName = "implementer"
+	}
+	isAvailable := false
+	for _, a := range b.subagentPort.Available() {
+		if a == agentName {
+			isAvailable = true
+			break
+		}
+	}
+	if !isAvailable {
+		midTurnTracker.Reset()
+		return false, nil
+	}
+
+	intermediateContext := ""
+	if len(midTurnTracker.ToolHistory) > 0 {
+		intermediateContext = fmt.Sprintf("\n\n### Intermediate Execution Progress:\nTools executed so far in parent turn:\n- %s\n",
+			strings.Join(midTurnTracker.ToolHistory, "\n- "))
+	}
+	if len(midTurnTracker.FilesWritten) > 0 {
+		files := make([]string, 0, len(midTurnTracker.FilesWritten))
+		for f := range midTurnTracker.FilesWritten {
+			files = append(files, f)
+		}
+		intermediateContext += fmt.Sprintf("Files touched: %s\n", strings.Join(files, ", "))
+	}
+
+	delegateTask := domain.SubagentTask{
+		ID:               fmt.Sprintf("odd-midturn-%s", targetRole),
+		Description:      fmt.Sprintf("Continue execution (%s). Original request: %s%s", reason, content, intermediateContext),
+		Mode:             "execute",
+		KGContext:        b.queryKGContext(ctx, content),
+		AllowedEditRoots: []string{"."},
+	}
+	delRes, delErr := b.Delegate(ctx, agentName, delegateTask)
+	if delErr == nil && delRes != nil {
+		delMsg := domain.Message{
+			Role:    domain.RoleAssistant,
+			Content: fmt.Sprintf("🤖 **ODD Mid-Turn Dynamic Delegation (%s)** [%s]:\n\n%s", agentName, reason, delRes.Summary),
+		}
+		_ = b.repo.SaveMessage(ctx, delMsg)
+		if err := b.ui.Display(delMsg); err != nil {
+			return true, err
+		}
+		b.extractKGFacts(ctx, delMsg.Content)
+		b.processQueuedMessages(ctx)
+		b.checkGoalAfterTurn(ctx)
+		return true, nil
+	}
+	// If delegation failed or was unavailable, reset tracker counters to avoid busy loop
+	midTurnTracker.Reset()
+	return false, nil
 }
 
 // readStream reads token chunks from the stream and builds a final message.

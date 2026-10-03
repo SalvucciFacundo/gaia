@@ -62,12 +62,23 @@ gaia skills add-tap https://github.com/owner/repo
 
 | Command | Description |
 |---|---|
-| `gaia review mode enable` | Enable opt-in Receipt-Driven Development (RDD) review |
+| `gaia review mode enable` | Enable opt-in Receipt-Driven Development (RDD) review (`--scope clone` or `--scope global`) |
 | `gaia review mode disable` | Disable review mode (delivery uses ordinary repo policy) |
 | `gaia review mode status` | Show active review mode and deciding source (clone vs global) |
-| `gaia review start` | Start bounded 4R review |
+| `gaia review start` | Start bounded 4R review (`--files <list>`, `--lens <name>`, `--judgment-day`) |
+| `gaia review status` | Show review receipts status (`--change <name>` for specific change details) |
+| `gaia review list` | List all review receipts (`--state <approved\|escalated\|invalidated>`) |
 | `gaia review validate --gate <gate>` | Validate receipt at gate (`pre-commit`, `pre-push`, `pre-pr`) |
-| `gaia review staged` | Review staged changes |
+| `gaia review install-hooks` | Install git hook scripts (`.git/hooks/pre-commit`, `.git/hooks/pre-push`) |
+
+## Policy
+
+| Command | Description |
+|---|---|
+| `gaia policy init` | Initialize a policy configuration (`.gaia/policy.yaml`) with default `sandbox` tier |
+| `gaia policy init --tier=<tier>` | Initialize policy with specified tier (`read`, `sandbox`, `full`) |
+| `gaia policy init --global` | Initialize global policy at `~/.config/gaia/policy.yaml` |
+| `gaia policy init --tier=full --global` | Initialize global policy with `full` tier |
 
 ## Delivery
 
@@ -110,6 +121,14 @@ gaia skills add-tap https://github.com/owner/repo
 | `gaia webhook` | Webhook subscriptions |
 | `gaia lsp` | LSP integration |
 
+## Policy Guard
+
+| Command | Description |
+|---|---|
+| `gaia policy init` | Initialize security policy (`.gaia/policy.yaml`) |
+| `gaia policy init --tier=full` | Set default execution tier (`read`, `sandbox`, `full`) |
+| `gaia policy init --global` | Initialize global user policy (`~/.config/gaia/policy.yaml`) |
+
 ## TUI Commands (in-session)
 
 | Command | Description |
@@ -118,15 +137,14 @@ gaia skills add-tap https://github.com/owner/repo
 | `/undo` | Undo last turn |
 | `/retry` | Retry last user message |
 | `/usage` | Show context usage breakdown |
-| `/cost` | Show LLM cost summary |
-| `/tools` | List available tools |
+| `/insights` | Show session analytics & token usage |
+| `/permisos` | Interactive policy & permission guard panel |
+| `/diff` | Interactive diff viewer |
 | `/tasks` | List async tasks |
 | `/cancel <id>` | Cancel an async task |
 | `/create-agent` | Create dynamic subagent |
 | `/trust <mode>` | Set confirmation trust mode |
-| `/plan` | Switch to plan mode |
-| `/build` | Switch to build mode |
-| `/mode` | Show current mode |
+| `/model` or `/models` | Show or change active model configuration |
 
 ## MCP Server Configuration
 
