@@ -193,13 +193,24 @@ type MidTurnBudgetTracker struct {
 	EvidenceTokens int
 	SequentialRead int
 	FilesWritten   map[string]bool
+	ToolHistory    []string // Formatted log of tools and outputs in current turn
 }
 
 // NewMidTurnBudgetTracker creates an initialized tracker for a single turn.
 func NewMidTurnBudgetTracker() *MidTurnBudgetTracker {
 	return &MidTurnBudgetTracker{
 		FilesWritten: make(map[string]bool),
+		ToolHistory:  make([]string, 0),
 	}
+}
+
+// Reset clears in-flight counters (used when a mid-turn delegation fails, preventing busy loops).
+func (t *MidTurnBudgetTracker) Reset() {
+	t.EvidenceCalls = 0
+	t.EvidenceTokens = 0
+	t.SequentialRead = 0
+	t.FilesWritten = make(map[string]bool)
+	t.ToolHistory = make([]string, 0)
 }
 
 // RecordToolCall updates tracker state based on tool execution.
@@ -229,6 +240,13 @@ func (t *MidTurnBudgetTracker) RecordToolCall(name string, args map[string]inter
 			t.FilesWritten[target] = true
 		}
 	}
+
+	// Truncate output for history log
+	snip := output
+	if len(snip) > 120 {
+		snip = snip[:120] + "..."
+	}
+	t.ToolHistory = append(t.ToolHistory, fmt.Sprintf("%s(%v) -> %s", name, args, snip))
 }
 
 // CheckDelegationTrigger checks if in-flight thresholds were exceeded.

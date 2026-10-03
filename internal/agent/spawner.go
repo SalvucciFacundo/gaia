@@ -3,6 +3,8 @@ package agent
 import (
 	"context"
 	"fmt"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"gaia/internal/agent/learn"
@@ -236,6 +238,44 @@ func (s *Spawner) RunLoop(ctx context.Context, task domain.SubagentTask, systemP
 				case <-ctx.Done():
 					return nil, ctx.Err()
 				default:
+				}
+
+				// Mechanical Edit Authority Enforcement
+				if len(task.AllowedEditRoots) > 0 {
+					lowerName := strings.ToLower(tc.Name)
+					if strings.Contains(lowerName, "write") || strings.Contains(lowerName, "edit") ||
+						strings.Contains(lowerName, "patch") || strings.Contains(lowerName, "create") {
+						targetPath := ""
+						if p, ok := tc.Arguments["path"].(string); ok && p != "" {
+							targetPath = p
+						} else if f, ok := tc.Arguments["file"].(string); ok && f != "" {
+							targetPath = f
+						} else if t, ok := tc.Arguments["target"].(string); ok && t != "" {
+							targetPath = t
+						}
+
+						if targetPath != "" {
+							cleanTarget := filepath.Clean(targetPath)
+							allowed := false
+							for _, root := range task.AllowedEditRoots {
+								cleanRoot := filepath.Clean(root)
+								if cleanRoot == "." || cleanTarget == cleanRoot || strings.HasPrefix(cleanTarget, cleanRoot+string(filepath.Separator)) {
+									allowed = true
+									break
+								}
+							}
+
+							if !allowed {
+								deniedOutput := fmt.Sprintf("Edit Authority Denied: target path %q is outside allowed edit roots (%v)",
+									targetPath, task.AllowedEditRoots)
+								messages = append(messages, domain.Message{
+									Role:    domain.RoleTool,
+									Content: deniedOutput,
+								})
+								continue
+							}
+						}
+					}
 				}
 
 				// Evaluate policy before execution

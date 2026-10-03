@@ -58,18 +58,21 @@ type MatchResult struct {
 }
 
 // MetaQuestionKeywords help identify if user is asking about the block rather than choosing.
+// NOTE: "porque" is omitted because in Spanish it indicates rationale (e.g. "opcion 1 porque es seguro").
+// Only interrogatives like "por qué" / "por que" are preserved.
 var MetaQuestionKeywords = []string{
 	"why", "qué significa", "que significa", "what does", "what happens",
 	"qué pasa si", "que pasa si", "explain", "explicá", "explica",
-	"por qué", "porque", "para qué", "para que", "diferencia entre",
+	"por qué", "por que", "para qué", "para que", "diferencia entre",
 }
 
-// ValidateChoiceResponse validates raw user input against a single-question ChoiceEnvelope.
+// ValidateChoiceResponse validates raw user input against a ChoiceQuestion.
 // It enforces:
 // 1. Meta-question identification (returns IsMeta=true, no token).
 // 2. Exact domain matching case-insensitively on labels or canonical tokens.
 // 3. Ordinal aliases: 'N', 'la N', 'opción N', 'opcion N', and 'first' for index 1.
-// 4. Exact 1 match requirement (rejects zero matches or ambiguous multiple matches).
+// 4. Exact 1 match requirement for single-select (or multiple valid matches for IsMultiSelect).
+// 5. Strict matching contract: rejects loose character/substring fallbacks.
 func ValidateChoiceResponse(input string, question domain.ChoiceQuestion) (*MatchResult, error) {
 	trimmed := strings.TrimSpace(input)
 	if trimmed == "" {
@@ -78,15 +81,64 @@ func ValidateChoiceResponse(input string, question domain.ChoiceQuestion) (*Matc
 
 	lower := strings.ToLower(trimmed)
 
-	// Check if this is a meta-question about the prompt/choices
-	for _, kw := range MetaQuestionKeywords {
-		if strings.HasPrefix(lower, kw) || strings.Contains(lower, " "+kw) || strings.HasSuffix(lower, "?") {
-			return &MatchResult{
-				IsMeta:      true,
-				Explanation: fmt.Sprintf("User asked an informational question about the choice: %q", trimmed),
-			}, nil
+	// Check if this input matches an option label directly (even if it contains a '?')
+	for _, opt := range question.Options {
+		if strings.EqualFold(trimmed, opt.Label) || strings.EqualFold(trimmed, opt.Token) {
+			return &MatchResult{MatchedTokens: []string{opt.Token}}, nil
 		}
 	}
+
+	// Check if this is a meta-question about the prompt/choices
+	isMeta := false
+	for _, kw := range MetaQuestionKeywords {
+		if strings.HasPrefix(lower, kw) || strings.Contains(lower, " "+kw) {
+			isMeta = true
+			break
+		}
+	}
+	if !isMeta && strings.HasSuffix(lower, "?") {
+		// Only treat trailing '?' as meta if it does not match an option index/alias
+		isMeta = true
+	}
+
+	if isMeta {
+		return &MatchResult{
+			IsMeta:      true,
+			Explanation: fmt.Sprintf("User asked an informational question about the choice: %q", trimmed),
+		}, nil
+	}
+
+	// If multi-select is enabled, split by commas
+	if question.IsMultiSelect && strings.Contains(trimmed, ",") {
+		parts := strings.Split(trimmed, ",")
+		var tokens []string
+		seen := make(map[string]bool)
+
+		for _, p := range parts {
+			subRes, err := matchSingleOption(strings.TrimSpace(p), question)
+			if err != nil {
+				return nil, fmt.Errorf("in multi-select item %q: %w", strings.TrimSpace(p), err)
+			}
+			for _, tok := range subRes.MatchedTokens {
+				if !seen[tok] {
+					seen[tok] = true
+					tokens = append(tokens, tok)
+				}
+			}
+		}
+
+		if len(tokens) == 0 {
+			return nil, fmt.Errorf("no valid options selected in multi-select")
+		}
+		return &MatchResult{MatchedTokens: tokens}, nil
+	}
+
+	// Single item match
+	return matchSingleOption(trimmed, question)
+}
+
+func matchSingleOption(trimmed string, question domain.ChoiceQuestion) (*MatchResult, error) {
+	lower := strings.ToLower(trimmed)
 
 	// Helper to resolve an index 1-based to option token
 	resolveByIndex := func(idx int) (string, error) {
@@ -94,6 +146,16 @@ func ValidateChoiceResponse(input string, question domain.ChoiceQuestion) (*Matc
 			return question.Options[idx-1].Token, nil
 		}
 		return "", fmt.Errorf("index %d out of range (1-%d)", idx, len(question.Options))
+	}
+
+	// If user included rationale (e.g. "1 porque es necesario" or "opcion 1 ya que..."),
+	// extract the leading token or ordinal phrase if separated by space.
+	firstWord := strings.Fields(lower)[0]
+	if num, err := strconv.Atoi(firstWord); err == nil {
+		tok, err := resolveByIndex(num)
+		if err == nil {
+			return &MatchResult{MatchedTokens: []string{tok}}, nil
+		}
 	}
 
 	// 1. Ordinal alias check: bare numeral N
@@ -119,23 +181,24 @@ func ValidateChoiceResponse(input string, question domain.ChoiceQuestion) (*Matc
 	for _, p := range prefixes {
 		if strings.HasPrefix(lower, p) {
 			rest := strings.TrimSpace(lower[len(p):])
-			if num, err := strconv.Atoi(rest); err == nil {
-				tok, err := resolveByIndex(num)
-				if err != nil {
-					return nil, err
+			// Extract first word of rest in case rationale followed
+			restFields := strings.Fields(rest)
+			if len(restFields) > 0 {
+				if num, err := strconv.Atoi(restFields[0]); err == nil {
+					tok, err := resolveByIndex(num)
+					if err != nil {
+						return nil, err
+					}
+					return &MatchResult{MatchedTokens: []string{tok}}, nil
 				}
-				return &MatchResult{MatchedTokens: []string{tok}}, nil
 			}
 		}
 	}
 
-	// 4. Match against label or token
+	// 4. Exact match against label or token
 	var matched []string
 	for _, opt := range question.Options {
-		optTokLower := strings.ToLower(opt.Token)
-		optLabelLower := strings.ToLower(opt.Label)
-
-		if lower == optTokLower || lower == optLabelLower {
+		if strings.EqualFold(lower, opt.Token) || strings.EqualFold(lower, opt.Label) {
 			matched = append(matched, opt.Token)
 		}
 	}
@@ -146,17 +209,6 @@ func ValidateChoiceResponse(input string, question domain.ChoiceQuestion) (*Matc
 
 	if len(matched) > 1 {
 		return nil, fmt.Errorf("ambiguous choice: input %q matches multiple options (%v)", trimmed, matched)
-	}
-
-	// If no exact match, check if input is a partial unique match for label
-	var partialMatched []string
-	for _, opt := range question.Options {
-		if strings.Contains(strings.ToLower(opt.Label), lower) {
-			partialMatched = append(partialMatched, opt.Token)
-		}
-	}
-	if len(partialMatched) == 1 {
-		return &MatchResult{MatchedTokens: partialMatched}, nil
 	}
 
 	return nil, fmt.Errorf("invalid response %q: does not match any allowed option in the domain", trimmed)

@@ -217,3 +217,14 @@ During tasks:
   3. Knowledge graph query → pull cross-domain concepts
 ```
 
+---
+
+## ⚡ Dynamic Subagents & ODD Bounded Workers
+
+In addition to static compile-time subagents, GAIA supports creating and persisting custom **dynamic subagents** at runtime:
+
+- **Interactive Interview Wizard (`/create-agent`)**: Guides you through name, purpose, system prompt, model override, and tool selection.
+- **SQLite Persistence (`dynamic_loader.go`)**: Automatically persists custom subagents to `.gaia/` SQLite storage and re-loads them across sessions.
+- **Strict Isolation**: Dynamic subagents execute under dedicated Engram namespaces (`gaia/subagent/{name}/{project}`) with mechanical Edit Authority bounds (`AllowedEditRoots`).
+- **ODD Mid-Turn Dynamic Delegation**: When inline turns cross evidence boundaries (>5 reads, >3 calls, >10k tokens, or >=2 file edits), the orchestrator dynamically delegates task continuation to bounded workers (`@explorer`, `@implementer`, `@verifier`).
+

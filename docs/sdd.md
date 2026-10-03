@@ -1,20 +1,20 @@
-# Spec-Driven Development (SDD) Workflow
+# Organic Driven Development (ODD) & Feature Tracking Workflow
 
-SDD is the structured planning layer for substantial changes in GAIA. It transforms vague requests into tested, reviewed, and archived deliverables — with each phase handled by specialized subagent capabilities that learn from experience.
+GAIA implements **Organic Driven Development (ODD)** as its core orchestrator workflow. In ODD, tasks execute directly inline when small, delegate dynamically to specialized bounded workers (`@explorer`, `@implementer`, `@verifier`) when crossing thresholds, and adopt structured **Feature Tracking** (formerly SDD) when handling architectural initiatives or breaking multi-module changes.
 
 ---
 
-## When to Use SDD
+## When to Use Feature Tracking
 
-| Use SDD | Don't use SDD |
+| Use Feature Tracking (`/odd`) | Inline Direct Execution (`/inline`) |
 |---|---|
-| New features | Quick questions |
-| API changes | Simple refactors |
-| Architecture decisions | Typo fixes |
-| Database migrations | Comment updates |
-| Cross-cutting changes | One-line changes |
+| New large features | Quick questions & lookups |
+| API overhauls & breaking changes | Single-file bug fixes |
+| Architecture decisions | Small refactors & formatting |
+| Database schema migrations | Typo & comment updates |
+| Cross-cutting initiatives | Bounded mechanical edits |
 
-The orchestrator detects substantial changes automatically and triggers SDD. You can also force it with `/sdd` or bypass it with `/direct`.
+The orchestrator detects substantial changes automatically and triggers feature tracking. You can also explicitly trigger it with `/odd` (or legacy `/sdd`) or force direct inline execution with `/inline` (or legacy `/direct`).
 
 ---
 

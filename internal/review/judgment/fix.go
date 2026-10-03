@@ -106,14 +106,22 @@ func applySingleFix(finding domain.ReviewFinding, budget int) (*FixChange, int, 
 		return nil, 0, nil
 	}
 
-	// Read the file.
-	data, err := os.ReadFile(finding.File)
+	// Sanitize target path against path traversal.
+	cleanPath := filepath.Clean(finding.File)
+	if strings.HasPrefix(cleanPath, ".."+string(filepath.Separator)) || cleanPath == ".." {
+		return nil, 0, fmt.Errorf("fix %s: security violation: path traverses outside workspace", finding.File)
+	}
+
+	targetFile := cleanPath
+	data, err := os.ReadFile(targetFile)
 	if err != nil {
 		// Try resolving from current directory.
-		data, err = os.ReadFile(filepath.Base(finding.File))
+		baseName := filepath.Base(finding.File)
+		data, err = os.ReadFile(baseName)
 		if err != nil {
 			return nil, 0, fmt.Errorf("fix %s: %w", finding.File, err)
 		}
+		targetFile = baseName
 	}
 
 	original := string(data)
@@ -144,12 +152,12 @@ func applySingleFix(finding domain.ReviewFinding, budget int) (*FixChange, int, 
 	fixed := strings.Join(lines, "\n")
 
 	// Write back.
-	if err := os.WriteFile(finding.File, []byte(fixed), 0644); err != nil {
-		return nil, 0, fmt.Errorf("write fix %s: %w", finding.File, err)
+	if err := os.WriteFile(targetFile, []byte(fixed), 0644); err != nil {
+		return nil, 0, fmt.Errorf("write fix %s: %w", targetFile, err)
 	}
 
 	return &FixChange{
-		File:    finding.File,
+		File:    targetFile,
 		Line:    finding.Line,
 		Before:  before,
 		After:   after,

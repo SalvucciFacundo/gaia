@@ -10,10 +10,16 @@ import (
 	"gaia/internal/adapters/llm"
 	"gaia/internal/adapters/output"
 	"gaia/internal/adapters/tui"
+	"gaia/internal/agent"
+	"gaia/internal/agent/ops"
+	"gaia/internal/agent/sdd"
 	"gaia/internal/config"
 	"gaia/internal/core"
 	"gaia/internal/core/domain"
 	"gaia/internal/core/ports"
+	"gaia/internal/modules/fileops"
+	"gaia/internal/modules/gitops"
+	"gaia/internal/modules/shell"
 )
 
 // handleExec implements the "gaia exec" headless subcommand.
@@ -139,6 +145,27 @@ func handleExec(args []string) {
 	// Build Brain without token streaming callback.
 	brain := core.NewBrain(router, repo, nullUI, guard, cfg.Budget)
 	brain.SetPolicyGuard(policyGuard)
+
+	// Register core execution modules
+	projectRoot, _ := os.Getwd()
+	brain.RegisterModule(shell.NewModule(projectRoot))
+	brain.RegisterModule(fileops.NewModule(projectRoot))
+	brain.RegisterModule(gitops.NewModule(projectRoot))
+
+	// Wire Subagent Spawner for ODD dynamic delegations
+	subagentRegistry := agent.NewRegistry()
+	_ = subagentRegistry.Register("explorer", sdd.NewExplorer)
+	_ = subagentRegistry.Register("implementer", sdd.NewImplementer)
+	_ = subagentRegistry.Register("verifier", sdd.NewVerifier)
+	_ = subagentRegistry.Register("reviewer", ops.NewReviewer)
+
+	spawner := agent.NewSpawner(agent.SpawnerConfig{
+		Provider: router,
+		Tools:    brain.Registry(),
+		Budget:   cfg.Budget,
+		Policy:   policyGuard,
+	}, subagentRegistry)
+	brain.SetSubagentPort(spawner)
 
 	// Process the user's message.
 	ctx := context.Background()

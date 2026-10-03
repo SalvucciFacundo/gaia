@@ -15,6 +15,18 @@ This document provides a comprehensive reference for all in-session interactive 
 
 ---
 
+## 📋 Organic Driven Development (ODD) & Workflow Routing
+
+| Command | Description |
+|---------|-------------|
+| `/inline <prompt>` | Forces direct inline parent execution within bounded call/token budgets, bypassing subagent delegation. |
+| `/odd <prompt>` | Explicitly triggers formal Organic Driven Development feature tracking mode with durable specifications and task plans. |
+| `/direct <prompt>` | Deprecated backward-compatible alias for `/inline`. |
+| `/sdd <prompt>` | Deprecated backward-compatible alias for `/odd`. |
+| `/create-agent` | Interactive interview wizard to configure and save a persistent dynamic subagent with specialized tool permissions. |
+
+---
+
 ## 💾 Persistence & History
 
 | Command | Description |

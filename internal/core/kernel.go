@@ -3106,10 +3106,11 @@ func (b *Brain) ProcessMessage(ctx context.Context, content string) error {
 		}
 		if isAvailable {
 			task := domain.SubagentTask{
-				ID:          "odd-worker",
-				Description: content,
-				Mode:        "execute",
-				KGContext:   b.queryKGContext(ctx, content),
+				ID:               "odd-worker",
+				Description:      content,
+				Mode:             "execute",
+				KGContext:        b.queryKGContext(ctx, content),
+				AllowedEditRoots: []string{"."},
 			}
 			result, err := b.Delegate(ctx, targetAgent, task)
 			if err == nil && result != nil {
@@ -3224,11 +3225,25 @@ func (b *Brain) ProcessMessage(ctx context.Context, content string) error {
 					}
 				}
 				if isAvailable {
+					intermediateContext := ""
+					if len(midTurnTracker.ToolHistory) > 0 {
+						intermediateContext = fmt.Sprintf("\n\n### Intermediate Execution Progress:\nTools executed so far in parent turn:\n- %s\n",
+							strings.Join(midTurnTracker.ToolHistory, "\n- "))
+					}
+					if len(midTurnTracker.FilesWritten) > 0 {
+						files := make([]string, 0, len(midTurnTracker.FilesWritten))
+						for f := range midTurnTracker.FilesWritten {
+							files = append(files, f)
+						}
+						intermediateContext += fmt.Sprintf("Files touched: %s\n", strings.Join(files, ", "))
+					}
+
 					delegateTask := domain.SubagentTask{
-						ID:          fmt.Sprintf("odd-midturn-%s", targetRole),
-						Description: fmt.Sprintf("Continue execution (%s). Context task: %s", reason, content),
-						Mode:        "execute",
-						KGContext:   b.queryKGContext(ctx, content),
+						ID:               fmt.Sprintf("odd-midturn-%s", targetRole),
+						Description:      fmt.Sprintf("Continue execution (%s). Original request: %s%s", reason, content, intermediateContext),
+						Mode:             "execute",
+						KGContext:        b.queryKGContext(ctx, content),
+						AllowedEditRoots: []string{"."},
 					}
 					delRes, delErr := b.Delegate(ctx, agentName, delegateTask)
 					if delErr == nil && delRes != nil {
@@ -3239,6 +3254,10 @@ func (b *Brain) ProcessMessage(ctx context.Context, content string) error {
 						_ = b.repo.SaveMessage(ctx, delMsg)
 						return b.ui.Display(delMsg)
 					}
+					// If delegation failed or was unavailable, reset tracker counters to avoid busy loop
+					midTurnTracker.Reset()
+				} else {
+					midTurnTracker.Reset()
 				}
 			}
 

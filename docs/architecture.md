@@ -44,19 +44,23 @@ gaia/
 flowchart TD
     IN["User Message / Prompt"] --> PROC["ProcessMessage(ctx, content)"]
     
-    PROC --> SDD{"Is Substantial Change?"}
-    SDD -- "Yes" --> SDD_RUN["Delegate to SDD Pipeline (@subagents)"]
-    SDD -- "No" --> DIRECT["Direct Brain Execution"]
+    PROC --> ODD{"DetectODDRoute(content)"}
+    ODD -- "Feature Tracking (/odd)" --> FEAT["Feature Tracking Pipeline (@proposer, @specifier, ...)"]
+    ODD -- "Delegated Worker" --> WORKER["Dynamic Bounded Worker (@explorer, @implementer, @verifier)"]
+    ODD -- "Inline Budget (/inline)" --> INLINE["Inline Parent Execution"]
     
-    DIRECT --> KG["Knowledge Graph Recall (Query Facts)"]
+    INLINE --> KG["Knowledge Graph Recall (Query Facts)"]
     KG --> SKILL["Skill Registry (Select Active Skills)"]
     SKILL --> ROUTE["Provider Router (Select LLM & Pool)"]
     ROUTE --> LLM["LLM Call (Stream or Chat)"]
     
     LLM --> TOOLS{"Tool Calls Requested?"}
-    TOOLS -- "Yes" --> GUARD["PolicyGuard & ConfirmGuard (Permission Check)"]
+    TOOLS -- "Yes" --> GUARD["PolicyGuard & Edit Authority (Permission Check)"]
     GUARD --> EXEC["ToolRegistry.Execute(module)"]
-    EXEC --> REDACT["RedactSecrets (Mask Output)"]
+    EXEC --> TRACK["MidTurnBudgetTracker (Monitor reads, tokens, writes)"]
+    TRACK --> MIDDELEG{"Crossed Boundaries?"}
+    MIDDELEG -- "Yes" --> DYNMID["Dynamic Mid-Turn Worker Delegation"]
+    MIDDELEG -- "No" --> REDACT["RedactSecrets (Mask Output)"]
     REDACT --> LLM
     
     TOOLS -- "No" --> BUD["Consume Iteration Budget"]

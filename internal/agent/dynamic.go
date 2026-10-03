@@ -71,7 +71,7 @@ func (d *DynamicSubagent) Execute(ctx context.Context, task domain.SubagentTask)
 
 	var nsInstr string
 	if ns := d.spawner.Namespace(); ns != nil {
-		nsInstr = ns.SaveInstructions(d.def.Name)
+		nsInstr = ns.DynamicSaveInstructions(d.def.Name)
 	}
 
 	prompt := buildDynamicPrompt(d.def, task, nsInstr)

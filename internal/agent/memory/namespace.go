@@ -5,6 +5,7 @@ package memory
 
 import (
 	"fmt"
+	"strings"
 )
 
 // NamespaceManager generates Engram topic_key prefixes for subagent memory isolation.
@@ -35,9 +36,14 @@ func (n *NamespaceManager) SessionID() string {
 }
 
 // SubagentPrefix returns the topic_key prefix for a specific subagent.
+// If the subagent name is "shared", it is safe-aliased to prevent collision with SharedPrefix().
 // Example: SubagentPrefix("explorer") → "gaia/explorer/myproject"
 func (n *NamespaceManager) SubagentPrefix(name string) string {
-	return fmt.Sprintf("gaia/%s/%s", name, n.project)
+	cleanName := strings.ReplaceAll(name, "/", "-")
+	if cleanName == "shared" {
+		cleanName = "agent-shared"
+	}
+	return fmt.Sprintf("gaia/%s/%s", cleanName, n.project)
 }
 
 // SharedPrefix returns the topic_key prefix for cross-domain knowledge.
@@ -52,10 +58,11 @@ func (n *NamespaceManager) Project() string {
 	return n.project
 }
 
-// TopicKey builds a fully-qualified topic key for a subagent.
+// TopicKey builds a fully-qualified topic key for a subagent with sanitized path delimiters.
 // Example: TopicKey("explorer", "architecture-patterns") → "gaia/explorer/myproject/architecture-patterns"
 func (n *NamespaceManager) TopicKey(subagent, topic string) string {
-	return fmt.Sprintf("%s/%s", n.SubagentPrefix(subagent), topic)
+	cleanTopic := strings.TrimPrefix(topic, "/")
+	return fmt.Sprintf("%s/%s", n.SubagentPrefix(subagent), cleanTopic)
 }
 
 // SaveInstructions returns prompt text for subagents explaining how to use
@@ -91,7 +98,29 @@ func (n *NamespaceManager) SearchInstructions(name string) string {
 }
 
 // DynamicPrefix returns the namespace prefix for a dynamically-created subagent.
-// Format: gaia/subagent/{name}/ (matches SubagentPrefix pattern for memory isolation).
+// Format: gaia/subagent/{name}/{project} (matches SubagentPrefix pattern for memory isolation).
 func (n *NamespaceManager) DynamicPrefix(name string) string {
-	return fmt.Sprintf("gaia/subagent/%s/%s", name, n.project)
+	cleanName := strings.ReplaceAll(name, "/", "-")
+	return fmt.Sprintf("gaia/subagent/%s/%s", cleanName, n.project)
+}
+
+// DynamicSaveInstructions returns prompt text for dynamically created subagents,
+// using DynamicPrefix to guarantee memory isolation.
+func (n *NamespaceManager) DynamicSaveInstructions(name string) string {
+	prefix := n.DynamicPrefix(name)
+	shared := n.SharedPrefix()
+	sessionLine := ""
+	if n.sessionID != "" {
+		sessionLine = fmt.Sprintf("\n- Active session_id: \"%s\" (include when calling mem_save)", n.sessionID)
+	}
+	return fmt.Sprintf(`MEMORY (ENGRAM) INSTRUCTIONS:
+- Your namespace: "%s"
+- When saving to Engram memory (mem_save), use topic_key prefix: "%s/{topic}"%s
+- Automated or system artifacts: set capture_prompt: false to prevent polluting user prompts
+- Lifecycle states: "active" is verified knowledge; "needs_review" is stale context requiring verification
+- If mem_save returns judgment_required, resolve candidates using mem_judge
+- When searching your memory, include your namespace prefix
+- Shared knowledge graph: "%s" — you may READ from it but MUST NOT write
+- Example save: mem_save(title: "...", topic_key: "%s/pattern-discovered", type: "discovery", content: "...", capture_prompt: false)
+- Example search: mem_search(query: "deployment patterns", project: "%s")`, prefix, prefix, sessionLine, shared, prefix, n.project)
 }

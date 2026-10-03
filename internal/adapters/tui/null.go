@@ -1,8 +1,11 @@
 package tui
 
 import (
+	"fmt"
+	"os"
 	"sync"
 
+	"gaia/internal/core/blocking"
 	"gaia/internal/core/domain"
 )
 
@@ -43,12 +46,16 @@ func (n *NullUI) PromptConfirmation(prompt string) (bool, error) {
 	return n.autoApprove, nil
 }
 
-// PromptChoice returns the first option token if autoApprove is true, or empty string.
+// PromptChoice emits the complete choice envelope to stdout and blocks execution
+// in headless mode unless autoApprove is explicitly set, preserving the lossless prompt contract.
 func (n *NullUI) PromptChoice(envelope domain.ChoiceEnvelope) (string, error) {
+	formatted := blocking.FormatLosslessEnvelope(envelope)
+	fmt.Fprintln(os.Stderr, formatted)
+
 	if n.autoApprove && len(envelope.Questions) > 0 && len(envelope.Questions[0].Options) > 0 {
 		return envelope.Questions[0].Options[0].Token, nil
 	}
-	return "", nil
+	return "", fmt.Errorf("headless execution blocked: choice required but runtime is non-interactive")
 }
 
 // Run is a no-op — headless mode has no interactive loop.
