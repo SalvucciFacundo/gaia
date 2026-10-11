@@ -48,3 +48,15 @@ This document outlines high-impact architectural enhancements for GAIA to elevat
   - `lsp_code_actions`: Direct compiler/linter quick-fixes.
   - `lsp_diagnostics`: Real-time compiler diagnostics.
 - **Benefits**: 100% compilation safety during multi-file refactoring.
+
+---
+
+## Pillar 5: Local LLM Precision & Structured Grammars
+
+### 5. Grammar-Constrained Sampling (GBNF / JSON Schema Enforcement) (`planned`)
+- **Reference**: Atomic Agent (`atomicagent.io`) / llama.cpp GBNF grammar constraints.
+- **Problem**: Small local quantized models (e.g., Qwen 2.5, Llama 3 8B) frequently hallucinate tool-call formats, emit invalid JSON, or mix prose inside JSON payloads, breaking autonomous tool execution loops.
+- **Solution**: Implement structured sampling constraints in the local inference adapter (`internal/provider/`):
+  - Compile tool schemas into GBNF (Grammar-Based Normal Form) or strict JSON schemas during token generation when targeting `llama.cpp` or local OpenAI-compatible backends supporting JSON grammar/schemas.
+  - Reject non-conforming tokens at the logit level, guaranteeing 100% syntactically valid tool invocations from local models.
+- **Benefits**: Reliable autonomous execution on consumer hardware with zero token cost.
