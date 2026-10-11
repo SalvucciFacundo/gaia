@@ -74,8 +74,8 @@ func main() {
 		case "lsp":
 			handleLSPCLI(os.Args[2:])
 			return
-		case "serve":
-			handleServe(os.Args[2:])
+		case "serve", "api":
+			handleServeCLI(os.Args[2:])
 			return
 		case "session":
 			handleSessionCLI(os.Args[2:])

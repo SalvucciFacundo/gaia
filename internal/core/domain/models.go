@@ -188,12 +188,20 @@ type Config struct {
 		RequiresConfirmation bool   `yaml:"requires_confirmation"`
 		Language             string `yaml:"language"` // User's preferred language (en, es, pt)
 	} `yaml:"system"`
-	Terminal       TerminalConfig           `yaml:"terminal"`
-	MCP            MCPConfig                `yaml:"mcp"`
-	Browser        BrowserConfig            `yaml:"browser"`
-	Multimodal     MultimodalConfig         `yaml:"multimodal"`
-	Gateway        GatewayConfig            `yaml:"gateway"`
-	TTS            TTSConfig                `yaml:"tts"`
+	Terminal   TerminalConfig   `yaml:"terminal"`
+	MCP        MCPConfig        `yaml:"mcp"`
+	Browser    BrowserConfig    `yaml:"browser"`
+	Multimodal MultimodalConfig `yaml:"multimodal"`
+	Gateway    GatewayConfig    `yaml:"gateway"`
+	TTS        TTSConfig        `yaml:"tts"`
+	Server     struct {
+		Host         string        `yaml:"host"`
+		Port         int           `yaml:"port"`
+		APIKey       string        `yaml:"api_key"`
+		CORSOrigins  []string      `yaml:"cors_origins"`
+		ReadTimeout  time.Duration `yaml:"read_timeout"`
+		WriteTimeout time.Duration `yaml:"write_timeout"`
+	} `yaml:"server"`
 	CurrentProfile string                   `yaml:"current_profile"`
 	Profiles       map[string]ProfileConfig `yaml:"profiles"`
 }

@@ -100,8 +100,19 @@ func WithCostTracker(ct *CostTracker) BrainOption {
 	}
 }
 
+type noopUI struct{}
+
+func (n *noopUI) Display(domain.Message) error                       { return nil }
+func (n *noopUI) AppendToken(string) error                           { return nil }
+func (n *noopUI) PromptConfirmation(string) (bool, error)            { return true, nil }
+func (n *noopUI) PromptChoice(domain.ChoiceEnvelope) (string, error) { return "", nil }
+func (n *noopUI) Run() error                                         { return nil }
+
 // NewBrain creates a new Brain with the given dependencies.
 func NewBrain(provider ports.LLMProvider, repo ports.Repository, ui ports.UIService, guard *ConfirmGuard, budget domain.BudgetConfig, opts ...BrainOption) *Brain {
+	if ui == nil {
+		ui = &noopUI{}
+	}
 	b := &Brain{
 		provider: provider,
 		repo:     repo,
@@ -2747,6 +2758,56 @@ func (b *Brain) Step(ctx context.Context, input string) error {
 // SetActiveConversation updates the current active session/conversation id.
 func (b *Brain) SetActiveConversation(id string) {
 	b.currentSessionID = id
+	if sr, ok := b.repo.(interface{ SetSessionID(string) }); ok {
+		sr.SetSessionID(id)
+	}
+}
+
+// StepWithSessionAndAttachments processes one user turn bound to a specific session and token sink with attachments.
+func (b *Brain) StepWithSessionAndAttachments(ctx context.Context, sessionID string, input string, attachments []Attachment, sink func(string)) error {
+	if sessionID != "" {
+		b.SetActiveConversation(sessionID)
+	}
+	if sink != nil {
+		oldSink := b.onToken
+		b.onToken = sink
+		defer func() { b.onToken = oldSink }()
+	}
+	if len(attachments) > 0 {
+		for _, att := range attachments {
+			if strings.HasPrefix(att.MimeType, "image/") || att.Type == "image" {
+				mime := att.MimeType
+				if mime == "" {
+					mime = "image/jpeg"
+				}
+				data := ""
+				if len(att.Data) > 0 {
+					data = base64.StdEncoding.EncodeToString(att.Data)
+				} else if att.URL != "" {
+					if strings.HasPrefix(att.URL, "data:") {
+						parts := strings.SplitN(att.URL, ",", 2)
+						if len(parts) == 2 {
+							data = parts[1]
+						}
+					} else {
+						data = att.URL
+					}
+				}
+				if data != "" {
+					b.pendingImages = append(b.pendingImages, domain.ImageContent{
+						MIMEType: mime,
+						Data:     data,
+					})
+				}
+			}
+		}
+	}
+	return b.ProcessMessage(ctx, input)
+}
+
+// StepWithAttachments processes one user turn with attachments.
+func (b *Brain) StepWithAttachments(ctx context.Context, input string, attachments []Attachment) error {
+	return b.StepWithSessionAndAttachments(ctx, "", input, attachments, nil)
 }
 
 // ProcessMessage handles a user input through the full agent loop.
