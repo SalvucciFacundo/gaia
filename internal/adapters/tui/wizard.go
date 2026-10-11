@@ -27,6 +27,7 @@ const (
 	StepKeyInput
 	StepAuthenticating
 	StepModelSelect
+	StepProfileSelect
 	StepLanguageSelect
 	StepSecurityMode
 	StepStackSelect
@@ -62,6 +63,9 @@ type WizardModel struct {
 	err              error
 	width            int
 	height           int
+
+	selectedProfile  string
+	profileIndex     int // 0 = assistant (default), 1 = dev, 2 = art
 
 	languagePref     string
 	langIndex        int // 0 = EN, 1 = ES, 2 = PT
@@ -188,6 +192,12 @@ func (m *WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "enter":
 			return m.handleEnter()
 		case "up", "k":
+			if m.step == StepProfileSelect {
+				if m.profileIndex > 0 {
+					m.profileIndex--
+				}
+				return m, nil
+			}
 			if m.step == StepLanguageSelect {
 				if m.langIndex > 0 {
 					m.langIndex--
@@ -211,6 +221,12 @@ func (m *WizardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 		case "down", "j":
+			if m.step == StepProfileSelect {
+				if m.profileIndex < 2 {
+					m.profileIndex++
+				}
+				return m, nil
+			}
 			if m.step == StepLanguageSelect {
 				if m.langIndex < 2 {
 					m.langIndex++
@@ -329,6 +345,13 @@ func (m *WizardModel) handleEnter() (tea.Model, tea.Cmd) {
 	case StepLanguageSelect:
 		langs := []string{"en", "es", "pt"}
 		m.languagePref = langs[m.langIndex]
+		m.step = StepProfileSelect
+		m.profileIndex = 0
+		return m, nil
+
+	case StepProfileSelect:
+		profiles := []string{"assistant", "dev", "art"}
+		m.selectedProfile = profiles[m.profileIndex]
 		m.step = StepSecurityMode
 		m.secIndex = 0
 		return m, nil
@@ -404,6 +427,27 @@ func (m *WizardModel) View() string {
 			doc.WriteString(cursor + itemStyle.Render(opt) + "\n")
 		}
 		doc.WriteString("\nUse " + lipgloss.NewStyle().Bold(true).Render("UP/DOWN") + " arrows, " + lipgloss.NewStyle().Bold(true).Render("ENTER") + " to confirm.\n")
+
+	case StepProfileSelect:
+		doc.WriteString(bannerTitleStyle.Render(" DEFAULT PROFILE ") + "\n\n")
+		doc.WriteString("Choose your default permanent profile (others can be enabled later with 'gaia profile enable'):\n\n")
+		profOpts := []struct {
+			name string
+			desc string
+		}{
+			{"Asistente Personal (assistant) [Recomendado]", "Asistente diario versátil, navegación web, recordatorios y gestión general"},
+			{"Ingeniero de Software (dev)", "Ingeniería de software autónoma, flujos ODD/SDD, edición de código y Git outbox"},
+			{"Razonador Visual (art)", "Generación y edición visual con ComfyUI, modelos Flux y diseño creativo"},
+		}
+		for i, pOpt := range profOpts {
+			cursor := "  "
+			if i == m.profileIndex {
+				cursor = "➤ "
+			}
+			doc.WriteString(cursor + lipgloss.NewStyle().Bold(true).Render(pOpt.name) + "\n")
+			doc.WriteString("    " + lipgloss.NewStyle().Foreground(lipgloss.Color("#94A3B8")).Render(pOpt.desc) + "\n\n")
+		}
+		doc.WriteString("Use " + lipgloss.NewStyle().Bold(true).Render("UP/DOWN") + " arrows, " + lipgloss.NewStyle().Bold(true).Render("ENTER") + " to confirm.\n")
 
 	case StepSecurityMode:
 		doc.WriteString(bannerTitleStyle.Render(" SECURITY MODE (PolicyGuard) ") + "\n\n")
@@ -550,8 +594,8 @@ func openBrowser(url string) {
 }
 
 // GetResults returns the configuration obtained from the wizard.
-// Returns: provider, apiKey, model, language preference, security mode, selected skill names.
-func (m *WizardModel) GetResults() (provider, apiKey, model, language string, security bool, skills []string) {
+// Returns: provider, apiKey, model, language preference, security mode, selected skill names, selected profile.
+func (m *WizardModel) GetResults() (provider, apiKey, model, language string, security bool, skills []string, profile string) {
 	names := make([]string, 0, len(m.selectedSkills))
 	for name := range m.selectedSkills {
 		names = append(names, name)
@@ -567,5 +611,10 @@ func (m *WizardModel) GetResults() (provider, apiKey, model, language string, se
 		k = m.cpToken
 	}
 
-	return p, k, m.selectedModel, m.languagePref, m.securityMode, names
+	prof := m.selectedProfile
+	if prof == "" {
+		prof = "assistant"
+	}
+
+	return p, k, m.selectedModel, m.languagePref, m.securityMode, names, prof
 }

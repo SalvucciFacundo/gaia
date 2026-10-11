@@ -189,6 +189,14 @@ type Config struct {
 	MCP      MCPConfig      `yaml:"mcp"`
 	Browser  BrowserToolsConfig `yaml:"browser"`
 	Multimodal MultimodalConfig `yaml:"multimodal"`
+	CurrentProfile string                   `yaml:"current_profile"`
+	Profiles       map[string]ProfileConfig `yaml:"profiles"`
+}
+
+// ProfileConfig defines settings for a modular persona/toolset profile.
+type ProfileConfig struct {
+	Enabled bool   `yaml:"enabled"`
+	Model   string `yaml:"model,omitempty"`
 }
 
 // MultimodalConfig defines secondary perception model settings for image/audio inspection.
