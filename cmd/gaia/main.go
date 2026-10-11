@@ -4,10 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"net/url"
 	"strings"
 
 	"context"
@@ -18,8 +18,10 @@ import (
 	"gaia/internal/adapters/tui"
 	"gaia/internal/agent"
 	"gaia/internal/agent/memory"
-	agtsdd "gaia/internal/agent/sdd"
 	agtops "gaia/internal/agent/ops"
+	agtsdd "gaia/internal/agent/sdd"
+	"gaia/internal/browser"
+	"gaia/internal/codegraph"
 	"gaia/internal/config"
 	"gaia/internal/core"
 	"gaia/internal/core/domain"
@@ -29,8 +31,6 @@ import (
 	"gaia/internal/modules/fileops"
 	"gaia/internal/modules/gitops"
 	"gaia/internal/modules/multimodal"
-	"gaia/internal/browser"
-	"gaia/internal/codegraph"
 	"gaia/internal/modules/shell"
 	"gaia/internal/skills"
 	tea "github.com/charmbracelet/bubbletea"
@@ -88,6 +88,18 @@ func main() {
 		case "delivery":
 			handleDeliveryCLI(os.Args[2:])
 			return
+		case "profile", "profiles":
+			handleProfileCLI(os.Args[2:])
+			return
+		case "backup":
+			handleBackupCLI(os.Args[2:])
+			return
+		case "restore":
+			handleRestoreCLI(os.Args[2:])
+			return
+		case "update":
+			handleUpdateCLI(os.Args[2:])
+			return
 		}
 	}
 
@@ -95,6 +107,14 @@ func main() {
 	cfg, err := config.Load()
 	if err != nil {
 		log.Fatalf("Error loading config: %v", err)
+	}
+
+	// 1.1 Support -p / --profile runtime override
+	for i := 1; i < len(os.Args); i++ {
+		if (os.Args[i] == "-p" || os.Args[i] == "--profile") && i+1 < len(os.Args) {
+			cfg.CurrentProfile = os.Args[i+1]
+			break
+		}
 	}
 
 	// 1a. Resolve project root early (needed by wizard and hub).
@@ -125,7 +145,7 @@ func main() {
 			log.Fatalf("Wizard error: %v", err)
 		}
 
-		provider, apiKey, model, language, securityOn, selectedSkills := wizard.GetResults()
+		provider, apiKey, model, language, securityOn, selectedSkills, selectedProfile := wizard.GetResults()
 		if provider == "" {
 			log.Fatal("Wizard cancelled or failed.")
 		}
@@ -146,11 +166,19 @@ func main() {
 		if securityOn {
 			cfg.Policy.Tier = "sandbox"
 		}
+		if selectedProfile != "" {
+			cfg.CurrentProfile = selectedProfile
+			if cfg.Profiles == nil {
+				cfg.Profiles = make(map[string]domain.ProfileConfig)
+			}
+			// Enable selected profile
+			cfg.Profiles[selectedProfile] = domain.ProfileConfig{Enabled: true}
+		}
 		if err := config.Save(cfg); err != nil {
 			log.Fatalf("Error saving config: %v", err)
 		}
 
-		fmt.Printf("Configuration saved successfully! Selected provider: %s.", provider)
+		fmt.Printf("Configuration saved successfully! Selected provider: %s, Profile: %s.", provider, cfg.CurrentProfile)
 		if len(selectedSkills) > 0 {
 			fmt.Printf(" Installed %d skills.", len(selectedSkills))
 		}
@@ -581,11 +609,11 @@ func searchSkillsHub(query string) {
 		out, err := cmd.CombinedOutput()
 		if err == nil {
 			var results []struct {
-				Name        string `json:"name"`
+				Name        string                 `json:"name"`
 				Owner       struct{ Login string } `json:"owner"`
-				Description string `json:"description"`
-				URL         string `json:"url"`
-				UpdatedAt   string `json:"updatedAt"`
+				Description string                 `json:"description"`
+				URL         string                 `json:"url"`
+				UpdatedAt   string                 `json:"updatedAt"`
 			}
 			if json.Unmarshal(out, &results) == nil && len(results) > 0 {
 				fmt.Printf("Found %d repositories with skills matching %q:\n\n", len(results), query)
@@ -616,7 +644,6 @@ func searchSkillsHub(query string) {
 	fmt.Println("  gaia skills add-tap <owner/repo>")
 }
 
-
 func handleSkillsCLI(args []string) {
 	if len(args) == 0 {
 		fmt.Println("Usage: gaia skills <command> [args]")
@@ -632,8 +659,8 @@ func handleSkillsCLI(args []string) {
 		fmt.Println("  remove-tap <url> Remove a community tap")
 		fmt.Println("  list-taps        List installed taps")
 		fmt.Println("  search-hub <q>   Search for skills on GitHub")
-	fmt.Println("  stats             Show skill usage statistics")
-	fmt.Println("  audit             Security audit all skills")
+		fmt.Println("  stats             Show skill usage statistics")
+		fmt.Println("  audit             Security audit all skills")
 		return
 	}
 
@@ -826,16 +853,3 @@ func handleSkillsCLI(args []string) {
 		fmt.Println("Run 'gaia skills' for usage.")
 	}
 }
-
-
-
-
-
-
-
-
-
-
-
-
-

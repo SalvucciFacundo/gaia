@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"regexp"
 
 	"gaia/internal/core/domain"
 	"gopkg.in/yaml.v3"
@@ -15,14 +16,44 @@ const (
 	configFile = "config.yaml"
 )
 
+var profileNameRegex = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
+
+// BaseHome returns the root GAIA home directory ($GAIA_HOME or ~/.config/gaia).
+func BaseHome() string {
+	if home := os.Getenv("GAIA_HOME"); home != "" {
+		return home
+	}
+	userHome, err := os.UserHomeDir()
+	if err != nil {
+		return configDir
+	}
+	return filepath.Join(userHome, configDir)
+}
+
+// GaiaHome is an alias for BaseHome.
+func GaiaHome() string {
+	return BaseHome()
+}
+
+// ValidateProfileName validates that a profile name conforms to security and syntax constraints:
+// - Length between 1 and 32 characters
+// - Matches ^[a-zA-Z0-9_-]+$
+func ValidateProfileName(name string) error {
+	if len(name) < 1 {
+		return fmt.Errorf("profile name cannot be empty")
+	}
+	if len(name) > 32 {
+		return fmt.Errorf("profile name %q exceeds maximum length of 32 characters", name)
+	}
+	if !profileNameRegex.MatchString(name) {
+		return fmt.Errorf("profile name %q contains invalid characters (must match %s)", name, profileNameRegex.String())
+	}
+	return nil
+}
+
 // Load reads the configuration from ~/.config/gaia/config.yaml
 func Load() (*domain.Config, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return nil, fmt.Errorf("could not get home directory: %w", err)
-	}
-
-	fullDir := filepath.Join(home, configDir)
+	fullDir := BaseHome()
 	fullPath := filepath.Join(fullDir, configFile)
 
 	// Create directory if it doesn't exist
@@ -35,10 +66,16 @@ func Load() (*domain.Config, error) {
 	// Create default config if it doesn't exist
 	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
 		defaultCfg := &domain.Config{
-			APIKeys: make(map[string]string),
+			APIKeys:        make(map[string]string),
+			CurrentProfile: "assistant",
+			Profiles: map[string]domain.ProfileConfig{
+				"assistant": {Enabled: true},
+				"dev":       {Enabled: false},
+				"art":       {Enabled: false},
+			},
 		}
 		defaultCfg.System.RequiresConfirmation = true
-		
+
 		data, err := yaml.Marshal(defaultCfg)
 		if err != nil {
 			return nil, fmt.Errorf("could not marshal default config: %w", err)
@@ -77,6 +114,16 @@ func Load() (*domain.Config, error) {
 	if cfg.MCP.Servers == nil {
 		cfg.MCP.Servers = []domain.MCPServerConfig{}
 	}
+	if cfg.CurrentProfile == "" {
+		cfg.CurrentProfile = "assistant"
+	}
+	if cfg.Profiles == nil {
+		cfg.Profiles = map[string]domain.ProfileConfig{
+			"assistant": {Enabled: true},
+			"dev":       {Enabled: false},
+			"art":       {Enabled: false},
+		}
+	}
 
 	// Apply Multimodal environment variables overrides
 	if envProvider := os.Getenv("MULTIMODAL_PROVIDER"); envProvider != "" {
@@ -108,13 +155,8 @@ func Load() (*domain.Config, error) {
 
 // Save writes the configuration back to ~/.config/gaia/config.yaml
 func Save(cfg *domain.Config) error {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return fmt.Errorf("could not get home directory: %w", err)
-	}
+	fullPath := filepath.Join(BaseHome(), configFile)
 
-	fullPath := filepath.Join(home, configDir, configFile)
-	
 	data, err := yaml.Marshal(cfg)
 	if err != nil {
 		return fmt.Errorf("could not marshal config: %w", err)
