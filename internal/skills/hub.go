@@ -8,7 +8,8 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"time")
+	"time"
+)
 
 // Hub manages skill discovery, installation, activation, and removal.
 // It scans bundled skills (shipped with the binary) and user-installed
@@ -28,10 +29,10 @@ type Hub struct {
 	bundledDir   string          // Project's "skills/" directory (read-only)
 	installedDir string          // User's "~/.gaia/skills/" directory
 	active       map[string]bool // Set of active skill names
-	index        []SkillMeta      // Merged skill index (user overrides bundled)
-	
-	usageCount   map[string]int       // times each skill was loaded
-	lastUsed     map[string]time.Time // last load timestamp per skill
+	index        []SkillMeta     // Merged skill index (user overrides bundled)
+
+	usageCount map[string]int       // times each skill was loaded
+	lastUsed   map[string]time.Time // last load timestamp per skill
 }
 
 // NewHub creates a Skills Hub scanning both bundled and installed directories.
@@ -183,6 +184,46 @@ func (h *Hub) Remove(name string) error {
 	h.mu.Unlock()
 
 	return nil
+}
+
+// InstalledDir returns the configured user-installed skills directory.
+func (h *Hub) InstalledDir() string {
+	return h.installedDir
+}
+
+// GetSkill retrieves a skill by name, loading its full content from disk.
+func (h *Hub) GetSkill(name string) (*Skill, bool) {
+	h.ensureIndex()
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	dir := h.findSkillDir(name)
+	if dir == "" {
+		return nil, false
+	}
+	s, err := ParseSkillFile(dir)
+	if err != nil {
+		return nil, false
+	}
+	s.Meta.DirPath = dir
+	s.Meta.Source = h.sourceFor(name)
+	return s, true
+}
+
+// Reload invalidates the cached index so that subsequent accesses rescan directories.
+func (h *Hub) Reload() error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.invalidateIndex()
+	return nil
+}
+
+// RecordUse increments the usage counter and updates the last used timestamp for a skill.
+func (h *Hub) RecordUse(name string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.usageCount[name]++
+	h.lastUsed[name] = time.Now()
 }
 
 // IsActive returns whether the named skill is currently active.
@@ -557,10 +598,6 @@ func copyDir(src, dst string) error {
 	return nil
 }
 
-
-
-
-
 // SkillUsage holds usage stats for a single skill.
 type SkillUsage struct {
 	Name      string
@@ -579,9 +616,9 @@ func (h *Hub) UsageStats() []SkillUsage {
 	stats := make([]SkillUsage, 0, len(h.index))
 	for _, m := range h.index {
 		su := SkillUsage{
-			Name:   m.Name,
-			Active: h.active[m.Name],
-			Source: m.Source,
+			Name:      m.Name,
+			Active:    h.active[m.Name],
+			Source:    m.Source,
 			LoadCount: h.usageCount[m.Name],
 			LastUsed:  h.lastUsed[m.Name],
 		}

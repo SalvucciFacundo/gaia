@@ -20,7 +20,8 @@ import (
 type SkillMeta struct {
 	Name        string   `yaml:"name"`
 	Description string   `yaml:"description"`
-	Triggers    []string `yaml:"triggers"`
+	Trigger     string   `yaml:"trigger,omitempty"`
+	Triggers    []string `yaml:"triggers,omitempty"`
 	Tags        []string `yaml:"tags"`
 	Language    string   `yaml:"language"`
 	Category    string   `yaml:"category"`
@@ -31,7 +32,7 @@ type SkillMeta struct {
 	Source string `yaml:"-"` // "bundled", "user", or "tap"
 
 	// Provenance tracks where the skill came from for security auditing.
-	Provenance string `yaml:"-"` // install source URL or "bundled"
+	Provenance  string `yaml:"-"` // install source URL or "bundled"
 	InstalledAt string `yaml:"-"` // install timestamp
 	ContentHash string `yaml:"-"` // sha256 of SKILL.md content for integrity
 }
@@ -72,6 +73,12 @@ func ParseSkill(r io.Reader) (*Skill, error) {
 
 	if meta.Name == "" {
 		return nil, fmt.Errorf("%w: missing required field 'name'", ErrInvalidSkill)
+	}
+
+	if meta.Trigger != "" && len(meta.Triggers) == 0 {
+		meta.Triggers = []string{meta.Trigger}
+	} else if len(meta.Triggers) > 0 && meta.Trigger == "" {
+		meta.Trigger = strings.Join(meta.Triggers, ", ")
 	}
 
 	return &Skill{
@@ -120,4 +127,3 @@ func splitFrontmatter(r io.Reader) (frontmatter string, body string, err error) 
 
 	return strings.Join(fmLines, "\n"), strings.Join(bodyLines, "\n"), nil
 }
-

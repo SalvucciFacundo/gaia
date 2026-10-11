@@ -122,18 +122,18 @@ func TestExtractMarkdown_Lists(t *testing.T) {
 		expected string
 	}{
 		{
-			name: "unordered list",
-			html: "<ul><li>Item 1</li><li>Item 2</li><li>Item 3</li></ul>",
+			name:     "unordered list",
+			html:     "<ul><li>Item 1</li><li>Item 2</li><li>Item 3</li></ul>",
 			expected: "- Item 1\n- Item 2\n- Item 3",
 		},
 		{
-			name: "ordered list",
-			html: "<ol><li>First</li><li>Second</li><li>Third</li></ol>",
+			name:     "ordered list",
+			html:     "<ol><li>First</li><li>Second</li><li>Third</li></ol>",
 			expected: "1. First\n2. Second\n3. Third",
 		},
 		{
-			name: "list with inline formatting",
-			html: "<ul><li><strong>Important:</strong> Read docs</li><li><code>go test</code></li></ul>",
+			name:     "list with inline formatting",
+			html:     "<ul><li><strong>Important:</strong> Read docs</li><li><code>go test</code></li></ul>",
 			expected: "- **Important:** Read docs\n- `go test`",
 		},
 	}

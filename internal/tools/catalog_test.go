@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 
@@ -62,6 +63,10 @@ func TestToolCatalog_DefaultCatalog(t *testing.T) {
 		"gitops",
 		"generate_image",
 		"analyze_image",
+		"create_skill",
+		"read_skill",
+		"tool_search",
+		"load_tool",
 	}
 
 	for _, name := range expectedTools {
@@ -76,6 +81,38 @@ func TestToolCatalog_DefaultCatalog(t *testing.T) {
 		if entry.Executor == nil {
 			t.Errorf("expected executor to be defined for %q", name)
 		}
+	}
+
+	// Verify categories for skills and meta tools
+	if entry, ok := cat.Get("create_skill"); !ok || entry.Category != "skills" {
+		t.Errorf("expected create_skill category 'skills', got %q", entry.Category)
+	}
+	if entry, ok := cat.Get("read_skill"); !ok || entry.Category != "skills" {
+		t.Errorf("expected read_skill category 'skills', got %q", entry.Category)
+	}
+	if entry, ok := cat.Get("tool_search"); !ok || entry.Category != "meta" {
+		t.Errorf("expected tool_search category 'meta', got %q", entry.Category)
+	}
+	if entry, ok := cat.Get("load_tool"); !ok || entry.Category != "meta" {
+		t.Errorf("expected load_tool category 'meta', got %q", entry.Category)
+	}
+
+	// Test executing tool_search and load_tool via catalog
+	ctx := context.Background()
+	searchRes, err := cat.Execute(ctx, "tool_search", map[string]interface{}{"query": "web"})
+	if err != nil {
+		t.Fatalf("catalog.Execute tool_search failed: %v", err)
+	}
+	if !searchRes.Success || !strings.Contains(searchRes.Output, "web_search") {
+		t.Errorf("unexpected tool_search output: %s", searchRes.Output)
+	}
+
+	loadRes, err := cat.Execute(ctx, "load_tool", map[string]interface{}{"name": "web_search"})
+	if err != nil {
+		t.Fatalf("catalog.Execute load_tool failed: %v", err)
+	}
+	if !loadRes.Success || !strings.Contains(loadRes.Output, "web_search") {
+		t.Errorf("unexpected load_tool output: %s", loadRes.Output)
 	}
 }
 

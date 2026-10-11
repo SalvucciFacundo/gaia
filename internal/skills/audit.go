@@ -28,8 +28,8 @@ type AuditResult struct {
 
 // dangerousPatterns are regex patterns that indicate potentially dangerous skill content.
 var dangerousPatterns = []struct {
-	Name    string
-	Pattern *regexp.Regexp
+	Name     string
+	Pattern  *regexp.Regexp
 	Severity string
 }{
 	{Pattern: regexp.MustCompile(`(?i)(rm\s+(-rf|--recursive)\s+[/~])`), Name: "destructive_file_operation", Severity: "error"},

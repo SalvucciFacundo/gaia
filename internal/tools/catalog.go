@@ -2,12 +2,16 @@ package tools
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
 
+	"gaia/internal/config"
 	"gaia/internal/core/domain"
+	"gaia/internal/skills"
 )
 
 // ToolExecutor executes a catalog tool given a context and arguments map.
@@ -541,6 +545,167 @@ func DefaultCatalog() *ToolCatalog {
 				Success: true,
 				Output:  fmt.Sprintf("Reminder scheduled: %q at %s", title, when),
 			}, nil
+		},
+	})
+
+	// Skills tools
+	c.Register(CatalogEntry{
+		Name:        "create_skill",
+		Category:    "skills",
+		Description: "Create or update a reusable procedural skill adhering to the agentskills.io standard.",
+		Definition: domain.ToolDef{
+			Name:        "create_skill",
+			Description: "Create or update a reusable procedural skill adhering to the agentskills.io standard.",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"name": map[string]interface{}{
+						"type":        "string",
+						"description": "Skill name matching ^[a-zA-Z0-9_-]+$ (max 64 chars)",
+					},
+					"description": map[string]interface{}{
+						"type":        "string",
+						"description": "Short description of the skill (max 500 chars)",
+					},
+					"trigger": map[string]interface{}{
+						"type":        "string",
+						"description": "Trigger keywords or intent summary",
+					},
+					"body": map[string]interface{}{
+						"type":        "string",
+						"description": "Markdown procedural instructions containing standard sections",
+					},
+					"overwrite": map[string]interface{}{
+						"type":        "boolean",
+						"description": "Overwrite existing skill if true",
+					},
+					"license": map[string]interface{}{
+						"type":        "string",
+						"description": "License string (e.g. Apache-2.0)",
+					},
+					"author": map[string]interface{}{
+						"type":        "string",
+						"description": "Author identifier",
+					},
+				},
+				"required": []string{"name", "description", "body"},
+			},
+		},
+		Executor: func(ctx context.Context, args map[string]interface{}) (*domain.ToolResult, error) {
+			inBytes, err := json.Marshal(args)
+			if err != nil {
+				return &domain.ToolResult{Success: false, Error: err.Error()}, err
+			}
+			skillsDir := filepath.Join(config.BaseHome(), "skills")
+			hub := skills.NewHub("", skillsDir)
+			runner := NewCreateSkillRunner(skillsDir, hub)
+			out, err := runner.Run(ctx, string(inBytes))
+			if err != nil {
+				return &domain.ToolResult{Success: false, Error: err.Error()}, err
+			}
+			return &domain.ToolResult{Success: true, Output: out}, nil
+		},
+	})
+
+	c.Register(CatalogEntry{
+		Name:        "read_skill",
+		Category:    "skills",
+		Description: "Fetch the full procedural instructions, rules, and examples of a specified skill by name.",
+		Definition: domain.ToolDef{
+			Name:        "read_skill",
+			Description: "Fetch the full procedural instructions, rules, and examples of a specified skill by name.",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"name": map[string]interface{}{
+						"type":        "string",
+						"description": "Exact name of the skill to read",
+					},
+				},
+				"required": []string{"name"},
+			},
+		},
+		Executor: func(ctx context.Context, args map[string]interface{}) (*domain.ToolResult, error) {
+			inBytes, err := json.Marshal(args)
+			if err != nil {
+				return &domain.ToolResult{Success: false, Error: err.Error()}, err
+			}
+			skillsDir := filepath.Join(config.BaseHome(), "skills")
+			hub := skills.NewHub("", skillsDir)
+			runner := NewReadSkillRunner(hub)
+			out, err := runner.Run(ctx, string(inBytes))
+			if err != nil {
+				return &domain.ToolResult{Success: false, Error: err.Error()}, err
+			}
+			return &domain.ToolResult{Success: true, Output: out}, nil
+		},
+	})
+
+	// Meta tools
+	c.Register(CatalogEntry{
+		Name:        "tool_search",
+		Category:    "meta",
+		Description: "Search for available tools by keyword or category when needed. Returns matching tool names and short descriptions.",
+		Definition: domain.ToolDef{
+			Name:        "tool_search",
+			Description: "Search for available tools by keyword or category when needed. Returns matching tool names and short descriptions.",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"query": map[string]interface{}{
+						"type":        "string",
+						"description": "Keyword to search in tool names and descriptions",
+					},
+					"category": map[string]interface{}{
+						"type":        "string",
+						"description": "Filter by functional category",
+					},
+				},
+			},
+		},
+		Executor: func(ctx context.Context, args map[string]interface{}) (*domain.ToolResult, error) {
+			inBytes, err := json.Marshal(args)
+			if err != nil {
+				return &domain.ToolResult{Success: false, Error: err.Error()}, err
+			}
+			runner := NewToolSearchRunner(c)
+			out, err := runner.Run(ctx, string(inBytes))
+			if err != nil {
+				return &domain.ToolResult{Success: false, Error: err.Error()}, err
+			}
+			return &domain.ToolResult{Success: true, Output: out}, nil
+		},
+	})
+
+	c.Register(CatalogEntry{
+		Name:        "load_tool",
+		Category:    "meta",
+		Description: "Load the full schema and parameter definitions for a specific tool from the catalog.",
+		Definition: domain.ToolDef{
+			Name:        "load_tool",
+			Description: "Load the full schema and parameter definitions for a specific tool from the catalog.",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"name": map[string]interface{}{
+						"type":        "string",
+						"description": "Exact tool name to retrieve full parameters and schema",
+					},
+				},
+				"required": []string{"name"},
+			},
+		},
+		Executor: func(ctx context.Context, args map[string]interface{}) (*domain.ToolResult, error) {
+			inBytes, err := json.Marshal(args)
+			if err != nil {
+				return &domain.ToolResult{Success: false, Error: err.Error()}, err
+			}
+			runner := NewLoadToolRunner(c)
+			out, err := runner.Run(ctx, string(inBytes))
+			if err != nil {
+				return &domain.ToolResult{Success: false, Error: err.Error()}, err
+			}
+			return &domain.ToolResult{Success: true, Output: out}, nil
 		},
 	})
 
