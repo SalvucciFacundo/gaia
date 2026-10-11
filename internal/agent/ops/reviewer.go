@@ -287,4 +287,3 @@ func countBySeverity(findings []domain.ReviewFinding, severity string) int {
 }
 
 var _ agent.Subagent = (*reviewer)(nil)
-

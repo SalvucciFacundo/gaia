@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 	"sync"
 	"testing"
-
 )
 
 func TestLoadManifest_FileNotFound(t *testing.T) {
@@ -235,5 +234,3 @@ func TestFindEntry_EmptyManifest(t *testing.T) {
 		t.Errorf("expected nil for empty manifest, got %+v", entry)
 	}
 }
-
-

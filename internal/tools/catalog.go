@@ -8,10 +8,12 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"gaia/internal/config"
 	"gaia/internal/core/domain"
 	"gaia/internal/skills"
+	"gaia/internal/tools/browser"
 )
 
 // ToolExecutor executes a catalog tool given a context and arguments map.
@@ -709,5 +711,106 @@ func DefaultCatalog() *ToolCatalog {
 		},
 	})
 
+	// Browser tools
+	browserCfg := domain.BrowserConfig{
+		Enabled:        true,
+		Timeout:        30 * time.Second,
+		ViewportWidth:  1280,
+		ViewportHeight: 720,
+	}
+	RegisterBrowserTools(c, browserCfg, nil)
+
 	return c
+}
+
+// RegisterBrowserTools registers headless browser automation tools into the given catalog.
+func RegisterBrowserTools(c *ToolCatalog, cfg domain.BrowserConfig, driver browser.Driver) {
+	runners := browser.NewBrowserRunners(cfg, driver)
+	for _, r := range runners {
+		runner := r
+		var params map[string]interface{}
+		switch runner.Name() {
+		case "browser_navigate":
+			params = map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"url": map[string]interface{}{
+						"type":        "string",
+						"description": "The URL to navigate to",
+					},
+				},
+				"required": []string{"url"},
+			}
+		case "browser_action":
+			params = map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"action": map[string]interface{}{
+						"type":        "string",
+						"description": "Action to perform: click, type, evaluate, or scroll",
+						"enum":        []string{"click", "type", "evaluate", "scroll"},
+					},
+					"url": map[string]interface{}{
+						"type":        "string",
+						"description": "Optional target URL",
+					},
+					"selector": map[string]interface{}{
+						"type":        "string",
+						"description": "CSS selector for target element",
+					},
+					"text": map[string]interface{}{
+						"type":        "string",
+						"description": "Text to enter for type action",
+					},
+					"script": map[string]interface{}{
+						"type":        "string",
+						"description": "JavaScript snippet to evaluate",
+					},
+				},
+				"required": []string{"action"},
+			}
+		case "browser_screenshot":
+			params = map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"url": map[string]interface{}{
+						"type":        "string",
+						"description": "The URL of the webpage to capture",
+					},
+					"path": map[string]interface{}{
+						"type":        "string",
+						"description": "Destination file path for the screenshot image",
+					},
+				},
+				"required": []string{"url", "path"},
+			}
+		case "browser_close":
+			params = map[string]interface{}{
+				"type":       "object",
+				"properties": map[string]interface{}{},
+			}
+		}
+
+		c.Register(CatalogEntry{
+			Name:        runner.Name(),
+			Category:    "browser",
+			Description: runner.Description(),
+			Definition: domain.ToolDef{
+				Name:        runner.Name(),
+				Description: runner.Description(),
+				Parameters:  params,
+			},
+			Executor: func(ctx context.Context, args map[string]interface{}) (*domain.ToolResult, error) {
+				inBytes, err := json.Marshal(args)
+				if err != nil {
+					return &domain.ToolResult{Success: false, Error: err.Error()}, err
+				}
+				out, err := runner.Run(ctx, string(inBytes))
+				if err != nil {
+					return &domain.ToolResult{Success: false, Error: err.Error()}, err
+				}
+				return &domain.ToolResult{Success: true, Output: out}, nil
+			},
+		})
+	}
 }

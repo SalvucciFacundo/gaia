@@ -18,8 +18,8 @@ import (
 
 // Config holds script injection settings.
 type Config struct {
-	PreRun  []string `yaml:"pre_run"`  // script paths relative to project root
-	Timeout int      `yaml:"timeout"`  // seconds, default 30
+	PreRun  []string `yaml:"pre_run"` // script paths relative to project root
+	Timeout int      `yaml:"timeout"` // seconds, default 30
 }
 
 // Runner executes pre-agent scripts and captures their output.

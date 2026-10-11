@@ -121,7 +121,7 @@ func (l *AttemptLedger) Acquire(ctx context.Context, req AcquireRequest) (*Acqui
 			MaxChangedLines:  req.MaxChangedLines,
 			State:            StateProceed,
 			Attempts:         make([]AttemptRecord, 0),
-			LearnedInsights: make([]string, 0),
+			LearnedInsights:  make([]string, 0),
 		}
 		l.entries[key] = entry
 	}
@@ -138,7 +138,7 @@ func (l *AttemptLedger) Acquire(ctx context.Context, req AcquireRequest) (*Acqui
 	if entry.CurrentAttempt >= entry.MaxAttempts {
 		entry.State = StateBlocked
 		entry.BlockedReason = fmt.Sprintf("max attempts (%d) exceeded for work unit %q", entry.MaxAttempts, req.WorkUnit)
-		
+
 		// Record reflection in subagent's learning loop
 		if l.learnLoop != nil {
 			l.learnLoop.RecordExecution(req.SubagentName)

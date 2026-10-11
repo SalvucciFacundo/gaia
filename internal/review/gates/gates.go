@@ -33,11 +33,11 @@ type Gate struct {
 
 // GateResult is the outcome of a gate validation.
 type GateResult struct {
-	Passed        bool                    `json:"passed"`
-	Receipt       *domain.ReviewReceipt   `json:"receipt,omitempty"`
-	Reason        string                  `json:"reason"`
-	SnapshotHash  string                  `json:"snapshot_hash,omitempty"`
-	CheckedAt     time.Time               `json:"checked_at"`
+	Passed       bool                  `json:"passed"`
+	Receipt      *domain.ReviewReceipt `json:"receipt,omitempty"`
+	Reason       string                `json:"reason"`
+	SnapshotHash string                `json:"snapshot_hash,omitempty"`
+	CheckedAt    time.Time             `json:"checked_at"`
 }
 
 // ReceiptStore abstracts receipt persistence so gates work with both
@@ -72,9 +72,9 @@ var (
 // relative to projectRoot that should be validated.
 //
 // Validation logic:
-//   1. Receipt must exist
-//   2. Receipt state must be "approved"
-//   3. Current snapshot_hash must match the receipt's snapshot_hash
+//  1. Receipt must exist
+//  2. Receipt state must be "approved"
+//  3. Current snapshot_hash must match the receipt's snapshot_hash
 func (g *Gate) Validate(projectRoot string, files []string, store ReceiptStore) (*GateResult, error) {
 	checkedAt := time.Now()
 

@@ -13,8 +13,8 @@ type SubagentFactory func(spawner *Spawner) Subagent
 // Registry maps subagent names to factory functions.
 // It is safe for concurrent use.
 type Registry struct {
-	mu      sync.RWMutex
-	agents  map[string]SubagentFactory
+	mu     sync.RWMutex
+	agents map[string]SubagentFactory
 }
 
 // NewRegistry creates an empty subagent registry.

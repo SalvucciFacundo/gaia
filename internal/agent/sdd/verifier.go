@@ -19,8 +19,10 @@ func NewVerifier(spawner *agent.Spawner) agent.Subagent {
 	return &verifier{spawner: spawner}
 }
 
-func (v *verifier) Name() string        { return "verifier" }
-func (v *verifier) Description() string { return "Executes tests and validates implementation against specs and TDD phases" }
+func (v *verifier) Name() string { return "verifier" }
+func (v *verifier) Description() string {
+	return "Executes tests and validates implementation against specs and TDD phases"
+}
 
 func (v *verifier) Execute(ctx context.Context, task domain.SubagentTask) *domain.SubagentResult {
 	task.AllowedTools = []string{

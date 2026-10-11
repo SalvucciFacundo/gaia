@@ -47,8 +47,8 @@ func setupPipelineSpawner(t *testing.T) *Spawner {
 				name:        s,
 				description: "Stub " + s,
 				result: &domain.SubagentResult{
-					Status:  domain.SubagentSuccess,
-					Summary: s + " done",
+					Status:    domain.SubagentSuccess,
+					Summary:   s + " done",
 					Artifacts: []string{s + "-artifact"},
 				},
 			}
@@ -213,7 +213,7 @@ func TestRunPipeline_PhaseFailed(t *testing.T) {
 
 	// Make a subagent that panics (simulates real failure)
 	spawner.registry.Unregister("proposer")
-		spawner.registry.Register("proposer", func(sp *Spawner) Subagent {
+	spawner.registry.Register("proposer", func(sp *Spawner) Subagent {
 		return &panicPipelineSubagent{name: "proposer"}
 	})
 
@@ -231,8 +231,8 @@ func TestRunPipeline_PhaseFailed(t *testing.T) {
 // panicPipelineSubagent panics in Execute to simulate a real crash.
 type panicPipelineSubagent struct{ name string }
 
-func (p *panicPipelineSubagent) Name() string                               { return p.name }
-func (p *panicPipelineSubagent) Description() string                        { return "panics" }
+func (p *panicPipelineSubagent) Name() string        { return p.name }
+func (p *panicPipelineSubagent) Description() string { return "panics" }
 func (p *panicPipelineSubagent) Execute(ctx context.Context, t domain.SubagentTask) *domain.SubagentResult {
 	panic("simulated crash")
 }

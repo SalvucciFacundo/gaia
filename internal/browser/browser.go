@@ -15,9 +15,9 @@ import (
 // It connects to a browser MCP server (e.g., playwright-mcp or puppeteer-mcp)
 // and exposes its tools through the agent's ToolRegistry.
 type Module struct {
-	client           *mcp.Client
-	config           domain.BrowserToolsConfig
-	mcpModule        *mcp.MCPModule
+	client    *mcp.Client
+	config    domain.BrowserToolsConfig
+	mcpModule *mcp.MCPModule
 }
 
 // NewModule creates a browser tools module wrapping an MCP client.

@@ -33,13 +33,13 @@ type ServerConfig struct {
 // Client connects to an LSP server via stdio and provides
 // diagnostic and analysis capabilities.
 type Client struct {
-	cfg     ServerConfig
-	cmd     *exec.Cmd
-	stdin   io.WriteCloser
-	stdout  io.ReadCloser
-	reader  *bufio.Reader
-	mu      sync.Mutex
-	nextID  int
+	cfg    ServerConfig
+	cmd    *exec.Cmd
+	stdin  io.WriteCloser
+	stdout io.ReadCloser
+	reader *bufio.Reader
+	mu     sync.Mutex
+	nextID int
 }
 
 // NewClient creates a new LSP client for the given server config.

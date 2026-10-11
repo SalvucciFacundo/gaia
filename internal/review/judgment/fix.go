@@ -13,10 +13,10 @@ import (
 
 // FixResult holds the outcome of a fix round.
 type FixResult struct {
-	AppliedFixCount int                    `json:"applied_fix_count"`
-	SkippedCount    int                    `json:"skipped_count"`
-	BudgetUsed      int                    `json:"budget_used"`
-	Changes         []FixChange            `json:"changes,omitempty"`
+	AppliedFixCount int         `json:"applied_fix_count"`
+	SkippedCount    int         `json:"skipped_count"`
+	BudgetUsed      int         `json:"budget_used"`
+	Changes         []FixChange `json:"changes,omitempty"`
 }
 
 // FixChange records a single surgical correction applied to a file.

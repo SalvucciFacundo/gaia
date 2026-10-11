@@ -248,5 +248,3 @@ func (c *Client) sendRequest(req MCPJSONRPCRequest) (*MCPJSONRPCResponse, error)
 
 	return &resp, nil
 }
-
-

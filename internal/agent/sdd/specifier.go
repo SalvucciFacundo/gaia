@@ -20,8 +20,10 @@ func NewSpecifier(spawner *agent.Spawner) agent.Subagent {
 	return &specifier{spawner: spawner}
 }
 
-func (s *specifier) Name() string        { return "specifier" }
-func (s *specifier) Description() string { return "Produces SDD delta specs with requirements and scenarios" }
+func (s *specifier) Name() string { return "specifier" }
+func (s *specifier) Description() string {
+	return "Produces SDD delta specs with requirements and scenarios"
+}
 
 func (s *specifier) Execute(ctx context.Context, task domain.SubagentTask) *domain.SubagentResult {
 	task.AllowedTools = []string{

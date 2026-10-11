@@ -21,13 +21,13 @@ const (
 
 // ManagedServer wraps an MCP Client with status tracking.
 type ManagedServer struct {
-	Name       string
-	Config     domain.MCPServerConfig
-	Client     *Client
-	Status     ServerStatus
-	Error      string
+	Name        string
+	Config      domain.MCPServerConfig
+	Client      *Client
+	Status      ServerStatus
+	Error       string
 	ConnectedAt time.Time
-	ToolCount  int
+	ToolCount   int
 }
 
 // Manager maintains a pool of MCP server connections and provides

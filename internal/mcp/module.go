@@ -61,7 +61,7 @@ func (m *MCPModule) Discover(ctx context.Context) error {
 			Name: prefixedName,
 			Arguments: map[string]interface{}{
 				"description": t.Description,
-				"name":        t.Name,    // preserve original name for calling
+				"name":        t.Name, // preserve original name for calling
 				"server":      m.serverName,
 			},
 		}

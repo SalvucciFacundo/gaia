@@ -21,14 +21,14 @@ const (
 
 // TDDState tracks the current phase and history of a TDD cycle for a change.
 type TDDState struct {
-	ChangeName       string    `json:"change_name"`
-	CurrentPhase     TDDPhase  `json:"current_phase"`
-	TestFiles        []string  `json:"test_files"`
-	CodeFiles        []string  `json:"code_files"`
-	RedTestOutput    string    `json:"red_test_output,omitempty"`
-	GreenTestOutput  string    `json:"green_test_output,omitempty"`
-	ViolationsCount  int       `json:"violations_count"`
-	LearnedInsights  []string  `json:"learned_insights"`
+	ChangeName      string   `json:"change_name"`
+	CurrentPhase    TDDPhase `json:"current_phase"`
+	TestFiles       []string `json:"test_files"`
+	CodeFiles       []string `json:"code_files"`
+	RedTestOutput   string   `json:"red_test_output,omitempty"`
+	GreenTestOutput string   `json:"green_test_output,omitempty"`
+	ViolationsCount int      `json:"violations_count"`
+	LearnedInsights []string `json:"learned_insights"`
 }
 
 // TDDEngine coordinates Strict TDD enforcement and feeds test discipline into permanent subagent memory.

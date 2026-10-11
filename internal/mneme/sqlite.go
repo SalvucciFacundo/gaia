@@ -29,9 +29,9 @@ const observationCols = `id, topic_key, type, content, importance, project, work
 
 // Repository is the SQLite + FTS5 implementation of Repository.
 type Repository struct {
-	db        *sql.DB
-	embedder  Embedder
-	logger    *slog.Logger
+	db       *sql.DB
+	embedder Embedder
+	logger   *slog.Logger
 
 	ctx       context.Context
 	cancel    context.CancelFunc

@@ -13,9 +13,9 @@ import (
 
 var (
 	policyTitleStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("#7D56F4")).
-			Padding(0, 1)
+				Bold(true).
+				Foreground(lipgloss.Color("#7D56F4")).
+				Padding(0, 1)
 
 	policyTierActiveStyle = lipgloss.NewStyle().
 				Bold(true).
@@ -25,7 +25,7 @@ var (
 				Foreground(lipgloss.Color("#ADADAD"))
 
 	policyOverrideAllowStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("#00D700"))
+					Foreground(lipgloss.Color("#00D700"))
 
 	policyOverrideDenyStyle = lipgloss.NewStyle().
 				Foreground(lipgloss.Color("#FF5F00"))
@@ -37,7 +37,7 @@ var (
 				Foreground(lipgloss.Color("#ADADAD"))
 
 	policyOverrideAuditStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("#00D7FF"))
+					Foreground(lipgloss.Color("#00D7FF"))
 
 	policyNoneStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#666666"))
@@ -55,8 +55,8 @@ var (
 type panelMode int
 
 const (
-	panelMain   panelMode = iota // main view: tier + tool list
-	panelEdit                     // override editing for a specific tool
+	panelMain panelMode = iota // main view: tier + tool list
+	panelEdit                  // override editing for a specific tool
 )
 
 // overrideOption represents a selectable override value in the edit view.
@@ -201,19 +201,19 @@ func (m *PolicyPanelModel) updateEdit(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		// First option is always "Remove override" if one exists
-			offset := 0
-			if _, hasOverride := m.guard.Override(m.editTool); hasOverride {
-				if m.editOptIdx == 0 {
-					m.guard.RemoveOverride(m.editTool)
-					m.mode = panelMain
-					return m, nil
-				}
-				offset = 1
+		offset := 0
+		if _, hasOverride := m.guard.Override(m.editTool); hasOverride {
+			if m.editOptIdx == 0 {
+				m.guard.RemoveOverride(m.editTool)
+				m.mode = panelMain
+				return m, nil
 			}
-			idx := m.editOptIdx - offset
-			if idx >= 0 && idx < len(overrideChoices) {
-				m.guard.SetOverride(m.editTool, overrideChoices[idx].policy)
-			}
+			offset = 1
+		}
+		idx := m.editOptIdx - offset
+		if idx >= 0 && idx < len(overrideChoices) {
+			m.guard.SetOverride(m.editTool, overrideChoices[idx].policy)
+		}
 		m.mode = panelMain
 		return m, nil
 

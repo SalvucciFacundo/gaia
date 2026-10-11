@@ -342,8 +342,17 @@ func main() {
 		brain.RegisterModule(cgMod)
 	}
 	// Register browser module if configured
-	if cfg.Browser.Enabled {
-		browserMod, berr := browser.NewModule(cfg.Browser)
+	if cfg.Gateway.BrowserTools.Enabled {
+		browserMod, berr := browser.NewModule(cfg.Gateway.BrowserTools)
+		if berr == nil {
+			brain.RegisterModule(browserMod)
+			fmt.Println("Browser automation registered")
+		}
+	} else if cfg.Browser.Enabled && cfg.Browser.ExecutablePath != "" {
+		browserMod, berr := browser.NewModule(domain.BrowserToolsConfig{
+			Enabled: cfg.Browser.Enabled,
+			Command: cfg.Browser.ExecutablePath,
+		})
 		if berr == nil {
 			brain.RegisterModule(browserMod)
 			fmt.Println("Browser automation registered")

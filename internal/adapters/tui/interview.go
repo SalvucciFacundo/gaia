@@ -15,7 +15,7 @@ import (
 type interviewStep int
 
 const (
-	stepName        interviewStep = iota
+	stepName interviewStep = iota
 	stepDescription
 	stepTools
 	stepSkills

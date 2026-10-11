@@ -305,4 +305,3 @@ func TestApplyWorkspaceEdit_RollbackOnFailure(t *testing.T) {
 		t.Errorf("fileA was not rolled back: got %q, want %q", string(contentA), originalA)
 	}
 }
-

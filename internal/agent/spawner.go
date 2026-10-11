@@ -17,15 +17,15 @@ import (
 // SpawnerConfig holds the dependencies needed to spawn subagent executions.
 type SpawnerConfig struct {
 	Provider       ports.LLMProvider
-	Tools          *core.ToolRegistry                                            // Full tool registry; filtered per subagent
+	Tools          *core.ToolRegistry // Full tool registry; filtered per subagent
 	Budget         domain.BudgetConfig
-	Namespace      *memory.NamespaceManager                                      // Engram namespace wrapper
-	TaskManager    *TaskManager                                                  // Async task lifecycle tracking (nil = sync-only mode)
-	MoAProviders   map[string]ports.LLMProvider                                  // providers for MoA fan-out, keyed by name
-	Policy         *core.PolicyGuard                                             // policy evaluation guard (nil = no policy enforcement)
+	Namespace      *memory.NamespaceManager                                     // Engram namespace wrapper
+	TaskManager    *TaskManager                                                 // Async task lifecycle tracking (nil = sync-only mode)
+	MoAProviders   map[string]ports.LLMProvider                                 // providers for MoA fan-out, keyed by name
+	Policy         *core.PolicyGuard                                            // policy evaluation guard (nil = no policy enforcement)
 	AuditFunc      func(name string, args map[string]interface{}, allowed bool) // audit trail callback
-	DefaultTimeout time.Duration                                                 // optional timeout for Spawn execution
-	WorktreeMgr    *WorktreeManager                                              // Git worktree isolation for async tasks
+	DefaultTimeout time.Duration                                                // optional timeout for Spawn execution
+	WorktreeMgr    *WorktreeManager                                             // Git worktree isolation for async tasks
 }
 
 // Spawner implements ports.SubagentPort. It creates isolated execution
@@ -33,9 +33,9 @@ type SpawnerConfig struct {
 // fresh message history. Tool filtering is enforced at the Spawner level,
 // not self-reported by subagents.
 type Spawner struct {
-	cfg        SpawnerConfig
-	registry   *Registry
-	learnLoop  *learn.LearningLoop // Tracks per-subagent execution counts
+	cfg       SpawnerConfig
+	registry  *Registry
+	learnLoop *learn.LearningLoop // Tracks per-subagent execution counts
 }
 
 // NewSpawner creates a Spawner with the given configuration and subagent registry.

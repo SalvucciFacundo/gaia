@@ -59,8 +59,8 @@ var (
 			Foreground(lipgloss.Color("#00D7FF"))
 
 	aiStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("#FF00D7"))
+		Bold(true).
+		Foreground(lipgloss.Color("#FF00D7"))
 
 	taskRunningStyle = lipgloss.NewStyle().
 				Foreground(lipgloss.Color("#00D700"))
@@ -187,9 +187,9 @@ type Model struct {
 	interview      *InterviewModel                   // nil when not in interview mode
 
 	// Policy guard and panel
-	policyGuard *core.PolicyGuard        // policy evaluation guard (nil if not configured)
-	policyPanel *PolicyPanelModel        // nil when not in policy panel mode
-	sessionMgr  *core.SessionManager     // session routing (nil if not in unified mode)
+	policyGuard *core.PolicyGuard    // policy evaluation guard (nil if not configured)
+	policyPanel *PolicyPanelModel    // nil when not in policy panel mode
+	sessionMgr  *core.SessionManager // session routing (nil if not in unified mode)
 
 	// Diff viewer overlay
 	diffViewer    *DiffViewerModel // nil when not in diff viewer mode
@@ -510,7 +510,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return m, nil
 				}
 				// Try to send via Steer() method if brain supports it
-				if brain, ok := m.brain.(interface{ Steer(ctx context.Context, msg string) error }); ok {
+				if brain, ok := m.brain.(interface {
+					Steer(ctx context.Context, msg string) error
+				}); ok {
 					brain.Steer(context.Background(), guidance)
 					m.mu.Lock()
 					m.history = append(m.history, domain.Message{
@@ -537,7 +539,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.mu.Lock()
 				m.showTimestamps = !m.showTimestamps
 				status := "OFF"
-				if m.showTimestamps { status = "ON" }
+				if m.showTimestamps {
+					status = "ON"
+				}
 				m.textInput.SetValue("")
 				m.viewport.SetContent(m.renderHistory())
 				m.viewport.GotoBottom()
@@ -551,7 +555,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.mu.Lock()
 				m.showStatusbar = !m.showStatusbar
 				status := "OFF"
-				if m.showStatusbar { status = "ON" }
+				if m.showStatusbar {
+					status = "ON"
+				}
 				m.textInput.SetValue("")
 				m.mu.Unlock()
 				m.addSystemMsg(fmt.Sprintf("Status bar: %s", status))
@@ -563,7 +569,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.mu.Lock()
 				m.showFooter = !m.showFooter
 				status := "OFF"
-				if m.showFooter { status = "ON" }
+				if m.showFooter {
+					status = "ON"
+				}
 				m.textInput.SetValue("")
 				m.mu.Unlock()
 				m.addSystemMsg(fmt.Sprintf("Footer: %s", status))
@@ -867,37 +875,19 @@ For details: gaia help or check the README.`
 				return m, nil
 			}
 
-				// Handle /usage — show key usage info
-		if input == "/usage" {
-			provider := "unknown"
-			model := "unknown"
-			if m.brain != nil {
-				provider = "configured"
-				model = "see config"
-			}
-			stats := fmt.Sprintf("Provider: %s\nModel: %s\n\nUse ~gaia doctor for full diagnostics.", provider, model)
-			m.mu.Lock()
-			m.history = append(m.history, domain.Message{
-				Role:    domain.RoleSystem,
-				Content: stats,
-			})
-			m.viewport.SetContent(m.renderHistory())
-			m.viewport.GotoBottom()
-			m.textInput.SetValue("")
-			m.mu.Unlock()
-			return m, nil
-		}
-
-		// Handle /create-agent — start interview for dynamic subagent creation
-		if input == "/create-agent" {
-			m.mu.Lock()
-			creator := m.dynamicCreator
-			tools := make([]string, len(m.toolNames))
-			copy(tools, m.toolNames)
-			if creator == nil {
+			// Handle /usage — show key usage info
+			if input == "/usage" {
+				provider := "unknown"
+				model := "unknown"
+				if m.brain != nil {
+					provider = "configured"
+					model = "see config"
+				}
+				stats := fmt.Sprintf("Provider: %s\nModel: %s\n\nUse ~gaia doctor for full diagnostics.", provider, model)
+				m.mu.Lock()
 				m.history = append(m.history, domain.Message{
 					Role:    domain.RoleSystem,
-					Content: "Dynamic subagent creation is not configured.",
+					Content: stats,
 				})
 				m.viewport.SetContent(m.renderHistory())
 				m.viewport.GotoBottom()
@@ -905,34 +895,52 @@ For details: gaia help or check the README.`
 				m.mu.Unlock()
 				return m, nil
 			}
-			m.interview = NewInterviewModel(tools, creator)
-			m.textInput.SetValue("")
-			m.mu.Unlock()
-			return m, m.interview.Init()
-		}
 
-		// Handle /permisos — open policy panel for tier and override management
-		if input == "/permisos" {
-			m.mu.Lock()
-			pg := m.policyGuard
-			if pg == nil {
-				m.history = append(m.history, domain.Message{
-					Role:    domain.RoleSystem,
-					Content: "Policy guard is not configured. Use --policy-tier when launching, or configure policy in config.yaml.",
-				})
-				m.viewport.SetContent(m.renderHistory())
-				m.viewport.GotoBottom()
+			// Handle /create-agent — start interview for dynamic subagent creation
+			if input == "/create-agent" {
+				m.mu.Lock()
+				creator := m.dynamicCreator
+				tools := make([]string, len(m.toolNames))
+				copy(tools, m.toolNames)
+				if creator == nil {
+					m.history = append(m.history, domain.Message{
+						Role:    domain.RoleSystem,
+						Content: "Dynamic subagent creation is not configured.",
+					})
+					m.viewport.SetContent(m.renderHistory())
+					m.viewport.GotoBottom()
+					m.textInput.SetValue("")
+					m.mu.Unlock()
+					return m, nil
+				}
+				m.interview = NewInterviewModel(tools, creator)
 				m.textInput.SetValue("")
 				m.mu.Unlock()
-				return m, nil
+				return m, m.interview.Init()
 			}
-			m.policyPanel = NewPolicyPanelModel(pg, m.toolNames)
-			m.textInput.SetValue("")
-			m.mu.Unlock()
-			return m, m.policyPanel.Init()
-		}
 
-		// Normal message — append user message and dispatch Brain call.
+			// Handle /permisos — open policy panel for tier and override management
+			if input == "/permisos" {
+				m.mu.Lock()
+				pg := m.policyGuard
+				if pg == nil {
+					m.history = append(m.history, domain.Message{
+						Role:    domain.RoleSystem,
+						Content: "Policy guard is not configured. Use --policy-tier when launching, or configure policy in config.yaml.",
+					})
+					m.viewport.SetContent(m.renderHistory())
+					m.viewport.GotoBottom()
+					m.textInput.SetValue("")
+					m.mu.Unlock()
+					return m, nil
+				}
+				m.policyPanel = NewPolicyPanelModel(pg, m.toolNames)
+				m.textInput.SetValue("")
+				m.mu.Unlock()
+				return m, m.policyPanel.Init()
+			}
+
+			// Normal message — append user message and dispatch Brain call.
 			m.mu.Lock()
 			m.history = append(m.history, domain.Message{
 				Role:    domain.RoleUser,
@@ -1351,5 +1359,3 @@ func execCommand(name string, text string) error {
 	}()
 	return cmd.Run()
 }
-
-

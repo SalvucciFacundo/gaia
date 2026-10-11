@@ -43,15 +43,15 @@ MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC...
 			description: "PEM private key block should be redacted",
 		},
 		{
-			name:       "clean output",
-			input:      "Files: main.go (124 lines), utils.go (56 lines)",
-			wantRedact: false,
+			name:        "clean output",
+			input:       "Files: main.go (124 lines), utils.go (56 lines)",
+			wantRedact:  false,
 			description: "Clean output with no secrets should pass through unchanged",
 		},
 		{
-			name:       "fake key too short",
-			input:      "export KEY=sk-short",
-			wantRedact: false,
+			name:        "fake key too short",
+			input:       "export KEY=sk-short",
+			wantRedact:  false,
 			description: "sk- prefix with fewer than 20 chars after should not match",
 		},
 		{
@@ -60,7 +60,7 @@ MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC...
 API key: sk-abcdefghijklmnopqrstuvwxyz123456
 Token: ghp_abcdefghijklmnopqrstuvwxyz1234567890
 Files compiled: 42`,
-			wantRedact: true,
+			wantRedact:  true,
 			description: "Multiple secrets in mixed output should all be redacted",
 		},
 	}

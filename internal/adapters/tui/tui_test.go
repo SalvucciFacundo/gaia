@@ -13,10 +13,10 @@ import (
 // --- Mock MessageProcessor ---
 
 type mockProcessor struct {
-	mu          sync.Mutex
-	called      bool
-	calledWith  string
-	processFn   func(ctx context.Context, content string) error
+	mu         sync.Mutex
+	called     bool
+	calledWith string
+	processFn  func(ctx context.Context, content string) error
 }
 
 func (m *mockProcessor) ProcessMessage(ctx context.Context, content string) error {
@@ -297,4 +297,3 @@ func TestTUI_PromptChoice(t *testing.T) {
 		t.Fatal("timeout waiting for PromptChoice to resolve")
 	}
 }
-

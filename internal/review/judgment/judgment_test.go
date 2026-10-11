@@ -89,23 +89,23 @@ func TestParseJudgeResponse(t *testing.T) {
 			wantLen:  0,
 		},
 		{
-			name: "single finding",
+			name:     "single finding",
 			response: `FINDING: BLOCKER main.go:42 nil pointer dereference | SUGGESTION: add nil check`,
-			judge:  "judge-a",
-			wantLen: 1,
+			judge:    "judge-a",
+			wantLen:  1,
 		},
 		{
 			name: "multiple findings",
 			response: `FINDING: WARNING auth.go:10 secret in code | SUGGESTION: use env var
 FINDING: SUGGESTION main.go:5 missing doc comment`,
-			judge:  "judge-b",
+			judge:   "judge-b",
 			wantLen: 2,
 		},
 		{
-			name: "severity prefix without FINDING",
+			name:     "severity prefix without FINDING",
 			response: `BLOCKER: main.go:42 nil pointer | SUGGESTION: add check`,
-			judge:  "judge-a",
-			wantLen: 1,
+			judge:    "judge-a",
+			wantLen:  1,
 		},
 		{
 			name:     "no findings",

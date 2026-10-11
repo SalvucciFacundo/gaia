@@ -210,5 +210,3 @@ func (a *OpenAIAdapter) toDomainMessage(resp openai.ChatCompletionResponse) *dom
 	}
 	return msg
 }
-
-

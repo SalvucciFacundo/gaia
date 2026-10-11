@@ -82,9 +82,9 @@ func TestRiskClassification(t *testing.T) {
 			wantCode: RiskServiceToken,
 		},
 		{
-			name: "large change detection",
-			diff: strings.Repeat("+ added line\n", 401),
-			files: []string{"main.go"},
+			name:     "large change detection",
+			diff:     strings.Repeat("+ added line\n", 401),
+			files:    []string{"main.go"},
 			wantCode: RiskLargeChange,
 		},
 	}
@@ -407,8 +407,8 @@ func TestDiffLineCount(t *testing.T) {
 			count: 1,
 		},
 		{
-			name: "over 400 lines",
-			diff: strings.Repeat("+ line\n", 200) + strings.Repeat("- line\n", 201),
+			name:  "over 400 lines",
+			diff:  strings.Repeat("+ line\n", 200) + strings.Repeat("- line\n", 201),
 			count: 401,
 		},
 	}

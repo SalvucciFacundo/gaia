@@ -21,8 +21,10 @@ func NewExplorer(spawner *agent.Spawner) agent.Subagent {
 	return &explorer{spawner: spawner}
 }
 
-func (e *explorer) Name() string        { return "explorer" }
-func (e *explorer) Description() string { return "Investigates codebase structure, patterns, and dependencies (read-only)" }
+func (e *explorer) Name() string { return "explorer" }
+func (e *explorer) Description() string {
+	return "Investigates codebase structure, patterns, and dependencies (read-only)"
+}
 
 func (e *explorer) Execute(ctx context.Context, task domain.SubagentTask) *domain.SubagentResult {
 	// Enforce read-only tool filter at the task level so the Spawner's

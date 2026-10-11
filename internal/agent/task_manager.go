@@ -56,8 +56,8 @@ type taskEntry struct {
 // It is safe for concurrent use. When a TaskRepository is configured,
 // tasks are persisted to SQLite and survive restarts.
 type TaskManager struct {
-	mu      sync.RWMutex
-	tasks   map[string]*taskEntry
+	mu    sync.RWMutex
+	tasks map[string]*taskEntry
 
 	subMu   sync.Mutex
 	allSubs []chan TaskState // SubscribeAll subscribers (buffered, cap 64)

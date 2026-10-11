@@ -14,34 +14,34 @@ type State = domain.ReviewState
 
 // Re-export state constants for convenience within the review package.
 const (
-	StateUnreviewed            = domain.ReviewStateUnreviewed
-	StateReviewing             = domain.ReviewStateReviewing
-	StateJudgesConfirmed       = domain.ReviewStateJudgesConfirmed
-	StateFindingsFrozen        = domain.ReviewStateFindingsFrozen
-	StateEvidenceClassified    = domain.ReviewStateEvidenceClassified
-	StateFixRequired           = domain.ReviewStateFixRequired
-	StateFixing                = domain.ReviewStateFixing
-	StateFixValidating         = domain.ReviewStateFixValidating
+	StateUnreviewed             = domain.ReviewStateUnreviewed
+	StateReviewing              = domain.ReviewStateReviewing
+	StateJudgesConfirmed        = domain.ReviewStateJudgesConfirmed
+	StateFindingsFrozen         = domain.ReviewStateFindingsFrozen
+	StateEvidenceClassified     = domain.ReviewStateEvidenceClassified
+	StateFixRequired            = domain.ReviewStateFixRequired
+	StateFixing                 = domain.ReviewStateFixing
+	StateFixValidating          = domain.ReviewStateFixValidating
 	StateReadyFinalVerification = domain.ReviewStateReadyFinalVerification
-	StateFinalVerifying        = domain.ReviewStateFinalVerifying
-	StateApproved              = domain.ReviewStateApproved
-	StateEscalated             = domain.ReviewStateEscalated
-	StateInvalidated           = domain.ReviewStateInvalidated
+	StateFinalVerifying         = domain.ReviewStateFinalVerifying
+	StateApproved               = domain.ReviewStateApproved
+	StateEscalated              = domain.ReviewStateEscalated
+	StateInvalidated            = domain.ReviewStateInvalidated
 )
 
 // validTransitions defines all allowed state transitions in the review
 // state machine. A transition not listed here will be rejected.
 var validTransitions = map[State][]State{
-	StateUnreviewed:            {StateReviewing},
-	StateReviewing:             {StateJudgesConfirmed, StateFindingsFrozen},
-	StateJudgesConfirmed:       {StateFindingsFrozen},
-	StateFindingsFrozen:        {StateEvidenceClassified},
-	StateEvidenceClassified:    {StateFixRequired, StateReadyFinalVerification, StateEscalated},
-	StateFixRequired:           {StateFixing, StateEscalated},
-	StateFixing:                {StateFixValidating, StateEscalated},
-	StateFixValidating:         {StateEvidenceClassified, StateReadyFinalVerification, StateEscalated},
+	StateUnreviewed:             {StateReviewing},
+	StateReviewing:              {StateJudgesConfirmed, StateFindingsFrozen},
+	StateJudgesConfirmed:        {StateFindingsFrozen},
+	StateFindingsFrozen:         {StateEvidenceClassified},
+	StateEvidenceClassified:     {StateFixRequired, StateReadyFinalVerification, StateEscalated},
+	StateFixRequired:            {StateFixing, StateEscalated},
+	StateFixing:                 {StateFixValidating, StateEscalated},
+	StateFixValidating:          {StateEvidenceClassified, StateReadyFinalVerification, StateEscalated},
 	StateReadyFinalVerification: {StateFinalVerifying},
-	StateFinalVerifying:        {StateApproved, StateEscalated, StateInvalidated},
+	StateFinalVerifying:         {StateApproved, StateEscalated, StateInvalidated},
 	// Terminal states (approved, escalated, invalidated) have no outgoing transitions.
 }
 

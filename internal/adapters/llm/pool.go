@@ -14,21 +14,21 @@ import (
 
 // credentialState tracks the runtime state of a single credential.
 type credentialState struct {
-	entry        domain.CredentialEntry
-	provider     ports.LLMProvider
+	entry         domain.CredentialEntry
+	provider      ports.LLMProvider
 	cooldownUntil time.Time
-	failCount    int
+	failCount     int
 }
 
 // CredentialPool wraps multiple credentials for a single provider with
 // round-robin rotation, automatic failover on errors, and cooldown tracking.
 // Implements ports.LLMProvider.
 type CredentialPool struct {
-	mu         sync.Mutex
-	creds      []*credentialState
-	nextIndex  int
-	providerName string // e.g. "openai", "anthropic"
-	constructor ProviderConstructor // creates a provider instance per credential
+	mu           sync.Mutex
+	creds        []*credentialState
+	nextIndex    int
+	providerName string              // e.g. "openai", "anthropic"
+	constructor  ProviderConstructor // creates a provider instance per credential
 }
 
 // NewCredentialPool creates a pool from credential entries and a provider constructor.

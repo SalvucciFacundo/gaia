@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"gaia/internal/core/domain"
+	"gaia/internal/tools/browser"
 )
 
 func TestNewToolCatalogAndRegister(t *testing.T) {
@@ -67,6 +68,10 @@ func TestToolCatalog_DefaultCatalog(t *testing.T) {
 		"read_skill",
 		"tool_search",
 		"load_tool",
+		"browser_navigate",
+		"browser_action",
+		"browser_screenshot",
+		"browser_close",
 	}
 
 	for _, name := range expectedTools {
@@ -83,7 +88,7 @@ func TestToolCatalog_DefaultCatalog(t *testing.T) {
 		}
 	}
 
-	// Verify categories for skills and meta tools
+	// Verify categories for skills, meta, and browser tools
 	if entry, ok := cat.Get("create_skill"); !ok || entry.Category != "skills" {
 		t.Errorf("expected create_skill category 'skills', got %q", entry.Category)
 	}
@@ -95,6 +100,11 @@ func TestToolCatalog_DefaultCatalog(t *testing.T) {
 	}
 	if entry, ok := cat.Get("load_tool"); !ok || entry.Category != "meta" {
 		t.Errorf("expected load_tool category 'meta', got %q", entry.Category)
+	}
+	for _, bName := range []string{"browser_navigate", "browser_action", "browser_screenshot", "browser_close"} {
+		if entry, ok := cat.Get(bName); !ok || entry.Category != "browser" {
+			t.Errorf("expected %s category 'browser', got %q", bName, entry.Category)
+		}
 	}
 
 	// Test executing tool_search and load_tool via catalog
@@ -248,4 +258,63 @@ func TestToolCatalog_ConcurrentAccess(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+}
+
+type catalogMockDriver struct{}
+
+func (c *catalogMockDriver) Navigate(ctx context.Context, targetURL string) (*browser.PageResult, error) {
+	return &browser.PageResult{URL: targetURL, Title: "Test Title", Content: "Test Markdown"}, nil
+}
+func (c *catalogMockDriver) Action(ctx context.Context, req browser.ActionRequest) (*browser.ActionResult, error) {
+	return &browser.ActionResult{Success: true, Output: "Action Done: " + req.Action}, nil
+}
+func (c *catalogMockDriver) Screenshot(ctx context.Context, targetURL, destPath string) (string, error) {
+	return destPath, nil
+}
+func (c *catalogMockDriver) Close() error {
+	return nil
+}
+
+func TestToolCatalog_BrowserTools(t *testing.T) {
+	cat := NewToolCatalog()
+	cfg := domain.BrowserConfig{Enabled: true}
+	RegisterBrowserTools(cat, cfg, &catalogMockDriver{})
+
+	ctx := context.Background()
+
+	// 1. Test browser_navigate
+	res, err := cat.Execute(ctx, "browser_navigate", map[string]interface{}{"url": "https://example.com"})
+	if err != nil {
+		t.Fatalf("Execute browser_navigate error: %v", err)
+	}
+	if !res.Success || !strings.Contains(res.Output, "Test Title") {
+		t.Errorf("unexpected navigate output: %v", res)
+	}
+
+	// 2. Test browser_action
+	res, err = cat.Execute(ctx, "browser_action", map[string]interface{}{"action": "click", "selector": "#btn"})
+	if err != nil {
+		t.Fatalf("Execute browser_action error: %v", err)
+	}
+	if !res.Success || !strings.Contains(res.Output, "Action Done: click") {
+		t.Errorf("unexpected action output: %v", res)
+	}
+
+	// 3. Test browser_screenshot
+	res, err = cat.Execute(ctx, "browser_screenshot", map[string]interface{}{"url": "https://example.com", "path": "/tmp/test.png"})
+	if err != nil {
+		t.Fatalf("Execute browser_screenshot error: %v", err)
+	}
+	if !res.Success || !strings.Contains(res.Output, "/tmp/test.png") {
+		t.Errorf("unexpected screenshot output: %v", res)
+	}
+
+	// 4. Test browser_close
+	res, err = cat.Execute(ctx, "browser_close", map[string]interface{}{})
+	if err != nil {
+		t.Fatalf("Execute browser_close error: %v", err)
+	}
+	if !res.Success || !strings.Contains(res.Output, "closed") {
+		t.Errorf("unexpected close output: %v", res)
+	}
 }

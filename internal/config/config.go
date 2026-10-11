@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"time"
 
 	"gaia/internal/core/domain"
 	"gopkg.in/yaml.v3"
@@ -72,6 +73,11 @@ func Load() (*domain.Config, error) {
 				"assistant": {Enabled: true},
 				"dev":       {Enabled: false},
 				"art":       {Enabled: false},
+			},
+			Browser: domain.BrowserConfig{
+				Timeout:        30 * time.Second,
+				ViewportWidth:  1280,
+				ViewportHeight: 720,
 			},
 		}
 		defaultCfg.System.RequiresConfirmation = true
@@ -150,6 +156,17 @@ func Load() (*domain.Config, error) {
 		}
 	}
 
+	// Apply Browser defaults
+	if cfg.Browser.Timeout <= 0 {
+		cfg.Browser.Timeout = 30 * time.Second
+	}
+	if cfg.Browser.ViewportWidth <= 0 {
+		cfg.Browser.ViewportWidth = 1280
+	}
+	if cfg.Browser.ViewportHeight <= 0 {
+		cfg.Browser.ViewportHeight = 720
+	}
+
 	return &cfg, nil
 }
 
@@ -174,3 +191,4 @@ type TTSConfig = domain.TTSConfig
 type AudioConfig = domain.AudioConfig
 type VisionConfig = domain.VisionConfig
 type GatewayConfig = domain.GatewayConfig
+type BrowserConfig = domain.BrowserConfig

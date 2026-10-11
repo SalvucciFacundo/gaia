@@ -46,44 +46,44 @@ func (i item) Description() string { return i.desc }
 func (i item) FilterValue() string { return i.title + " " + i.id }
 
 type WizardModel struct {
-	step             WizardStep
-	provider         string
-	apiKey           string
-	textInput        textinput.Model
-	auth             *llm.GitHubAuth
-	ghToken          string
-	cpToken          string
-	models           []string
-	selectedModel    string
-	spinner          spinner.Model
-	list             list.Model
-	code             string
-	url              string
-	codeResp         *device.CodeResponse
-	err              error
-	width            int
-	height           int
+	step          WizardStep
+	provider      string
+	apiKey        string
+	textInput     textinput.Model
+	auth          *llm.GitHubAuth
+	ghToken       string
+	cpToken       string
+	models        []string
+	selectedModel string
+	spinner       spinner.Model
+	list          list.Model
+	code          string
+	url           string
+	codeResp      *device.CodeResponse
+	err           error
+	width         int
+	height        int
 
-	selectedProfile  string
-	profileIndex     int // 0 = assistant (default), 1 = dev, 2 = art
+	selectedProfile string
+	profileIndex    int // 0 = assistant (default), 1 = dev, 2 = art
 
-	languagePref     string
-	langIndex        int // 0 = EN, 1 = ES, 2 = PT
+	languagePref string
+	langIndex    int // 0 = EN, 1 = ES, 2 = PT
 
-	securityMode     bool
-	secIndex         int // 0 = No (default), 1 = Yes
+	securityMode bool
+	secIndex     int // 0 = No (default), 1 = Yes
 
 	// Stack selection (User chooses their stacks)
-	stacks           []string
-	selectedStacks   map[string]bool
-	stackIndex       int
+	stacks         []string
+	selectedStacks map[string]bool
+	stackIndex     int
 
 	// Skills Hub and recommendation
-	hub              *skills.Hub
-	projectRoot      string
+	hub               *skills.Hub
+	projectRoot       string
 	recommendedSkills []skills.SkillMeta
-	selectedSkills   map[string]bool
-	selIndex         int
+	selectedSkills    map[string]bool
+	selIndex          int
 }
 
 var providerCatalog = []struct {

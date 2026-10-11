@@ -11,7 +11,7 @@ import (
 type ReviewWorkloadForecast struct {
 	EstimatedLines      int      `json:"estimated_lines"`
 	ChainedPRsRequired  bool     `json:"chained_prs_required"`
-	BudgetRisk          string   `json:"budget_risk"` // Low, Medium, High
+	BudgetRisk          string   `json:"budget_risk"`          // Low, Medium, High
 	RecommendedStrategy string   `json:"recommended_strategy"` // single-pr, stacked-to-main, feature-branch-chain
 	AllowedEditRoots    []string `json:"allowed_edit_roots,omitempty"`
 	DecisionNeeded      bool     `json:"decision_needed"`
@@ -59,8 +59,10 @@ func NewPlanner(spawner *agent.Spawner) agent.Subagent {
 	return &planner{spawner: spawner}
 }
 
-func (p *planner) Name() string        { return "planner" }
-func (p *planner) Description() string { return "Creates task breakdowns and workload forecasts (read + shell)" }
+func (p *planner) Name() string { return "planner" }
+func (p *planner) Description() string {
+	return "Creates task breakdowns and workload forecasts (read + shell)"
+}
 
 func (p *planner) Execute(ctx context.Context, task domain.SubagentTask) *domain.SubagentResult {
 	task.AllowedTools = []string{

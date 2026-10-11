@@ -81,14 +81,14 @@ func (e *Engine) StartWithChangeName(ctx context.Context, changeName string, fil
 	}
 
 	tx := &Transaction{
-		ID:                 generateTxID(files, snapshotHash),
-		ChangeName:         changeName,
-		State:              StateReviewing,
-		SnapshotHash:       snapshotHash,
-		Files:              files,
-		MaxCorrections:     1,
-		CreatedAt:          now,
-		UpdatedAt:          now,
+		ID:             generateTxID(files, snapshotHash),
+		ChangeName:     changeName,
+		State:          StateReviewing,
+		SnapshotHash:   snapshotHash,
+		Files:          files,
+		MaxCorrections: 1,
+		CreatedAt:      now,
+		UpdatedAt:      now,
 	}
 	return tx, nil
 }
@@ -316,4 +316,3 @@ func computeLineageID(snapshotHash, txID string) string {
 	h.Write([]byte(txID))
 	return fmt.Sprintf("%x", h.Sum(nil))
 }
-

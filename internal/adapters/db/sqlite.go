@@ -158,7 +158,7 @@ func (r *SQLiteRepo) SaveMessage(ctx context.Context, msg domain.Message) error 
 	if id == "" {
 		id = fmt.Sprintf("msg-%d", time.Now().UnixNano())
 	}
-	
+
 	sessID := r.sessionID
 	if sessID == "" {
 		sessID = "default"

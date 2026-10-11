@@ -20,8 +20,10 @@ func NewDesigner(spawner *agent.Spawner) agent.Subagent {
 	return &designer{spawner: spawner}
 }
 
-func (d *designer) Name() string        { return "designer" }
-func (d *designer) Description() string { return "Creates architecture decisions and design documents (read + Engram)" }
+func (d *designer) Name() string { return "designer" }
+func (d *designer) Description() string {
+	return "Creates architecture decisions and design documents (read + Engram)"
+}
 
 func (d *designer) Execute(ctx context.Context, task domain.SubagentTask) *domain.SubagentResult {
 	task.AllowedTools = []string{

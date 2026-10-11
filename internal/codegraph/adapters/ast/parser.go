@@ -73,7 +73,7 @@ func (p *Parser) ParseFile(filePath string, pkgOverride string) (*ParseResult, e
 	})
 
 	// Track methods on structs and interface signatures for IMPLEMENTS resolution
-	structMethods := make(map[string]map[string]string)   // structName -> methodName -> signature
+	structMethods := make(map[string]map[string]string)    // structName -> methodName -> signature
 	interfaceMethods := make(map[string]map[string]string) // interfaceName -> methodName -> signature
 	declaredStructs := make(map[string]domain.SymbolRef)
 	declaredInterfaces := make(map[string]domain.SymbolRef)

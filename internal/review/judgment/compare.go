@@ -11,9 +11,9 @@ import (
 // algorithm with fallback for ambiguous cases.
 //
 // Rules:
-//   1. Same file+line+severity → merge messages (deduplication)
-//   2. Same file+line, different severity → take HIGHER severity
-//   3. Unique findings → kept as-is
+//  1. Same file+line+severity → merge messages (deduplication)
+//  2. Same file+line, different severity → take HIGHER severity
+//  3. Unique findings → kept as-is
 func CompareFindings(a, b []domain.ReviewFinding) ([]domain.ReviewFinding, error) {
 	// severities ordered from highest to lowest.
 	severityRank := map[string]int{

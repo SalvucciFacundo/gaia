@@ -29,12 +29,12 @@ type Subscription struct {
 
 // Event represents a verified webhook event.
 type Event struct {
-	Type      string            `json:"type"`
-	Action    string            `json:"action,omitempty"`
-	Delivery  string            `json:"delivery"`
-	Repo      string            `json:"repo"`
+	Type      string                 `json:"type"`
+	Action    string                 `json:"action,omitempty"`
+	Delivery  string                 `json:"delivery"`
+	Repo      string                 `json:"repo"`
 	Payload   map[string]interface{} `json:"payload"`
-	Signature string            `json:"-"`
+	Signature string                 `json:"-"`
 }
 
 // Handler processes verified webhook events.
@@ -45,23 +45,23 @@ type Handler interface {
 
 // Listener is an HTTP server that receives and verifies webhook events.
 type Listener struct {
-	mu            sync.RWMutex
-	server        *http.Server
-	subs          map[string]Subscription
-	handlers      []Handler
-	logger        *log.Logger
-	addr          string
-	started       bool
-	stopCh        chan struct{}
+	mu       sync.RWMutex
+	server   *http.Server
+	subs     map[string]Subscription
+	handlers []Handler
+	logger   *log.Logger
+	addr     string
+	started  bool
+	stopCh   chan struct{}
 }
 
 // NewListener creates a webhook listener on the given address.
 func NewListener(addr string) *Listener {
 	return &Listener{
-		subs:     make(map[string]Subscription),
-		logger:   log.Default(),
-		addr:     addr,
-		stopCh:   make(chan struct{}),
+		subs:   make(map[string]Subscription),
+		logger: log.Default(),
+		addr:   addr,
+		stopCh: make(chan struct{}),
 	}
 }
 
@@ -111,8 +111,8 @@ func (l *Listener) Start(ctx context.Context) error {
 	mux.HandleFunc("/health", l.handleHealth)
 
 	l.server = &http.Server{
-		Addr:    l.addr,
-		Handler: mux,
+		Addr:        l.addr,
+		Handler:     mux,
 		BaseContext: func(_ net.Listener) context.Context { return ctx },
 	}
 	l.started = true

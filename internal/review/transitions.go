@@ -48,15 +48,15 @@ type ReviewTransition struct {
 
 // StopContinuations maps canonical stop reason codes to unambiguous user continuations.
 var StopContinuations = map[string]string{
-	"captured_artifacts_unverifiable":       "A captured reviewer artifact failed verification. Run 'gaia review mode disable --scope clone' to deliver under ordinary policy.",
-	"captured_result_selection_unavailable": "Internal invariant violation. File a defect or run 'gaia review mode disable --scope clone'.",
-	"captured_verification_evidence_invalid": "Captured verification evidence failed integrity checks. Run 'gaia review mode disable --scope clone'.",
-	"corrected_candidate_unavailable":       "Change the candidate content, then re-run review.",
+	"captured_artifacts_unverifiable":           "A captured reviewer artifact failed verification. Run 'gaia review mode disable --scope clone' to deliver under ordinary policy.",
+	"captured_result_selection_unavailable":     "Internal invariant violation. File a defect or run 'gaia review mode disable --scope clone'.",
+	"captured_verification_evidence_invalid":    "Captured verification evidence failed integrity checks. Run 'gaia review mode disable --scope clone'.",
+	"corrected_candidate_unavailable":           "Change the candidate content, then re-run review.",
 	"correction_repository_verification_failed": "Change the correction candidate within the open budget, then retry review.",
-	"corrupted_or_unverifiable_authority":   "Review authority unrecoverable. Run 'gaia review mode disable --scope clone' to deliver under ordinary policy.",
-	"manual_intervention_required":          "Review authority state unrecognized. Ask maintainer or run 'gaia review mode disable --scope clone'.",
-	"native_stop_required":                  "Escalated lineage requires human decision or review mode disable.",
-	"unchanged_or_unverified_authority":     "Candidate unchanged. Change candidate content to start a fresh review or disable review mode.",
+	"corrupted_or_unverifiable_authority":       "Review authority unrecoverable. Run 'gaia review mode disable --scope clone' to deliver under ordinary policy.",
+	"manual_intervention_required":              "Review authority state unrecognized. Ask maintainer or run 'gaia review mode disable --scope clone'.",
+	"native_stop_required":                      "Escalated lineage requires human decision or review mode disable.",
+	"unchanged_or_unverified_authority":         "Candidate unchanged. Change candidate content to start a fresh review or disable review mode.",
 }
 
 // GetStopContinuation returns the authoritative continuation for a stop reason code.

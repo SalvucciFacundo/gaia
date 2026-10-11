@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"gaia/internal/core/domain"
 	"gopkg.in/yaml.v3"
@@ -42,6 +43,16 @@ func TestLoadDefaultProfileInitialization(t *testing.T) {
 		if pCfg.Enabled != expectedEnabled {
 			t.Errorf("expected profile %q enabled=%v, got %v", id, expectedEnabled, pCfg.Enabled)
 		}
+	}
+
+	if cfg.Browser.Timeout != 30*time.Second {
+		t.Errorf("expected default Browser.Timeout 30s, got %v", cfg.Browser.Timeout)
+	}
+	if cfg.Browser.ViewportWidth != 1280 {
+		t.Errorf("expected default Browser.ViewportWidth 1280, got %d", cfg.Browser.ViewportWidth)
+	}
+	if cfg.Browser.ViewportHeight != 720 {
+		t.Errorf("expected default Browser.ViewportHeight 720, got %d", cfg.Browser.ViewportHeight)
 	}
 }
 

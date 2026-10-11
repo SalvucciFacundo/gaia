@@ -44,8 +44,10 @@ func NewArchiverWithDeps(spawner *agent.Spawner, queue delivery.Queue, casStore 
 	}
 }
 
-func (a *archiver) Name() string        { return "archiver" }
-func (a *archiver) Description() string { return "Merges delta specs and archives completed changes (read + write)" }
+func (a *archiver) Name() string { return "archiver" }
+func (a *archiver) Description() string {
+	return "Merges delta specs and archives completed changes (read + write)"
+}
 
 func (a *archiver) Execute(ctx context.Context, task domain.SubagentTask) *domain.SubagentResult {
 	task.AllowedTools = []string{

@@ -19,9 +19,9 @@ import (
 //	    },
 //	})
 type BindingAPI struct {
-	ui      *DesktopUI
-	brain   BrainPort
-	ctx     context.Context
+	ui    *DesktopUI
+	brain BrainPort
+	ctx   context.Context
 }
 
 // BrainPort abstracts the Brain to avoid circular imports.

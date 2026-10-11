@@ -133,10 +133,10 @@ func TestParseScheduleInvalid(t *testing.T) {
 	tests := []struct {
 		expr string
 	}{
-		{"* * *"},          // too few fields
-		{"* * * * * *"},    // too many fields
-		{"60 * * * *"},     // minute out of range
-		{"* 24 * * *"},     // hour out of range
+		{"* * *"},           // too few fields
+		{"* * * * * *"},     // too many fields
+		{"60 * * * *"},      // minute out of range
+		{"* 24 * * *"},      // hour out of range
 		{"* * * invalid *"}, // non-numeric
 	}
 

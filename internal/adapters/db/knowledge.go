@@ -186,4 +186,3 @@ func sanitizeFTS(s string) string {
 	}
 	return strings.Join(quoted, " ")
 }
-

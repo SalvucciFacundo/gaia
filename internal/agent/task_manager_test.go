@@ -567,7 +567,7 @@ func TestTaskManager_PanicRecovery(t *testing.T) {
 type panicSubagent struct{}
 
 func (p *panicSubagent) Name() string        { return "panicbot" }
-func (p *panicSubagent) Description() string  { return "always panics" }
+func (p *panicSubagent) Description() string { return "always panics" }
 func (p *panicSubagent) Execute(ctx context.Context, task domain.SubagentTask) *domain.SubagentResult {
 	panic("intentional panic for test")
 }

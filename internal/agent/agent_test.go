@@ -359,7 +359,7 @@ func TestRunLoopBudgetExhausted(t *testing.T) {
 	// Provider that always returns tool calls — forces iteration loop.
 	prov := &stubProvider{
 		resp: &domain.Message{
-			Role: domain.RoleAssistant,
+			Role:    domain.RoleAssistant,
 			Content: "calling tool",
 			ToolCalls: []domain.ToolCall{
 				{ID: "1", Name: "unknown_tool", Arguments: map[string]interface{}{}},

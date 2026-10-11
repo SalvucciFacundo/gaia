@@ -400,7 +400,6 @@ func TestParseDynamicResult_BudgetExhausted(t *testing.T) {
 	}
 }
 
-
 // --- Helpers ---
 
 func containsString(s, sub string) bool {

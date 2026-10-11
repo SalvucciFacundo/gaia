@@ -11,7 +11,7 @@ import (
 
 const (
 	CopilotClientID = "Iv1.b507a08c87ecfe98"
-	CopilotScope     = "read:user"
+	CopilotScope    = "read:user"
 )
 
 type GitHubAuth struct {

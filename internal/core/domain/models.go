@@ -190,7 +190,7 @@ type Config struct {
 	} `yaml:"system"`
 	Terminal       TerminalConfig           `yaml:"terminal"`
 	MCP            MCPConfig                `yaml:"mcp"`
-	Browser        BrowserToolsConfig       `yaml:"browser"`
+	Browser        BrowserConfig            `yaml:"browser"`
 	Multimodal     MultimodalConfig         `yaml:"multimodal"`
 	Gateway        GatewayConfig            `yaml:"gateway"`
 	TTS            TTSConfig                `yaml:"tts"`
@@ -523,4 +523,15 @@ type MCPGatewayConfig struct {
 type BrowserToolsConfig struct {
 	Enabled bool   `yaml:"enabled"`
 	Command string `yaml:"command"` // path to browser MCP server
+}
+
+// BrowserConfig configures headless browser automation.
+type BrowserConfig struct {
+	Enabled        bool          `yaml:"enabled"`
+	ExecutablePath string        `yaml:"executable_path"`
+	Headless       bool          `yaml:"headless"`
+	ViewportWidth  int           `yaml:"viewport_width"`
+	ViewportHeight int           `yaml:"viewport_height"`
+	UserDataDir    string        `yaml:"user_data_dir"`
+	Timeout        time.Duration `yaml:"timeout"`
 }

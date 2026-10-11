@@ -15,8 +15,8 @@ import (
 // It fans out the same messages to multiple models in parallel, collects
 // responses, and synthesizes them into a single response via the primary model.
 type moaRunner struct {
-	primary    ports.LLMProvider
-	moaModels  []moaModelInstance // the extra models (primary excluded)
+	primary     ports.LLMProvider
+	moaModels   []moaModelInstance // the extra models (primary excluded)
 	synthesizer ports.LLMProvider  // defaults to primary
 }
 
@@ -52,8 +52,8 @@ func newMoARunner(primary ports.LLMProvider, moaProviders map[string]ports.LLMPr
 	}
 
 	return &moaRunner{
-		primary:    primary,
-		moaModels:  models,
+		primary:     primary,
+		moaModels:   models,
 		synthesizer: primary,
 	}, nil
 }
