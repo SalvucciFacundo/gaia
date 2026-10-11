@@ -44,6 +44,9 @@ func handleProfileCLI(args []string) {
 	case "show", "current":
 		showCurrentProfile()
 
+	case "tools":
+		handleProfileToolsCLI(args[1:])
+
 	case "help", "--help", "-h":
 		printProfileHelp()
 
@@ -100,6 +103,7 @@ func printProfileList() {
 	fmt.Println("  gaia profile enable <id>  - Habilitar un perfil desactivado")
 	fmt.Println("  gaia profile disable <id> - Deshabilitar un perfil")
 	fmt.Println("  gaia profile show         - Ver detalles del perfil activo")
+	fmt.Println("  gaia profile tools [id]   - Ver o configurar herramientas del perfil")
 }
 
 func switchProfile(id string) {
@@ -167,7 +171,7 @@ func showCurrentProfile() {
 	fmt.Printf("Perfil Activo: %s (%s)\n", active.ID(), active.Name())
 	fmt.Printf("Descripción:   %s\n\n", active.Description())
 
-	tools := active.Tools()
+	tools := mgr.ActiveTools()
 	fmt.Printf("Herramientas provistas (%d):\n", len(tools))
 	if len(tools) == 0 {
 		fmt.Println("  (Ninguna herramienta específica configurada)")
@@ -184,11 +188,176 @@ func showCurrentProfile() {
 	}
 }
 
+func handleProfileToolsCLI(args []string) {
+	if len(args) == 0 {
+		listProfileTools("")
+		return
+	}
+
+	switch args[0] {
+	case "enable":
+		if len(args) < 3 {
+			fmt.Println("Uso: gaia profile tools enable <id> <tool>")
+			fmt.Println("Ejemplo: gaia profile tools enable assistant bash")
+			os.Exit(1)
+		}
+		enableProfileTool(args[1], args[2])
+
+	case "disable":
+		if len(args) < 3 {
+			fmt.Println("Uso: gaia profile tools disable <id> <tool>")
+			fmt.Println("Ejemplo: gaia profile tools disable assistant bash")
+			os.Exit(1)
+		}
+		disableProfileTool(args[1], args[2])
+
+	case "reset":
+		if len(args) < 2 {
+			fmt.Println("Uso: gaia profile tools reset <id>")
+			fmt.Println("Ejemplo: gaia profile tools reset assistant")
+			os.Exit(1)
+		}
+		resetProfileTools(args[1])
+
+	case "help", "--help", "-h":
+		printProfileToolsHelp()
+
+	default:
+		listProfileTools(args[0])
+	}
+}
+
+func listProfileTools(profileID string) {
+	mgr, err := getProfileManager()
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		os.Exit(1)
+	}
+
+	targetID := profileID
+	if targetID == "" {
+		active := mgr.Active()
+		if active == nil {
+			fmt.Println("Error: no hay perfil activo configurado.")
+			os.Exit(1)
+		}
+		targetID = active.ID()
+	}
+
+	profilesList := mgr.List()
+	var targetInfo *profiles.ProfileInfo
+	for _, p := range profilesList {
+		if p.ID == targetID {
+			targetInfo = &p
+			break
+		}
+	}
+	if targetInfo == nil {
+		fmt.Printf("Error: el perfil '%s' no existe.\n", targetID)
+		os.Exit(1)
+	}
+
+	activeTools := mgr.ProfileTools(targetID)
+	enabledMap := make(map[string]bool)
+	for _, t := range activeTools {
+		enabledMap[t.Name] = true
+	}
+
+	catalog := mgr.Catalog()
+	if catalog == nil {
+		fmt.Println("Error: el catálogo de herramientas no está disponible.")
+		os.Exit(1)
+	}
+
+	allTools := catalog.List()
+
+	fmt.Printf("Herramientas para el perfil '%s' (%s):\n", targetInfo.ID, targetInfo.Name)
+	fmt.Println(strings.Repeat("-", 85))
+	fmt.Printf("%-14s %-18s %-14s %s\n", "ESTADO", "HERRAMIENTA", "CATEGORÍA", "DESCRIPCIÓN")
+	fmt.Println(strings.Repeat("-", 85))
+
+	for _, tool := range allTools {
+		status := "[DESACTIVADA]"
+		if enabledMap[tool.Name] {
+			status = "[HABILITADA]"
+		}
+		fmt.Printf("%-14s %-18s %-14s %s\n",
+			status,
+			tool.Name,
+			tool.Category,
+			truncate(tool.Description, 45),
+		)
+	}
+
+	fmt.Println(strings.Repeat("-", 85))
+	fmt.Println("Comandos útiles:")
+	fmt.Printf("  gaia profile tools enable %s <tool>  - Habilitar una herramienta\n", targetID)
+	fmt.Printf("  gaia profile tools disable %s <tool> - Deshabilitar una herramienta\n", targetID)
+	fmt.Printf("  gaia profile tools reset %s          - Restablecer herramientas por defecto\n", targetID)
+}
+
+func enableProfileTool(profileID, toolName string) {
+	mgr, err := getProfileManager()
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		os.Exit(1)
+	}
+
+	if err := mgr.EnableTool(profileID, toolName); err != nil {
+		fmt.Printf("Error habilitando herramienta '%s' para el perfil '%s': %v\n", toolName, profileID, err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("✓ Herramienta '%s' habilitada exitosamente para el perfil '%s'.\n", toolName, profileID)
+}
+
+func disableProfileTool(profileID, toolName string) {
+	mgr, err := getProfileManager()
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		os.Exit(1)
+	}
+
+	if err := mgr.DisableTool(profileID, toolName); err != nil {
+		fmt.Printf("Error deshabilitando herramienta '%s' para el perfil '%s': %v\n", toolName, profileID, err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("✓ Herramienta '%s' deshabilitada exitosamente para el perfil '%s'.\n", toolName, profileID)
+}
+
+func resetProfileTools(profileID string) {
+	mgr, err := getProfileManager()
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		os.Exit(1)
+	}
+
+	if err := mgr.ResetTools(profileID); err != nil {
+		fmt.Printf("Error restableciendo herramientas para el perfil '%s': %v\n", profileID, err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("✓ Herramientas para el perfil '%s' restablecidas a los valores por defecto.\n", profileID)
+}
+
+func printProfileToolsHelp() {
+	fmt.Println("Gestión de Herramientas de Perfiles:")
+	fmt.Println("  gaia profile tools [id]                   - Listar herramientas del perfil y su estado")
+	fmt.Println("  gaia profile tools enable <id> <tool>     - Habilitar una herramienta para el perfil")
+	fmt.Println("  gaia profile tools disable <id> <tool>    - Deshabilitar una herramienta para el perfil")
+	fmt.Println("  gaia profile tools reset <id>             - Restablecer herramientas del perfil a valores por defecto")
+}
+
 func printProfileHelp() {
 	fmt.Println("Gestión de Perfiles de GAIA:")
-	fmt.Println("  gaia profile list           - Listar todos los perfiles disponibles")
-	fmt.Println("  gaia profile use <id>       - Cambiar el perfil activo permanentemente")
-	fmt.Println("  gaia profile enable <id>    - Habilitar un perfil desactivado")
-	fmt.Println("  gaia profile disable <id>   - Deshabilitar un perfil")
-	fmt.Println("  gaia profile show           - Mostrar detalles del perfil activo")
+	fmt.Println("  gaia profile list                         - Listar todos los perfiles disponibles")
+	fmt.Println("  gaia profile use <id>                     - Cambiar el perfil activo permanentemente")
+	fmt.Println("  gaia profile enable <id>                  - Habilitar un perfil desactivado")
+	fmt.Println("  gaia profile disable <id>                 - Deshabilitar un perfil")
+	fmt.Println("  gaia profile show                         - Mostrar detalles del perfil activo")
+	fmt.Println("  gaia profile tools [id]                   - Listar herramientas del perfil y su estado")
+	fmt.Println("  gaia profile tools enable <id> <tool>     - Habilitar una herramienta para el perfil")
+	fmt.Println("  gaia profile tools disable <id> <tool>    - Deshabilitar una herramienta para el perfil")
+	fmt.Println("  gaia profile tools reset <id>             - Restablecer herramientas del perfil a valores por defecto")
 }

@@ -53,8 +53,8 @@ func TestDefaultProfileResolutionAndActiveTools(t *testing.T) {
 	}
 
 	tools := mgr.ActiveTools()
-	if len(tools) != 4 {
-		t.Fatalf("expected 4 tools for assistant, got %d", len(tools))
+	if len(tools) != 3 {
+		t.Fatalf("expected 3 tools for assistant, got %d", len(tools))
 	}
 	foundWebSearch := false
 	foundWebFetch := false
@@ -139,8 +139,8 @@ func TestSetActiveSwitchAndSave(t *testing.T) {
 	}
 
 	tools := mgr.ActiveTools()
-	if len(tools) != 3 {
-		t.Errorf("expected 3 tools for dev profile, got %d", len(tools))
+	if len(tools) != 5 {
+		t.Errorf("expected 5 tools for dev profile, got %d", len(tools))
 	}
 }
 
@@ -361,5 +361,152 @@ func TestAssistantProfile_PersonaAndSoulIntegration(t *testing.T) {
 	}
 	if !strings.Contains(prompt, "You are GAIA") {
 		t.Errorf("expected prompt to contain GAIA guidelines, got:\n%s", prompt)
+	}
+}
+
+func TestManager_ToolConfigurationWorkflow(t *testing.T) {
+	mgr, cfg, saveCount := setupTestManager()
+	ctx := context.Background()
+
+	// 1. Initially assistant has default tools: ["web_search", "web_fetch", "search_memory"]
+	initialTools := mgr.ActiveTools()
+	if len(initialTools) != 3 {
+		t.Fatalf("expected 3 default tools for assistant, got %d", len(initialTools))
+	}
+	initialEntries := mgr.ProfileTools("assistant")
+	if len(initialEntries) != 3 {
+		t.Fatalf("expected 3 profile tools entries, got %d", len(initialEntries))
+	}
+
+	// 2. ConfigureTools overrides tools with user selection
+	savesBefore := *saveCount
+	err := mgr.ConfigureTools("assistant", []string{"bash", "fileops"})
+	if err != nil {
+		t.Fatalf("ConfigureTools failed: %v", err)
+	}
+	if *saveCount <= savesBefore {
+		t.Errorf("expected saveFn to be called on ConfigureTools")
+	}
+	if len(cfg.Profiles["assistant"].Tools) != 2 {
+		t.Fatalf("expected 2 configured tools in config, got %v", cfg.Profiles["assistant"].Tools)
+	}
+
+	activeTools := mgr.ActiveTools()
+	if len(activeTools) != 2 {
+		t.Fatalf("expected 2 active tools after ConfigureTools, got %d", len(activeTools))
+	}
+	if activeTools[0].Name != "bash" || activeTools[1].Name != "fileops" {
+		t.Errorf("expected active tools to be [bash, fileops], got [%s, %s]", activeTools[0].Name, activeTools[1].Name)
+	}
+
+	// 3. EnableTool adds a tool from another category (e.g. adding gitops)
+	err = mgr.EnableTool("assistant", "gitops")
+	if err != nil {
+		t.Fatalf("EnableTool failed: %v", err)
+	}
+	if len(cfg.Profiles["assistant"].Tools) != 3 {
+		t.Fatalf("expected 3 tools after EnableTool, got %v", cfg.Profiles["assistant"].Tools)
+	}
+	activeTools = mgr.ActiveTools()
+	if len(activeTools) != 3 || activeTools[2].Name != "gitops" {
+		t.Errorf("expected gitops added to active tools")
+	}
+
+	// Calling EnableTool with an already-present tool is idempotent
+	err = mgr.EnableTool("assistant", "gitops")
+	if err != nil {
+		t.Fatalf("idempotent EnableTool failed: %v", err)
+	}
+	if len(cfg.Profiles["assistant"].Tools) != 3 {
+		t.Errorf("expected length to remain 3 after re-enabling gitops")
+	}
+
+	// 4. DisableTool removes a tool
+	err = mgr.DisableTool("assistant", "bash")
+	if err != nil {
+		t.Fatalf("DisableTool failed: %v", err)
+	}
+	if len(cfg.Profiles["assistant"].Tools) != 2 {
+		t.Fatalf("expected 2 tools after DisableTool, got %v", cfg.Profiles["assistant"].Tools)
+	}
+	activeTools = mgr.ActiveTools()
+	for _, tDef := range activeTools {
+		if tDef.Name == "bash" {
+			t.Errorf("expected bash to be removed from active tools")
+		}
+	}
+
+	// 5. ResetTools returns profile back to default tools
+	err = mgr.ResetTools("assistant")
+	if err != nil {
+		t.Fatalf("ResetTools failed: %v", err)
+	}
+	if len(cfg.Profiles["assistant"].Tools) != 0 {
+		t.Errorf("expected cfg.Profiles['assistant'].Tools to be cleared, got %v", cfg.Profiles["assistant"].Tools)
+	}
+	activeTools = mgr.ActiveTools()
+	if len(activeTools) != 3 {
+		t.Fatalf("expected active tools to reset back to 3 default tools, got %d", len(activeTools))
+	}
+
+	// 6. ExecuteTool executes tool via catalog
+	res, err := mgr.ExecuteTool(ctx, "web_search", map[string]interface{}{"query": "test query"})
+	if err != nil || !res.Success {
+		t.Fatalf("ExecuteTool web_search failed: %v, res=%v", err, res)
+	}
+
+	// Execute tool resolved from another profile (e.g. bash in dev)
+	res, err = mgr.ExecuteTool(ctx, "bash", map[string]interface{}{"command": "echo test"})
+	if err != nil || !res.Success {
+		t.Fatalf("ExecuteTool bash resolved from dev failed: %v, res=%v", err, res)
+	}
+
+	// Execute unhandled tool fails
+	res, err = mgr.ExecuteTool(ctx, "completely_unknown_tool", nil)
+	if err == nil || res.Success {
+		t.Errorf("expected unhandled tool execution to fail")
+	}
+}
+
+func TestManager_EnableToolFromDefault(t *testing.T) {
+	mgr, cfg, _ := setupTestManager()
+
+	// Assistant starts with default tools (cfg.Profiles["assistant"].Tools is nil)
+	if len(cfg.Profiles["assistant"].Tools) != 0 {
+		t.Fatal("expected empty tools slice initially")
+	}
+
+	// Enable bash on assistant (adds bash to the 3 default tools)
+	err := mgr.EnableTool("assistant", "bash")
+	if err != nil {
+		t.Fatalf("EnableTool on fresh profile failed: %v", err)
+	}
+
+	configured := cfg.Profiles["assistant"].Tools
+	if len(configured) != 4 {
+		t.Fatalf("expected 4 configured tools (3 defaults + bash), got %d: %v", len(configured), configured)
+	}
+	foundBash := false
+	for _, name := range configured {
+		if name == "bash" {
+			foundBash = true
+		}
+	}
+	if !foundBash {
+		t.Errorf("expected bash in configured tools")
+	}
+}
+
+func TestManager_CatalogBinding(t *testing.T) {
+	mgr, _, _ := setupTestManager()
+
+	if mgr.Catalog() == nil {
+		t.Fatal("expected non-nil default catalog on Manager")
+	}
+
+	customCat := tools.NewToolCatalog()
+	mgr.SetCatalog(customCat)
+	if mgr.Catalog() != customCat {
+		t.Errorf("expected custom catalog to be set")
 	}
 }

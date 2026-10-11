@@ -12,6 +12,7 @@ type Profile interface {
 	Name() string
 	Description() string
 	SystemPrompt() string
+	DefaultTools() []string
 	Tools() []domain.ToolDef
 	ExecuteTool(ctx context.Context, name string, args map[string]interface{}) (*domain.ToolResult, error)
 }

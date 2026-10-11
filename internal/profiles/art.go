@@ -36,6 +36,11 @@ func (p *ArtProfile) SystemPrompt() string {
 You excel at prompt engineering, ComfyUI nodal generation pipelines, aesthetic critique, and visual assets generation.`
 }
 
+// DefaultTools returns the default set of tool names enabled for this profile.
+func (p *ArtProfile) DefaultTools() []string {
+	return []string{"generate_image", "analyze_image", "web_search"}
+}
+
 // Tools returns the list of tools provided by this profile.
 func (p *ArtProfile) Tools() []domain.ToolDef {
 	return []domain.ToolDef{
@@ -55,6 +60,27 @@ func (p *ArtProfile) Tools() []domain.ToolDef {
 					},
 				},
 				"required": []string{"prompt"},
+			},
+		},
+		{
+			Name:        "analyze_image",
+			Description: "Analyze and inspect visual assets, diagrams, or screenshots using perception models.",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"image_path": map[string]interface{}{
+						"type":        "string",
+						"description": "Path or URL to the image to analyze",
+					},
+				},
+				"required": []string{"image_path"},
+			},
+		},
+		{
+			Name:        "web_search",
+			Description: "Search the web for real-time information, visual references, and inspirations.",
+			Parameters: map[string]interface{}{
+				"type": "object",
 			},
 		},
 		{
@@ -82,6 +108,18 @@ func (p *ArtProfile) ExecuteTool(ctx context.Context, name string, args map[stri
 		return &domain.ToolResult{
 			Success: true,
 			Output:  fmt.Sprintf("Image generated successfully for prompt: %q", prompt),
+		}, nil
+	case "analyze_image":
+		imgPath, _ := args["image_path"].(string)
+		return &domain.ToolResult{
+			Success: true,
+			Output:  fmt.Sprintf("Image analyzed successfully: %s", imgPath),
+		}, nil
+	case "web_search":
+		query, _ := args["query"].(string)
+		return &domain.ToolResult{
+			Success: true,
+			Output:  fmt.Sprintf("Web search results for: %q", query),
 		}, nil
 	case "comfyui_workflow":
 		wf, _ := args["workflow_id"].(string)

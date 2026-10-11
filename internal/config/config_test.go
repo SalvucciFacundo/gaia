@@ -97,8 +97,8 @@ func TestLoadExistingConfigWithCustomProfiles(t *testing.T) {
 	customCfg := domain.Config{
 		CurrentProfile: "dev",
 		Profiles: map[string]domain.ProfileConfig{
-			"assistant": {Enabled: true},
-			"dev":       {Enabled: true, Model: "claude-3-7-sonnet"},
+			"assistant": {Enabled: true, Tools: []string{"web_search", "search_memory"}},
+			"dev":       {Enabled: true, Model: "claude-3-7-sonnet", Tools: []string{"bash", "fileops"}},
 			"art":       {Enabled: false},
 		},
 	}
@@ -123,6 +123,12 @@ func TestLoadExistingConfigWithCustomProfiles(t *testing.T) {
 	}
 	if cfg.Profiles["dev"].Model != "claude-3-7-sonnet" {
 		t.Errorf("expected dev model 'claude-3-7-sonnet', got %q", cfg.Profiles["dev"].Model)
+	}
+	if len(cfg.Profiles["dev"].Tools) != 2 || cfg.Profiles["dev"].Tools[0] != "bash" {
+		t.Errorf("expected dev tools ['bash', 'fileops'], got %v", cfg.Profiles["dev"].Tools)
+	}
+	if len(cfg.Profiles["assistant"].Tools) != 2 || cfg.Profiles["assistant"].Tools[0] != "web_search" {
+		t.Errorf("expected assistant tools ['web_search', 'search_memory'], got %v", cfg.Profiles["assistant"].Tools)
 	}
 }
 

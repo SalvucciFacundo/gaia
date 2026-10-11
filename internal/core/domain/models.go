@@ -195,8 +195,9 @@ type Config struct {
 
 // ProfileConfig defines settings for a modular persona/toolset profile.
 type ProfileConfig struct {
-	Enabled bool   `yaml:"enabled"`
-	Model   string `yaml:"model,omitempty"`
+	Enabled bool     `yaml:"enabled"`
+	Model   string   `yaml:"model,omitempty"`
+	Tools   []string `yaml:"tools,omitempty"`
 }
 
 // MultimodalConfig defines secondary perception model settings for image/audio inspection.

@@ -121,6 +121,11 @@ Communicate clearly, concisely, and adapt to the user's preferred language and t
 	return strings.Join(parts, "\n\n")
 }
 
+// DefaultTools returns the default set of tool names enabled for this profile.
+func (p *AssistantProfile) DefaultTools() []string {
+	return []string{"web_search", "web_fetch", "search_memory"}
+}
+
 // Tools returns the list of tools provided by this profile.
 func (p *AssistantProfile) Tools() []domain.ToolDef {
 	return []domain.ToolDef{

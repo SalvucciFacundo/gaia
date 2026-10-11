@@ -37,6 +37,11 @@ You specialize in Organic Driven Development (ODD) and Spec-Driven Development (
 You prioritize clean architectures, robust testing, deep root-cause analysis, and precise code modifications.`
 }
 
+// DefaultTools returns the default set of tool names enabled for this profile.
+func (p *DevProfile) DefaultTools() []string {
+	return []string{"bash", "fileops", "gitops", "web_search", "search_memory"}
+}
+
 // Tools returns the list of tools provided by this profile.
 func (p *DevProfile) Tools() []domain.ToolDef {
 	return []domain.ToolDef{
@@ -89,6 +94,48 @@ func (p *DevProfile) Tools() []domain.ToolDef {
 				"required": []string{"file", "patch"},
 			},
 		},
+		{
+			Name:        "bash",
+			Description: "Execute allowlisted shell commands or scripts.",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"command": map[string]interface{}{
+						"type":        "string",
+						"description": "Shell command to execute",
+					},
+				},
+				"required": []string{"command"},
+			},
+		},
+		{
+			Name:        "fileops",
+			Description: "Read, write, and list workspace files securely.",
+			Parameters: map[string]interface{}{
+				"type": "object",
+			},
+		},
+		{
+			Name:        "gitops",
+			Description: "Inspect Git version control repository status, logs, and diffs.",
+			Parameters: map[string]interface{}{
+				"type": "object",
+			},
+		},
+		{
+			Name:        "web_search",
+			Description: "Search the web for real-time information, documentation, and references.",
+			Parameters: map[string]interface{}{
+				"type": "object",
+			},
+		},
+		{
+			Name:        "search_memory",
+			Description: "Search long-term memory, past conversations, and observations.",
+			Parameters: map[string]interface{}{
+				"type": "object",
+			},
+		},
 	}
 }
 
@@ -112,6 +159,34 @@ func (p *DevProfile) ExecuteTool(ctx context.Context, name string, args map[stri
 		return &domain.ToolResult{
 			Success: true,
 			Output:  fmt.Sprintf("Patch applied successfully to: %s", file),
+		}, nil
+	case "bash":
+		cmd, _ := args["command"].(string)
+		return &domain.ToolResult{
+			Success: true,
+			Output:  fmt.Sprintf("Executed bash command: %s", cmd),
+		}, nil
+	case "fileops":
+		return &domain.ToolResult{
+			Success: true,
+			Output:  fmt.Sprintf("File operation completed with arguments: %v", args),
+		}, nil
+	case "gitops":
+		return &domain.ToolResult{
+			Success: true,
+			Output:  fmt.Sprintf("Git operation completed with arguments: %v", args),
+		}, nil
+	case "web_search":
+		query, _ := args["query"].(string)
+		return &domain.ToolResult{
+			Success: true,
+			Output:  fmt.Sprintf("Web search results for: %q", query),
+		}, nil
+	case "search_memory":
+		query, _ := args["query"].(string)
+		return &domain.ToolResult{
+			Success: true,
+			Output:  fmt.Sprintf("Simulated memory search results for: %q", query),
 		}, nil
 	default:
 		return &domain.ToolResult{

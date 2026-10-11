@@ -112,3 +112,100 @@ func TestProfileManager_Helpers(t *testing.T) {
 		t.Errorf("truncate long string failed: got %q", long)
 	}
 }
+
+func TestProfileCLI_ToolsList(t *testing.T) {
+	tempHome := t.TempDir()
+	t.Setenv("HOME", tempHome)
+
+	// 1. gaia profile tools (active profile: assistant)
+	out := captureOutput(func() {
+		handleProfileCLI([]string{"tools"})
+	})
+
+	if !strings.Contains(out, "Herramientas para el perfil 'assistant'") {
+		t.Errorf("expected header for assistant, got: %s", out)
+	}
+	if !strings.Contains(out, "[HABILITADA]") || !strings.Contains(out, "[DESACTIVADA]") {
+		t.Errorf("expected [HABILITADA] and [DESACTIVADA] in output, got: %s", out)
+	}
+	if !strings.Contains(out, "web_search") || !strings.Contains(out, "bash") {
+		t.Errorf("expected tools listed, got: %s", out)
+	}
+
+	// 2. gaia profile tools dev (specific profile)
+	devOut := captureOutput(func() {
+		handleProfileCLI([]string{"tools", "dev"})
+	})
+	if !strings.Contains(devOut, "Herramientas para el perfil 'dev'") {
+		t.Errorf("expected header for dev, got: %s", devOut)
+	}
+}
+
+func TestProfileCLI_ToolsEnableDisableReset(t *testing.T) {
+	tempHome := t.TempDir()
+	t.Setenv("HOME", tempHome)
+
+	// 1. Enable bash for assistant
+	enableOut := captureOutput(func() {
+		handleProfileCLI([]string{"tools", "enable", "assistant", "bash"})
+	})
+	if !strings.Contains(enableOut, "habilitada exitosamente") {
+		t.Errorf("expected success enabling tool, got: %s", enableOut)
+	}
+
+	// Verify persistence in config
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("failed to reload config: %v", err)
+	}
+	asstTools := cfg.Profiles["assistant"].Tools
+	foundBash := false
+	for _, tool := range asstTools {
+		if tool == "bash" {
+			foundBash = true
+		}
+	}
+	if !foundBash {
+		t.Errorf("expected bash in assistant tools in config, got %v", asstTools)
+	}
+
+	// 2. Verify listing shows bash as [HABILITADA]
+	listOut := captureOutput(func() {
+		handleProfileCLI([]string{"tools", "assistant"})
+	})
+	lines := strings.Split(listOut, "\n")
+	bashEnabled := false
+	for _, l := range lines {
+		if strings.Contains(l, "bash") && strings.Contains(l, "[HABILITADA]") {
+			bashEnabled = true
+			break
+		}
+	}
+	if !bashEnabled {
+		t.Errorf("expected bash to show as [HABILITADA] in list output: %s", listOut)
+	}
+
+	// 3. Disable bash for assistant
+	disableOut := captureOutput(func() {
+		handleProfileCLI([]string{"tools", "disable", "assistant", "bash"})
+	})
+	if !strings.Contains(disableOut, "deshabilitada exitosamente") {
+		t.Errorf("expected success disabling tool, got: %s", disableOut)
+	}
+
+	// 4. Reset assistant tools
+	resetOut := captureOutput(func() {
+		handleProfileCLI([]string{"tools", "reset", "assistant"})
+	})
+	if !strings.Contains(resetOut, "restablecidas a los valores por defecto") {
+		t.Errorf("expected success resetting tools, got: %s", resetOut)
+	}
+
+	cfg, err = config.Load()
+	if err != nil {
+		t.Fatalf("failed to reload config: %v", err)
+	}
+	if len(cfg.Profiles["assistant"].Tools) != 0 {
+		t.Errorf("expected assistant tools to be cleared in config, got %v", cfg.Profiles["assistant"].Tools)
+	}
+}
