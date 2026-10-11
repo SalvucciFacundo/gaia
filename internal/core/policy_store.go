@@ -10,8 +10,8 @@ import (
 )
 
 const (
-	globalPolicyDir  = ".config/gaia"
-	globalPolicyFile = "policy.yaml"
+	globalPolicyDir   = ".config/gaia"
+	globalPolicyFile  = "policy.yaml"
 	projectPolicyDir  = ".gaia"
 	projectPolicyFile = "policy.yaml"
 )

@@ -155,3 +155,23 @@ type IncomingMessage struct {
 	ThreadID   string // optional
 }
 
+// Standard audio MIME type constants.
+const (
+	MimeTypeMP3  = "audio/mpeg"
+	MimeTypeOpus = "audio/opus"
+	MimeTypeOGG  = "audio/ogg"
+	MimeTypeAAC  = "audio/aac"
+	MimeTypeWAV  = "audio/wav"
+)
+
+// Transcriber defines the port for converting speech/audio media into textual transcripts.
+type Transcriber interface {
+	// Transcribe processes raw audio payload of the given MIME type and returns the transcribed text.
+	Transcribe(ctx context.Context, audio []byte, mimeType string) (string, error)
+}
+
+// Synthesizer defines the outbound port for transforming text into synthesized spoken audio.
+type Synthesizer interface {
+	// Synthesize converts text into audio bytes and returns payload alongside its MIME type.
+	Synthesize(ctx context.Context, text string) ([]byte, string, error)
+}

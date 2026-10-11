@@ -11,11 +11,11 @@ import (
 
 func TestPolicyGuard_Evaluate_Tier(t *testing.T) {
 	tests := []struct {
-		name      string
-		tier      PolicyTier
-		tool      string
-		args      map[string]interface{}
-		wantAllow bool
+		name       string
+		tier       PolicyTier
+		tool       string
+		args       map[string]interface{}
+		wantAllow  bool
 		wantReason string
 	}{
 		// TierRead — blocks mutations
@@ -58,11 +58,11 @@ func TestPolicyGuard_Evaluate_Tier(t *testing.T) {
 
 func TestHardlineBlocklist_OverridesFullTier(t *testing.T) {
 	tests := []struct {
-		name      string
-		tool      string
-		args      map[string]interface{}
-		tier      PolicyTier
-		wantAllow bool
+		name       string
+		tool       string
+		args       map[string]interface{}
+		tier       PolicyTier
+		wantAllow  bool
 		wantReason string
 	}{
 		// Full tier + rm -rf / — hardline blocks
@@ -400,9 +400,9 @@ func TestEscalation_SkippableTools(t *testing.T) {
 
 func TestEscalation_AlternativeTools(t *testing.T) {
 	tests := []struct {
-		name     string
-		blocked  string
-		alt      string
+		name    string
+		blocked string
+		alt     string
 	}{
 		{"file_write → file_read", "file_write", "file_read"},
 		{"git_commit → git_diff", "git_commit", "git_diff"},

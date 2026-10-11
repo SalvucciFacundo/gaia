@@ -103,7 +103,7 @@ type TokenChunk struct {
 type TrustMode string
 
 const (
-	TrustAlways    TrustMode = "always"
+	TrustAlways     TrustMode = "always"
 	TrustPerSession TrustMode = "per-session"
 	TrustPerAction  TrustMode = "per-action"
 	TrustNever      TrustMode = "never"
@@ -131,8 +131,8 @@ func SDDPhases(taskDesc string) []PipelinePhase {
 // BudgetConfig defines iteration and context limits for the agent loop.
 type BudgetConfig struct {
 	MaxIterations       int `yaml:"max_iterations"`
-	CompactionThreshold int `yaml:"compaction_threshold"`  // messages before compaction triggers (0 = disabled)
-	KeepRecentMessages  int `yaml:"keep_recent_messages"`  // messages to keep verbatim after compaction
+	CompactionThreshold int `yaml:"compaction_threshold"` // messages before compaction triggers (0 = disabled)
+	KeepRecentMessages  int `yaml:"keep_recent_messages"` // messages to keep verbatim after compaction
 }
 
 // PolicyConfig is the YAML-serializable policy configuration for the domain layer.
@@ -159,8 +159,11 @@ type Config struct {
 		FallbackChain []string `yaml:"fallback_chain"`
 		TrustMode     string   `yaml:"trust_mode"`
 	} `yaml:"llm"`
-	Budget   BudgetConfig   `yaml:"budget"`
-	Policy   PolicyConfig   `yaml:"policy"`
+	Budget BudgetConfig `yaml:"budget"`
+	Policy PolicyConfig `yaml:"policy"`
+	DB     struct {
+		Path string `yaml:"path"`
+	} `yaml:"db"`
 	Telegram struct {
 		Token          string  `yaml:"token"`
 		AllowedUserIDs []int64 `yaml:"allowed_user_ids"`
@@ -185,10 +188,12 @@ type Config struct {
 		RequiresConfirmation bool   `yaml:"requires_confirmation"`
 		Language             string `yaml:"language"` // User's preferred language (en, es, pt)
 	} `yaml:"system"`
-	Terminal TerminalConfig `yaml:"terminal"`
-	MCP      MCPConfig      `yaml:"mcp"`
-	Browser  BrowserToolsConfig `yaml:"browser"`
-	Multimodal MultimodalConfig `yaml:"multimodal"`
+	Terminal       TerminalConfig           `yaml:"terminal"`
+	MCP            MCPConfig                `yaml:"mcp"`
+	Browser        BrowserToolsConfig       `yaml:"browser"`
+	Multimodal     MultimodalConfig         `yaml:"multimodal"`
+	Gateway        GatewayConfig            `yaml:"gateway"`
+	TTS            TTSConfig                `yaml:"tts"`
 	CurrentProfile string                   `yaml:"current_profile"`
 	Profiles       map[string]ProfileConfig `yaml:"profiles"`
 }
@@ -202,10 +207,43 @@ type ProfileConfig struct {
 
 // MultimodalConfig defines secondary perception model settings for image/audio inspection.
 type MultimodalConfig struct {
-	Enabled  bool   `yaml:"enabled"`
-	Provider string `yaml:"provider"` // "gemini", "openai", "anthropic"
-	Model    string `yaml:"model"`    // "gemini-2.5-flash", "gpt-4o-mini"
-	APIKey   string `yaml:"api_key"`
+	Enabled  bool         `yaml:"enabled"`
+	Provider string       `yaml:"provider"` // "gemini", "openai", "anthropic"
+	Model    string       `yaml:"model"`    // "gemini-2.5-flash", "gpt-4o-mini"
+	APIKey   string       `yaml:"api_key"`
+	Audio    AudioConfig  `yaml:"audio"`
+	Vision   VisionConfig `yaml:"vision"`
+	TTS      TTSConfig    `yaml:"tts"`
+}
+
+// TTSConfig tunes the outbound text-to-speech voice synthesis capabilities.
+type TTSConfig struct {
+	Enabled  bool    `yaml:"enabled"`
+	Provider string  `yaml:"provider"`
+	Model    string  `yaml:"model"`
+	Voice    string  `yaml:"voice"`
+	Format   string  `yaml:"format"`
+	Speed    float64 `yaml:"speed"`
+	BaseURL  string  `yaml:"base_url,omitempty"`
+	APIKey   string  `yaml:"api_key,omitempty"`
+}
+
+// AudioConfig tunes the multimodal audio transcription capabilities.
+type AudioConfig struct {
+	Enabled        bool   `yaml:"enabled"`
+	Provider       string `yaml:"provider"`
+	Model          string `yaml:"model"`
+	MaxAudioSizeMB int    `yaml:"max_audio_size_mb"`
+	BaseURL        string `yaml:"base_url,omitempty"`
+	APIKey         string `yaml:"api_key,omitempty"`
+}
+
+// VisionConfig tunes the multimodal image perception capabilities.
+type VisionConfig struct {
+	Enabled        bool   `yaml:"enabled"`
+	Provider       string `yaml:"provider,omitempty"`
+	Model          string `yaml:"model"`
+	MaxImageSizeMB int    `yaml:"max_image_size_mb"`
 }
 
 // MCPConfig defines MCP (Model Context Protocol) client settings.
@@ -249,8 +287,8 @@ type SSHConfig struct {
 func DefaultBudget() BudgetConfig {
 	return BudgetConfig{
 		MaxIterations:       25,
-		CompactionThreshold: 50,  // compact when history exceeds 50 messages
-		KeepRecentMessages:  20,  // keep last 20 messages verbatim
+		CompactionThreshold: 50, // compact when history exceeds 50 messages
+		KeepRecentMessages:  20, // keep last 20 messages verbatim
 	}
 }
 
@@ -305,19 +343,19 @@ type SubagentTask struct {
 type ReviewState string
 
 const (
-	ReviewStateUnreviewed            ReviewState = "unreviewed"
-	ReviewStateReviewing             ReviewState = "reviewing"
-	ReviewStateJudgesConfirmed       ReviewState = "judges_confirmed"
-	ReviewStateFindingsFrozen        ReviewState = "findings_frozen"
-	ReviewStateEvidenceClassified    ReviewState = "evidence_classified"
-	ReviewStateFixRequired           ReviewState = "fix_required"
-	ReviewStateFixing                ReviewState = "fixing"
-	ReviewStateFixValidating         ReviewState = "fix_validating"
+	ReviewStateUnreviewed             ReviewState = "unreviewed"
+	ReviewStateReviewing              ReviewState = "reviewing"
+	ReviewStateJudgesConfirmed        ReviewState = "judges_confirmed"
+	ReviewStateFindingsFrozen         ReviewState = "findings_frozen"
+	ReviewStateEvidenceClassified     ReviewState = "evidence_classified"
+	ReviewStateFixRequired            ReviewState = "fix_required"
+	ReviewStateFixing                 ReviewState = "fixing"
+	ReviewStateFixValidating          ReviewState = "fix_validating"
 	ReviewStateReadyFinalVerification ReviewState = "ready_final_verification"
-	ReviewStateFinalVerifying        ReviewState = "final_verifying"
-	ReviewStateApproved              ReviewState = "approved"
-	ReviewStateEscalated             ReviewState = "escalated"
-	ReviewStateInvalidated           ReviewState = "invalidated"
+	ReviewStateFinalVerifying         ReviewState = "final_verifying"
+	ReviewStateApproved               ReviewState = "approved"
+	ReviewStateEscalated              ReviewState = "escalated"
+	ReviewStateInvalidated            ReviewState = "invalidated"
 )
 
 // ReviewFinding represents a classified finding from a review lens.
@@ -332,19 +370,19 @@ type ReviewFinding struct {
 
 // ReviewReceipt is the content-bound receipt produced by a review.
 type ReviewReceipt struct {
-	Schema                string         `json:"schema"`                  // "gaia.review-receipt/v1"
-	LineageID             string         `json:"lineage_id"`              // SHA256 of review transaction chain
-	SnapshotHash          string         `json:"snapshot_hash"`           // "sha256:{hash of all reviewed files}"
-	SelectedLenses        []string       `json:"selected_lenses"`         // ["review-risk", "review-readability"]
-	RiskLevel             string         `json:"risk_level"`              // "low", "medium", "high"
-	RiskReasons           []string       `json:"risk_reasons"`            // ["hot_path", "large_change"]
-	CorrectionBudget      int            `json:"correction_budget"`       // max correction tokens (85 default)
-	CorrectionUsed        int            `json:"correction_used"`         // tokens used so far
-	State                 ReviewState    `json:"state"`                   // state machine state
-	FinalVerificationHash string         `json:"final_verification_hash"` // "sha256:{verification evidence}"
-	Findings              []ReviewFinding `json:"findings"`               // classified findings
-	CreatedAt             time.Time      `json:"created_at"`
-	UpdatedAt             time.Time      `json:"updated_at"`
+	Schema                string          `json:"schema"`                  // "gaia.review-receipt/v1"
+	LineageID             string          `json:"lineage_id"`              // SHA256 of review transaction chain
+	SnapshotHash          string          `json:"snapshot_hash"`           // "sha256:{hash of all reviewed files}"
+	SelectedLenses        []string        `json:"selected_lenses"`         // ["review-risk", "review-readability"]
+	RiskLevel             string          `json:"risk_level"`              // "low", "medium", "high"
+	RiskReasons           []string        `json:"risk_reasons"`            // ["hot_path", "large_change"]
+	CorrectionBudget      int             `json:"correction_budget"`       // max correction tokens (85 default)
+	CorrectionUsed        int             `json:"correction_used"`         // tokens used so far
+	State                 ReviewState     `json:"state"`                   // state machine state
+	FinalVerificationHash string          `json:"final_verification_hash"` // "sha256:{verification evidence}"
+	Findings              []ReviewFinding `json:"findings"`                // classified findings
+	CreatedAt             time.Time       `json:"created_at"`
+	UpdatedAt             time.Time       `json:"updated_at"`
 }
 
 // SubagentResult is the structured envelope returned by a subagent.
@@ -363,9 +401,9 @@ type CronJob struct {
 	ID            string    `json:"id"`
 	Name          string    `json:"name"`
 	Schedule      string    `json:"schedule"`       // cron expression (e.g. "0 2 * * *")
-	Task          string    `json:"task"`            // description sent to the Brain
-	DeliverTo     string    `json:"deliver_to"`      // "terminal", "telegram", "gateway"
-	DeliverTarget string    `json:"deliver_target"`  // chat ID for telegram, channel for gateway
+	Task          string    `json:"task"`           // description sent to the Brain
+	DeliverTo     string    `json:"deliver_to"`     // "terminal", "telegram", "gateway"
+	DeliverTarget string    `json:"deliver_target"` // chat ID for telegram, channel for gateway
 	Enabled       bool      `json:"enabled"`
 	LastRun       time.Time `json:"last_run"`
 	NextRun       time.Time `json:"next_run"`
@@ -376,12 +414,12 @@ type CronJob struct {
 // Facts are organized as Topic → Concept → Fact with source attribution.
 type KnowledgeFact struct {
 	ID          string    `json:"id"`
-	Topic       string    `json:"topic"`       // e.g. "Authentication"
-	Concept     string    `json:"concept"`     // e.g. "JWT in this project"
-	Project     string    `json:"project"`     // project name
-	Language    string    `json:"language"`    // e.g. "go", "java"
-	Scope       string    `json:"scope"`       // "user"|"language"|"project"
-	Fact        string    `json:"fact"`        // e.g. "Tokens expire in 24h"
+	Topic       string    `json:"topic"`        // e.g. "Authentication"
+	Concept     string    `json:"concept"`      // e.g. "JWT in this project"
+	Project     string    `json:"project"`      // project name
+	Language    string    `json:"language"`     // e.g. "go", "java"
+	Scope       string    `json:"scope"`        // "user"|"language"|"project"
+	Fact        string    `json:"fact"`         // e.g. "Tokens expire in 24h"
 	SourceAgent string    `json:"source_agent"` // e.g. "designer"
 	Labels      []string  `json:"labels"`       // e.g. ["security", "auth", "jwt"]
 	CreatedAt   time.Time `json:"created_at"`
@@ -418,32 +456,60 @@ type SessionInfo struct {
 
 // GatewayConfig defines messaging gateway settings.
 type GatewayConfig struct {
-	Enabled     bool                  `yaml:"enabled"`
-	Telegram    TelegramGatewayConfig `yaml:"telegram"`
-	Discord     DiscordGatewayConfig  `yaml:"discord"`
-	Slack       SlackGatewayConfig    `yaml:"slack"`
-	WhatsApp    MCPGatewayConfig      `yaml:"whatsapp"`
-	Signal      MCPGatewayConfig      `yaml:"signal"`
-	BrowserTools BrowserToolsConfig   `yaml:"browser_tools"`
+	Enabled      bool               `yaml:"enabled"`
+	Telegram     TelegramConfig     `yaml:"telegram"`
+	Discord      DiscordConfig      `yaml:"discord"`
+	Slack        SlackConfig        `yaml:"slack"`
+	WhatsApp     WhatsAppConfig     `yaml:"whatsapp"`
+	Signal       MCPGatewayConfig   `yaml:"signal"`
+	BrowserTools BrowserToolsConfig `yaml:"browser_tools"`
 }
 
-// TelegramGatewayConfig holds Telegram gateway adapter settings.
-type TelegramGatewayConfig struct {
-	Enabled        bool    `yaml:"enabled"`
-	Token          string  `yaml:"token"`
-	AllowedUserIDs []int64 `yaml:"allowed_user_ids"`
+// TelegramConfig configures the Telegram chat gateway adapter.
+type TelegramConfig struct {
+	Enabled        bool     `yaml:"enabled"`
+	Token          string   `yaml:"token"`
+	Allowlist      []string `yaml:"allowlist"`
+	AllowedUserIDs []int64  `yaml:"allowed_user_ids,omitempty"`
 }
 
-// DiscordGatewayConfig holds Discord gateway adapter settings.
-type DiscordGatewayConfig struct {
-	Enabled bool   `yaml:"enabled"`
-	Token   string `yaml:"token"`   // Discord bot token
+// TelegramGatewayConfig is an alias for backward compatibility.
+type TelegramGatewayConfig = TelegramConfig
+
+// DiscordConfig configures the Discord chat gateway adapter.
+type DiscordConfig struct {
+	Enabled   bool     `yaml:"enabled"`
+	Token     string   `yaml:"token"`
+	Allowlist []string `yaml:"allowlist"`
 }
 
-// SlackGatewayConfig holds Slack gateway adapter settings.
+// DiscordGatewayConfig is an alias for backward compatibility.
+type DiscordGatewayConfig = DiscordConfig
+
+// SlackConfig configures the Slack Events API chat gateway adapter.
+type SlackConfig struct {
+	Enabled       bool     `yaml:"enabled"`
+	BotToken      string   `yaml:"bot_token"`
+	SigningSecret string   `yaml:"signing_secret"`
+	AllowedUsers  []string `yaml:"allowed_users"`
+	ListenAddr    string   `yaml:"listen_addr"` // default: ":3002"
+}
+
+// SlackGatewayConfig holds Slack bot settings.
 type SlackGatewayConfig struct {
 	Enabled bool   `yaml:"enabled"`
-	Token   string `yaml:"token"`   // Slack bot token
+	Token   string `yaml:"token"` // Slack bot token
+}
+
+// WhatsAppConfig configures the Meta Cloud API WhatsApp chat gateway adapter.
+type WhatsAppConfig struct {
+	Enabled       bool     `yaml:"enabled"`
+	APIToken      string   `yaml:"api_token"`
+	PhoneNumberID string   `yaml:"phone_number_id"`
+	VerifyToken   string   `yaml:"verify_token"`
+	AppSecret     string   `yaml:"app_secret"`
+	AllowedUsers  []string `yaml:"allowed_users"`
+	ListenAddr    string   `yaml:"listen_addr"` // default: ":3003"
 }
 
 // MCPGatewayConfig holds generic MCP-based gateway adapter settings.
@@ -458,9 +524,3 @@ type BrowserToolsConfig struct {
 	Enabled bool   `yaml:"enabled"`
 	Command string `yaml:"command"` // path to browser MCP server
 }
-
-
-
-
-
-

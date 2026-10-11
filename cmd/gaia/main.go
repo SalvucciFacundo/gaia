@@ -11,6 +11,8 @@ import (
 	"strings"
 
 	"context"
+	"log/slog"
+	"strconv"
 	"time"
 
 	"gaia/internal/adapters/db"
@@ -481,119 +483,93 @@ func hasGatewayConfig(cfg *domain.Config) bool {
 }
 
 // startUnifiedGateway creates gateway adapters and starts them with the existing Brain.
-// Returns the Gateway instance so the caller can stop it on shutdown.
-func startUnifiedGateway(ctx context.Context, cfg *domain.Config, repo *db.SQLiteRepo, projectRoot string, brain *core.Brain, tuiUI *tui.Model) *gateway.Gateway {
-	gw := gateway.NewGateway()
+// Returns the Multiplexer instance so the caller can stop it on shutdown.
+func startUnifiedGateway(ctx context.Context, cfg *domain.Config, repo *db.SQLiteRepo, projectRoot string, brain *core.Brain, tuiUI *tui.Model) *gateway.Multiplexer {
+	logger := slog.Default()
+	muxOpts := []gateway.MultiplexerOption{
+		gateway.WithMultiplexerBrain(brain),
+		gateway.WithMultiplexerLogger(logger),
+	}
+	mux := gateway.NewMultiplexer(muxOpts...)
 
+	var count int
 	// Register Telegram adapter if configured.
-	if cfg.Telegram.Token != "" {
-		tgCfg := domain.TelegramGatewayConfig{
-			Token:          cfg.Telegram.Token,
-			AllowedUserIDs: cfg.Telegram.AllowedUserIDs,
+	if cfg.Telegram.Token != "" || cfg.Gateway.Telegram.Enabled {
+		tgCfg := cfg.Gateway.Telegram
+		if tgCfg.Token == "" {
+			tgCfg.Token = cfg.Telegram.Token
 		}
-		adapter, err := gateway.NewTelegramAdapter(tgCfg)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error creating Telegram adapter: %v\n", err)
-		} else {
-			gw.Register(adapter)
-			fmt.Println("Telegram adapter registered.")
+		if len(tgCfg.Allowlist) == 0 && len(cfg.Telegram.AllowedUserIDs) > 0 {
+			for _, id := range cfg.Telegram.AllowedUserIDs {
+				tgCfg.Allowlist = append(tgCfg.Allowlist, strconv.FormatInt(id, 10))
+			}
 		}
+		adapter := gateway.NewTelegramAdapter(tgCfg,
+			gateway.WithTelegramHandler(mux.HandleEvent),
+			gateway.WithTelegramLogger(logger),
+		)
+		mux.RegisterAdapter(adapter)
+		count++
+		fmt.Println("Telegram adapter registered.")
 	}
 
 	// Register Discord adapter if configured.
-	if cfg.Discord.Token != "" {
-		dCfg := domain.DiscordGatewayConfig{
-			Enabled: true,
-			Token:   cfg.Discord.Token,
+	if cfg.Discord.Token != "" || cfg.Gateway.Discord.Enabled {
+		dCfg := cfg.Gateway.Discord
+		if dCfg.Token == "" {
+			dCfg.Token = cfg.Discord.Token
 		}
-		adapter, err := gateway.NewDiscordAdapter(dCfg)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error creating Discord adapter: %v\n", err)
-		} else {
-			gw.Register(adapter)
-			fmt.Println("Discord adapter registered.")
-		}
+		adapter := gateway.NewDiscordAdapter(dCfg,
+			gateway.WithDiscordHandler(mux.HandleEvent),
+			gateway.WithDiscordLogger(logger),
+		)
+		mux.RegisterAdapter(adapter)
+		count++
+		fmt.Println("Discord adapter registered.")
 	}
 
 	// Register Slack adapter if configured.
-	if cfg.Slack.Token != "" {
-		sCfg := domain.SlackGatewayConfig{
-			Enabled: true,
-			Token:   cfg.Slack.Token,
+	if cfg.Slack.Token != "" || cfg.Gateway.Slack.Enabled {
+		sCfg := cfg.Gateway.Slack
+		if sCfg.BotToken == "" {
+			sCfg.BotToken = cfg.Slack.Token
 		}
-		adapter, err := gateway.NewSlackAdapter(sCfg)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error creating Slack adapter: %v\n", err)
-		} else {
-			gw.Register(adapter)
-			fmt.Println("Slack adapter registered.")
-		}
+		adapter := gateway.NewSlackAdapter(sCfg,
+			gateway.WithSlackHandler(mux.HandleEvent),
+			gateway.WithSlackLogger(logger),
+		)
+		mux.RegisterAdapter(adapter)
+		count++
+		fmt.Println("Slack adapter registered.")
 	}
 
-	// Register WhatsApp MCP adapter if configured.
-	if cfg.WhatsApp.Command != "" {
-		wCfg := domain.MCPGatewayConfig{
-			Enabled: true,
-			Command: cfg.WhatsApp.Command,
-		}
-		adapter, err := gateway.NewWhatsAppMCPAdapter(wCfg)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error creating WhatsApp adapter: %v\n", err)
-		} else {
-			gw.Register(adapter)
-			fmt.Println("WhatsApp adapter registered.")
-		}
+	// Register WhatsApp adapter if configured.
+	if cfg.Gateway.WhatsApp.Enabled {
+		adapter := gateway.NewWhatsAppAdapter(cfg.Gateway.WhatsApp,
+			gateway.WithWhatsAppHandler(mux.HandleEvent),
+			gateway.WithWhatsAppLogger(logger),
+		)
+		mux.RegisterAdapter(adapter)
+		count++
+		fmt.Println("WhatsApp adapter registered.")
 	}
 
-	// Register Signal MCP adapter if configured.
-	if cfg.Signal.Command != "" {
-		sCfg := domain.MCPGatewayConfig{
-			Enabled: true,
-			Command: cfg.Signal.Command,
-		}
-		adapter, err := gateway.NewSignalMCPAdapter(sCfg)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error creating Signal adapter: %v\n", err)
-		} else {
-			gw.Register(adapter)
-			fmt.Println("Signal adapter registered.")
-		}
-	}
-
-	if len(gw.ListAdapters()) == 0 {
+	if count == 0 {
 		return nil
-	}
-
-	// Create SessionManager for routing messages across platforms
-	sessionMgr := core.NewSessionManager(core.SessionUnify, brain, repo)
-	brain.SetSessionManager(sessionMgr)
-
-	// Wire SessionManager into TUI too
-	tuiUI.SetSessionManager(sessionMgr)
-
-	// Message handler: routes incoming gateway messages through SessionManager.
-	handler := func(ctx context.Context, msg ports.IncomingMessage) (string, error) {
-		log.Printf("[gateway:%s] %s", msg.Platform, msg.Content)
-
-		// Use SessionManager to route to the correct session
-		if err := sessionMgr.Route(ctx, msg.Platform, msg.Content, msg.SenderName); err != nil {
-			return "", fmt.Errorf("brain error: %w", err)
-		}
-		return "OK", nil
 	}
 
 	// Set up delivery service for cron jobs.
 	delivery := cron.NewDeliveryService()
-	delivery.SetGatewaySender(gw.Send)
+	delivery.SetGatewaySender(mux.Send)
 
 	// Start gateway in background
 	go func() {
-		if err := gw.Start(ctx, handler); err != nil {
+		if err := mux.Start(ctx); err != nil && ctx.Err() == nil {
 			log.Printf("Gateway error: %v", err)
 		}
 	}()
 
-	return gw
+	return mux
 }
 
 // handleSkillsCLI implements the "gaia skills" subcommand family.

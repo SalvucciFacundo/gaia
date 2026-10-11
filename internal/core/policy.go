@@ -216,30 +216,30 @@ func (pg *PolicyGuard) ApplyConfig(cfg PolicyConfig) {
 // so new tools added to the registry are automatically gated at the strictest level.
 var toolTiers = map[string]PolicyTier{
 	// Read-only tools — TierRead
-	"read":           TierRead,
-	"glob":           TierRead,
-	"grep":           TierRead,
-	"file_read":      TierRead,
-	"file_list":      TierRead,
-	"file_info":      TierRead,
-	"list_dir":       TierRead,
-	"git_status":     TierRead,
-	"git_log":        TierRead,
-	"git_diff":       TierRead,
-	"webfetch":       TierRead,
-	"mem_search":     TierRead,
-	"mem_context":    TierRead,
-	"mem_get":        TierRead,
+	"read":              TierRead,
+	"glob":              TierRead,
+	"grep":              TierRead,
+	"file_read":         TierRead,
+	"file_list":         TierRead,
+	"file_info":         TierRead,
+	"list_dir":          TierRead,
+	"git_status":        TierRead,
+	"git_log":           TierRead,
+	"git_diff":          TierRead,
+	"webfetch":          TierRead,
+	"mem_search":        TierRead,
+	"mem_context":       TierRead,
+	"mem_get":           TierRead,
 	"codegraph_explore": TierRead,
 	// Write tools — TierSandbox
-	"file_write":     TierSandbox,
-	"shell_exec":     TierSandbox,
+	"file_write": TierSandbox,
+	"shell_exec": TierSandbox,
 	// Mutating git tools — TierSandbox
-	"git_commit":     TierSandbox,
-	"git_branch":     TierSandbox,
-	"git_checkout":   TierSandbox,
-	"git_add":        TierSandbox,
-	"git_push":       TierSandbox,
+	"git_commit":   TierSandbox,
+	"git_branch":   TierSandbox,
+	"git_checkout": TierSandbox,
+	"git_add":      TierSandbox,
+	"git_push":     TierSandbox,
 }
 
 // ClassifyTool returns the minimum tier required for a given tool name.
@@ -499,32 +499,32 @@ func mergeDenyRules(global, project *PolicyConfig) []string {
 // skippableTools maps tools that can be safely skipped without breaking the agent.
 // These are typically read/cosmetic tools.
 var skippableTools = map[string]bool{
-	"read":           true,
-	"glob":           true,
-	"grep":           true,
-	"file_read":      true,
-	"file_list":      true,
-	"file_info":      true,
-	"list_dir":       true,
-	"git_status":     true,
-	"git_log":        true,
-	"git_diff":       true,
-	"webfetch":       true,
-	"mem_search":     true,
-	"mem_context":    true,
-	"mem_get":        true,
+	"read":              true,
+	"glob":              true,
+	"grep":              true,
+	"file_read":         true,
+	"file_list":         true,
+	"file_info":         true,
+	"list_dir":          true,
+	"git_status":        true,
+	"git_log":           true,
+	"git_diff":          true,
+	"webfetch":          true,
+	"mem_search":        true,
+	"mem_context":       true,
+	"mem_get":           true,
 	"codegraph_explore": true,
 }
 
 // alternativeTools maps blocked tools to safer fallback alternatives.
 // For example, "shell_exec:rm" → "shell_exec:echo" (safe paths only).
 var alternativeTools = map[string]string{
-	"file_write":    "file_read",
-	"git_commit":    "git_diff",
-	"git_push":      "git_status",
-	"git_branch":    "git_status",
-	"git_checkout":  "git_status",
-	"git_add":       "git_status",
+	"file_write":   "file_read",
+	"git_commit":   "git_diff",
+	"git_push":     "git_status",
+	"git_branch":   "git_status",
+	"git_checkout": "git_status",
+	"git_add":      "git_status",
 }
 
 func isSkippable(toolName string) bool {

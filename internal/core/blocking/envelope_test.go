@@ -64,10 +64,10 @@ func TestValidateChoiceResponse(t *testing.T) {
 	q := sampleEnvelope().Questions[0]
 
 	tests := []struct {
-		input       string
-		wantToken   string
-		wantMeta    bool
-		wantErr     bool
+		input     string
+		wantToken string
+		wantMeta  bool
+		wantErr   bool
 	}{
 		// Exact numerals
 		{input: "1", wantToken: "grant_once"},

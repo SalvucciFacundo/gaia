@@ -63,7 +63,7 @@ func (b *Brain) MemoryExport(ctx context.Context, exportPath ...string) error {
 	}
 
 	msg := domain.Message{
-		Role: domain.RoleSystem,
+		Role:    domain.RoleSystem,
 		Content: fmt.Sprintf("Memory export complete: %d topics exported to %s/\nOpen the folder in Obsidian to browse.", count, exportDir),
 	}
 	b.repo.SaveMessage(ctx, msg)

@@ -266,4 +266,3 @@ func (t *MidTurnBudgetTracker) CheckDelegationTrigger() (string, string, bool) {
 	}
 	return "", "", false
 }
-

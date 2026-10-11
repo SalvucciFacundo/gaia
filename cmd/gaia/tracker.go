@@ -220,4 +220,3 @@ var safeNameRe = regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9._-]*[a-zA-Z0-9])?$`
 func isSafeFeatureName(name string) bool {
 	return safeNameRe.MatchString(name)
 }
-

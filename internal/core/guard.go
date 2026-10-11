@@ -1,9 +1,12 @@
 package core
 
 import (
+	"context"
 	"sync"
 
 	"gaia/internal/core/domain"
+	"gaia/internal/core/ports"
+	"gaia/internal/mneme"
 )
 
 // Deprecated: replaced by PolicyGuard.
@@ -82,3 +85,46 @@ func (g *ConfirmGuard) Reset() {
 	defer g.mu.Unlock()
 	g.approved = make(map[string]bool)
 }
+
+// GuardRequest identifies one policy evaluation subject.
+type GuardRequest struct {
+	Backend  string // local, docker, ssh
+	Category string // commands, files, network, execution
+	Subject  string // command string, file path, host, etc.
+}
+
+// Scope resolves an ask decision: what an approval means over time.
+type Scope string
+
+const (
+	ScopeOnce    Scope = "once"
+	ScopeSession Scope = "session"
+	ScopeAlways  Scope = "always"
+	ScopeDeny    Scope = "deny"
+)
+
+// Approver resolves an ask decision interactively or policy-based.
+type Approver func(ctx context.Context, req GuardRequest) Scope
+
+// Aliases for core ports and types used across gateways and adapters.
+type Transcriber = ports.Transcriber
+type Synthesizer = ports.Synthesizer
+type Attachment = mneme.Attachment
+type Role = mneme.Role
+
+const (
+	RoleAssistant = mneme.RoleAssistant
+	RoleUser      = mneme.RoleUser
+)
+
+type Repository = mneme.Store
+type Conversation = mneme.Conversation
+type Message = mneme.Message
+
+const (
+	MimeTypeMP3  = ports.MimeTypeMP3
+	MimeTypeOpus = ports.MimeTypeOpus
+	MimeTypeOGG  = ports.MimeTypeOGG
+	MimeTypeAAC  = ports.MimeTypeAAC
+	MimeTypeWAV  = ports.MimeTypeWAV
+)

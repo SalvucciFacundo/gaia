@@ -62,4 +62,3 @@ func TestFormatEngramSessionSummary(t *testing.T) {
 		t.Error("expected Relevant Files section in Engram summary")
 	}
 }
-

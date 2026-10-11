@@ -41,40 +41,40 @@ type AuditEntry struct {
 // Brain orchestrates the agent loop: receive user input, call LLM,
 // execute tool calls, enforce budget, delegate to subagents, and return results.
 type Brain struct {
-	provider      ports.LLMProvider
-	repo          ports.Repository
-	registry      *ToolRegistry
-	guard         *ConfirmGuard
-	policy        *PolicyGuard              // policy-based guard (additive, not replacement)
-	ui            ports.UIService
-	budget        domain.BudgetConfig
-	onToken       func(string)                // streaming callback
-	subagentPort  ports.SubagentPort           // subagent delegation (nil if not wired)
-	kgStore       ports.KnowledgeGraphStore    // shared knowledge graph (nil if not wired)
-	kgEnabled     bool                          // knowledge graph recall toggle (/kg)
-	compactedTo   int                          // messages compacted so far (context compaction)
-	providerName  string                       // e.g. "openai"
-	modelName     string                       // e.g. "gpt-4o"
-	costTracker   *CostTracker                 // tracks LLM call costs
-	currentSessionID string                    // tracked for /title and /resume
-	moaProviders  map[string]ports.LLMProvider // extra providers for MoA (/moa command)
-	messageQueue  []string                    // queued messages for /queue command
-	processingQueue bool                      // prevents re-entrant queue processing
-	steerCh       chan string                 // buffered channel (cap 1) for /steer mid-loop injection
-	goal          string                      // active persistent goal (/goal)
-	subgoals      []string                    // subgoal criteria (/subgoal)
-	availableProviders map[string]ports.LLMProvider // named providers for /model switching
-	auditLog      []AuditEntry                // audit trail for policy-audited tools (/audit)
-	sessionMgr    *SessionManager             // routes messages across platforms
-	skillLister       func() []string             // returns available skill names for progressive loading
-	skillPathResolver func([]string) []string     // resolves skill names to SKILL.md file paths
-	skillMatcher      func(string, []string) []string // matches skills by task intent and file context
-	mcpMgr        *mcp.Manager                 // MCP server connection manager
-	pendingImages []domain.ImageContent       // images queued for the next ProcessMessage
-	fastModeEnabled bool                      // whether /fast mode is active
-	originalModel   string                    // model before /fast was enabled
-	fastModel       string                    // override fast model name
-	busyMode        string                    // input behavior while agent is working: queue, steer, ignore
+	provider           ports.LLMProvider
+	repo               ports.Repository
+	registry           *ToolRegistry
+	guard              *ConfirmGuard
+	policy             *PolicyGuard // policy-based guard (additive, not replacement)
+	ui                 ports.UIService
+	budget             domain.BudgetConfig
+	onToken            func(string)                    // streaming callback
+	subagentPort       ports.SubagentPort              // subagent delegation (nil if not wired)
+	kgStore            ports.KnowledgeGraphStore       // shared knowledge graph (nil if not wired)
+	kgEnabled          bool                            // knowledge graph recall toggle (/kg)
+	compactedTo        int                             // messages compacted so far (context compaction)
+	providerName       string                          // e.g. "openai"
+	modelName          string                          // e.g. "gpt-4o"
+	costTracker        *CostTracker                    // tracks LLM call costs
+	currentSessionID   string                          // tracked for /title and /resume
+	moaProviders       map[string]ports.LLMProvider    // extra providers for MoA (/moa command)
+	messageQueue       []string                        // queued messages for /queue command
+	processingQueue    bool                            // prevents re-entrant queue processing
+	steerCh            chan string                     // buffered channel (cap 1) for /steer mid-loop injection
+	goal               string                          // active persistent goal (/goal)
+	subgoals           []string                        // subgoal criteria (/subgoal)
+	availableProviders map[string]ports.LLMProvider    // named providers for /model switching
+	auditLog           []AuditEntry                    // audit trail for policy-audited tools (/audit)
+	sessionMgr         *SessionManager                 // routes messages across platforms
+	skillLister        func() []string                 // returns available skill names for progressive loading
+	skillPathResolver  func([]string) []string         // resolves skill names to SKILL.md file paths
+	skillMatcher       func(string, []string) []string // matches skills by task intent and file context
+	mcpMgr             *mcp.Manager                    // MCP server connection manager
+	pendingImages      []domain.ImageContent           // images queued for the next ProcessMessage
+	fastModeEnabled    bool                            // whether /fast mode is active
+	originalModel      string                          // model before /fast was enabled
+	fastModel          string                          // override fast model name
+	busyMode           string                          // input behavior while agent is working: queue, steer, ignore
 }
 
 // BrainOption configures the Brain.
@@ -1585,7 +1585,7 @@ category: testing
 			available = append(available, t)
 		}
 		msg := domain.Message{
-			Role: domain.RoleSystem,
+			Role:    domain.RoleSystem,
 			Content: fmt.Sprintf("Unknown blueprint %q.\nAvailable blueprints: %s\n\nUsage: /blueprint <name>", name, strings.Join(available, ", ")),
 		}
 		b.repo.SaveMessage(ctx, msg)
@@ -2560,7 +2560,8 @@ func (b *Brain) Delegate(ctx context.Context, name string, task domain.SubagentT
 // system messages but don't interrupt the flow.
 func (b *Brain) saveSubagentDiscoveries(ctx context.Context, name, description string, result *domain.SubagentResult) {
 	projectRoot, _ := os.Getwd()
-	projectName := DetectProjectName(projectRoot); _ = projectName
+	projectName := DetectProjectName(projectRoot)
+	_ = projectName
 	projectLang := DetectLanguage(projectRoot)
 	if b.kgStore == nil {
 		return
@@ -2736,6 +2737,16 @@ func (b *Brain) AvailableSubagents() []string {
 // Registry returns the brain's tool registry for use by subagent infrastructure.
 func (b *Brain) Registry() *ToolRegistry {
 	return b.registry
+}
+
+// Step executes a single turn through the full agent loop (implements gateway.BrainRunner).
+func (b *Brain) Step(ctx context.Context, input string) error {
+	return b.ProcessMessage(ctx, input)
+}
+
+// SetActiveConversation updates the current active session/conversation id.
+func (b *Brain) SetActiveConversation(id string) {
+	b.currentSessionID = id
 }
 
 // ProcessMessage handles a user input through the full agent loop.
@@ -3809,19 +3820,3 @@ func redactToolOutput(output string) (string, int) {
 	}
 	return result, count
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

@@ -16,14 +16,14 @@ type providerCost struct {
 }
 
 var knownCosts = map[string]providerCost{
-	"gpt-4o":              {Input: 2.50, Output: 10.00},
-	"gpt-4o-mini":         {Input: 0.15, Output: 0.60},
-	"gpt-4-turbo":         {Input: 10.00, Output: 30.00},
-	"claude-sonnet-4":     {Input: 3.00, Output: 15.00},
-	"claude-haiku-3":      {Input: 0.25, Output: 1.25},
-	"claude-opus-4":       {Input: 15.00, Output: 75.00},
-	"gemini-2.5-pro":      {Input: 1.25, Output: 10.00},
-	"gemini-2.0-flash":    {Input: 0.10, Output: 0.40},
+	"gpt-4o":           {Input: 2.50, Output: 10.00},
+	"gpt-4o-mini":      {Input: 0.15, Output: 0.60},
+	"gpt-4-turbo":      {Input: 10.00, Output: 30.00},
+	"claude-sonnet-4":  {Input: 3.00, Output: 15.00},
+	"claude-haiku-3":   {Input: 0.25, Output: 1.25},
+	"claude-opus-4":    {Input: 15.00, Output: 75.00},
+	"gemini-2.5-pro":   {Input: 1.25, Output: 10.00},
+	"gemini-2.0-flash": {Input: 0.10, Output: 0.40},
 }
 
 // CostEntry records a single LLM call cost.
@@ -37,7 +37,7 @@ type CostEntry struct {
 
 // CostTracker accumulates LLM call costs across the session.
 type CostTracker struct {
-	mu     sync.Mutex
+	mu      sync.Mutex
 	entries []CostEntry
 	start   time.Time
 }

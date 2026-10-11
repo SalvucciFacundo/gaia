@@ -44,13 +44,13 @@ func (s *stubProvider) Stream(ctx context.Context, msgs []domain.Message, opts .
 	return pr, nil
 }
 
-func (s *stubProvider) Tools() []domain.ToolDef { return nil }
+func (s *stubProvider) Tools() []domain.ToolDef                          { return nil }
 func (s *stubProvider) ListModels(ctx context.Context) ([]string, error) { return nil, nil }
 
 // stubRepo is a no-op repository for tests.
 type stubRepo struct{}
 
-func (r *stubRepo) SaveMessage(ctx context.Context, msg domain.Message) error    { return nil }
+func (r *stubRepo) SaveMessage(ctx context.Context, msg domain.Message) error { return nil }
 func (r *stubRepo) GetHistory(ctx context.Context, limit int) ([]domain.Message, error) {
 	return []domain.Message{}, nil
 }
@@ -60,7 +60,7 @@ func (r *stubRepo) CreateSession(ctx context.Context, name string) (string, erro
 func (r *stubRepo) GetMessages(ctx context.Context, sessionID string, limit int) ([]domain.Message, error) {
 	return []domain.Message{}, nil
 }
-func (r *stubRepo) GetMessageCount(ctx context.Context) (int, error)     { return 0, nil }
+func (r *stubRepo) GetMessageCount(ctx context.Context) (int, error) { return 0, nil }
 func (r *stubRepo) ListSessions(ctx context.Context) ([]domain.SessionInfo, error) {
 	return nil, nil
 }
@@ -89,15 +89,15 @@ func (u *stubUI) Display(msg domain.Message) error {
 	u.displayed = append(u.displayed, msg)
 	return nil
 }
-func (u *stubUI) AppendToken(content string) error { return nil }
-func (u *stubUI) PromptConfirmation(prompt string) (bool, error)   { return true, nil }
+func (u *stubUI) AppendToken(content string) error               { return nil }
+func (u *stubUI) PromptConfirmation(prompt string) (bool, error) { return true, nil }
 func (u *stubUI) PromptChoice(envelope domain.ChoiceEnvelope) (string, error) {
 	if len(envelope.Questions) > 0 && len(envelope.Questions[0].Options) > 0 {
 		return envelope.Questions[0].Options[0].Token, nil
 	}
 	return "", nil
 }
-func (u *stubUI) Run() error                                        { return nil }
+func (u *stubUI) Run() error { return nil }
 
 func TestBrain_BudgetExhausted(t *testing.T) {
 	prov := &stubProvider{
@@ -166,8 +166,8 @@ func TestBrain_SimpleChat(t *testing.T) {
 // fakeModule provides a dummy tool for testing the agent loop.
 type fakeModule struct{}
 
-func (m *fakeModule) Name() string        { return "fake" }
-func (m *fakeModule) Description() string { return "A fake module for testing" }
+func (m *fakeModule) Name() string                { return "fake" }
+func (m *fakeModule) Description() string         { return "A fake module for testing" }
 func (m *fakeModule) GetTools() []domain.ToolCall { return nil }
 func (m *fakeModule) Tools() []domain.ToolDef {
 	return []domain.ToolDef{
@@ -508,8 +508,8 @@ func (m *recordingKGStore) GetRecentTopics(_ context.Context, _ time.Duration) (
 
 type dummyWriteModule struct{}
 
-func (d *dummyWriteModule) Name() string                     { return "fileops" }
-func (d *dummyWriteModule) Description() string              { return "file operations" }
+func (d *dummyWriteModule) Name() string        { return "fileops" }
+func (d *dummyWriteModule) Description() string { return "file operations" }
 func (d *dummyWriteModule) GetTools() []domain.ToolCall {
 	return []domain.ToolCall{{Name: "file_write"}}
 }

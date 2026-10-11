@@ -164,3 +164,13 @@ func Save(cfg *domain.Config) error {
 
 	return ioutil.WriteFile(fullPath, data, 0600)
 }
+
+// Config type aliases for audio and gateway subsystems.
+type TelegramConfig = domain.TelegramConfig
+type DiscordConfig = domain.DiscordConfig
+type SlackConfig = domain.SlackConfig
+type WhatsAppConfig = domain.WhatsAppConfig
+type TTSConfig = domain.TTSConfig
+type AudioConfig = domain.AudioConfig
+type VisionConfig = domain.VisionConfig
+type GatewayConfig = domain.GatewayConfig

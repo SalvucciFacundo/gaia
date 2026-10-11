@@ -9,74 +9,74 @@ import (
 // and that they parse correctly.
 func TestExecFlagParsing(t *testing.T) {
 	tests := []struct {
-		name     string
-		args     []string
-		wantJSON bool
-		wantDry  bool
+		name      string
+		args      []string
+		wantJSON  bool
+		wantDry   bool
 		wantQuiet bool
 		wantVerb  bool
-		wantYes  bool
-		wantTask string
+		wantYes   bool
+		wantTask  string
 	}{
 		{
-			name:     "all flags set",
-			args:     []string{"--json", "--dry-run", "--quiet", "--verbose", "--yes", "do something"},
-			wantJSON: true,
-			wantDry:  true,
+			name:      "all flags set",
+			args:      []string{"--json", "--dry-run", "--quiet", "--verbose", "--yes", "do something"},
+			wantJSON:  true,
+			wantDry:   true,
 			wantQuiet: true,
-			wantVerb: true,
-			wantYes:  true,
-			wantTask: "do something",
+			wantVerb:  true,
+			wantYes:   true,
+			wantTask:  "do something",
 		},
 		{
-			name:     "default flags with task",
-			args:     []string{"build the project"},
-			wantJSON: false,
-			wantDry:  false,
+			name:      "default flags with task",
+			args:      []string{"build the project"},
+			wantJSON:  false,
+			wantDry:   false,
 			wantQuiet: false,
-			wantVerb: false,
-			wantYes:  false,
-			wantTask: "build the project",
+			wantVerb:  false,
+			wantYes:   false,
+			wantTask:  "build the project",
 		},
 		{
-			name:     "json only",
-			args:     []string{"--json", "explain this code"},
-			wantJSON: true,
-			wantDry:  false,
+			name:      "json only",
+			args:      []string{"--json", "explain this code"},
+			wantJSON:  true,
+			wantDry:   false,
 			wantQuiet: false,
-			wantVerb: false,
-			wantYes:  false,
-			wantTask: "explain this code",
+			wantVerb:  false,
+			wantYes:   false,
+			wantTask:  "explain this code",
 		},
 		{
-			name:     "dry-run with quiet",
-			args:     []string{"--dry-run", "--quiet", "deploy to prod"},
-			wantJSON: false,
-			wantDry:  true,
+			name:      "dry-run with quiet",
+			args:      []string{"--dry-run", "--quiet", "deploy to prod"},
+			wantJSON:  false,
+			wantDry:   true,
 			wantQuiet: true,
-			wantVerb: false,
-			wantYes:  false,
-			wantTask: "deploy to prod",
+			wantVerb:  false,
+			wantYes:   false,
+			wantTask:  "deploy to prod",
 		},
 		{
-			name:     "yes flag",
-			args:     []string{"--yes", "install dependencies"},
-			wantJSON: false,
-			wantDry:  false,
+			name:      "yes flag",
+			args:      []string{"--yes", "install dependencies"},
+			wantJSON:  false,
+			wantDry:   false,
 			wantQuiet: false,
-			wantVerb: false,
-			wantYes:  true,
-			wantTask: "install dependencies",
+			wantVerb:  false,
+			wantYes:   true,
+			wantTask:  "install dependencies",
 		},
 		{
-			name:     "flags after task",
-			args:     []string{"explain this code", "--json", "--yes"},
-			wantJSON: true,
-			wantDry:  false,
+			name:      "flags after task",
+			args:      []string{"explain this code", "--json", "--yes"},
+			wantJSON:  true,
+			wantDry:   false,
 			wantQuiet: false,
-			wantVerb: false,
-			wantYes:  true,
-			wantTask: "explain this code",
+			wantVerb:  false,
+			wantYes:   true,
+			wantTask:  "explain this code",
 		},
 	}
 

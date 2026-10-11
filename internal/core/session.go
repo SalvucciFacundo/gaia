@@ -29,11 +29,11 @@ type platformSession struct {
 // SessionManager routes messages from multiple platforms to the correct session.
 // It supports three modes: unify (default), isolate, and ask.
 type SessionManager struct {
-	mu       sync.RWMutex
-	mode     SessionMode
-	brain    *Brain
-	repo     interface{ SetSessionID(string) } // *db.SQLiteRepo or similar
-	creator  func(ctx context.Context, name string) (string, error) // repo.CreateSession wrapper
+	mu      sync.RWMutex
+	mode    SessionMode
+	brain   *Brain
+	repo    interface{ SetSessionID(string) }                      // *db.SQLiteRepo or similar
+	creator func(ctx context.Context, name string) (string, error) // repo.CreateSession wrapper
 
 	// Tracks the unified session ID (for unify/ask modes)
 	unifiedID string
@@ -322,4 +322,3 @@ func (sm *SessionManager) applyPlatformTier(platform string) {
 		}
 	}
 }
-

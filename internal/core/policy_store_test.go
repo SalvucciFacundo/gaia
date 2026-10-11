@@ -83,17 +83,17 @@ func TestClassifyTool(t *testing.T) {
 
 func TestIsHardlineBlocked(t *testing.T) {
 	tests := []struct {
-		name    string
-		cmd     string
-		want    bool
+		name string
+		cmd  string
+		want bool
 	}{
 		{"empty string", "", false},
 		{"safe ls", "ls -la", false},
 		{"safe echo", "echo hello", false},
 		{"rm -rf / (exact)", "rm -rf /", true},
 		{"rm -rf / with no-preserve-root", "rm -rf --no-preserve-root /", true},
-		{"rm -rf /var (safe)", "rm -rf /var/log", false},           // not root
-		{"rm -rf trailing", "sudo rm -rf /", true},                 // contains the pattern
+		{"rm -rf /var (safe)", "rm -rf /var/log", false}, // not root
+		{"rm -rf trailing", "sudo rm -rf /", true},       // contains the pattern
 		// Fork bomb
 		{"fork bomb", ":(){ :|:& };:", true},
 		{"fork bomb with spaces", ":(){ :|:& }; :", true},
