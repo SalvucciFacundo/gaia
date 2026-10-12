@@ -9,56 +9,84 @@
 | `gaia exec <task> --json` | JSON output |
 | `gaia exec <task> --quiet` | Minimal output |
 
-## Server Mode (Web UI Dashboard)
+## Profiles & Per-Profile Tools
 
 | Command | Description |
 |---|---|
-| `gaia serve` | Start Web UI Dashboard server (default port 8080) |
-| `gaia serve 9090` | Custom port for Web UI Dashboard |
+| `gaia profile list` | List all profiles with active/enabled indicators and tool counts |
+| `gaia profile switch <name>` | Switch active profile (e.g. `dev`, `assistant`, `art`) |
+| `gaia profile enable <name>` | Enable a profile |
+| `gaia profile disable <name>` | Disable a profile (cannot disable active profile) |
+| `gaia profile tools list [profile]` | List active tools and available catalog tools for a profile |
+| `gaia profile tools enable <profile> <tool>` | Enable a specific catalog tool for a profile |
+| `gaia profile tools disable <profile> <tool>` | Disable a specific tool for a profile |
+| `gaia profile tools reset <profile>` | Reset profile to its suggested default toolset |
 
-The server exposes an interactive Web UI Dashboard (`templ` + `TailwindCSS` + `templ-islands`) with:
+## Server Mode (OpenAI REST/SSE API & Web UI)
+
+| Command | Description |
+|---|---|
+| `gaia serve` | Start API server on default port `8080` (alias: `gaia api`) |
+| `gaia serve --port 9090` | Start server on custom port |
+| `gaia serve --host 0.0.0.0` | Bind server to specific network interface |
+| `gaia serve --key <token>` | Require Bearer token authentication (constant-time verification) |
+
+The server provides:
 ```
-GET  /                   → Web UI Dashboard (Multi-Workspace, Live Chat, Subagent Pipeline)
-POST /web/message        → Send message to active workspace
-POST /web/projects/select → Switch active workspace
-GET  /web/stream         → SSE Stream endpoint for real-time tokens & status updates
+POST /v1/chat/completions → OpenAI-compatible chat (JSON or SSE stream text/event-stream)
+GET  /v1/models           → List available models and active profiles
+GET  /healthz             → Health and liveness check
+GET  /api/health          → Detailed health status
+GET  /                    → Built-in Web UI Dashboard (templ + TailwindCSS + htmx)
 ```
+
+## Messaging Gateways & Voice Engine
+
+| Command | Description |
+|---|---|
+| `gaia gateway` or `gaia gateway run` | Start messaging gateway daemon for enabled platforms |
+| `gaia gateway run --config <path>` | Run gateway with explicit configuration file |
+
+Gateways run as a background service:
+- **Platforms**: Telegram (polling/webhooks), WhatsApp (Meta Cloud API), Discord, Slack.
+- **Audio Engine**: Inbound voice note transcription via OpenAI Whisper; outbound spoken notes via ElevenLabs / OpenAI TTS.
+- **Interactive Approver**: Inline message buttons for human authorization on dangerous operations.
 
 ## Skills
 
 | Command | Description |
 |---|---|
-| `gaia skills list` | List all available skills |
-| `gaia skills search <q>` | Search skills by name/tags |
+| `gaia skill list [--json]` | List all installed and bundled skills |
+| `gaia skill create <name> [flags]` | Create or update a skill (`--desc`, `--trigger`, `--body`, `--overwrite`) |
+| `gaia skill show <name> [--raw] [--json]` | Inspect skill definition, workflow, and rules |
+| `gaia skill delete <name> [-f\|--force]` | Remove a skill with confirmation prompt |
+| `gaia skills search <q>` | Search skills by name or tags |
 | `gaia skills install <name>` | Install a bundled skill |
-| `gaia skills remove <name>` | Remove a user skill |
-| `gaia skills activate <name>` | Activate a skill |
-| `gaia skills deactivate <name>` | Deactivate a skill |
-| `gaia skills add-tap <url>` | Add a community tap (GitHub) |
-| `gaia skills remove-tap <url>` | Remove a tap |
-| `gaia skills list-taps` | List installed taps |
-| `gaia skills search-hub <q>` | Search GitHub for skill repos |
-| `gaia skills stats` | Show skill usage statistics |
-| `gaia skills audit` | Security audit all skills |
+| `gaia skills add-tap <url>` | Add a community tap (GitHub repo) |
+| `gaia skills audit` | Security audit all skills for dangerous AST patterns |
 
-### Tap URL formats accepted
-```
-gaia skills add-tap owner/repo
-gaia skills add-tap github.com/owner/repo
-gaia skills add-tap https://github.com/owner/repo
-```
-
-## Plugins
+## Backup & Restore
 
 | Command | Description |
 |---|---|
-| `gaia plugin list` | List all installed plugins and their status |
-| `gaia plugin enable <name>` | Enable an installed plugin |
-| `gaia plugin disable <name>` | Disable a plugin |
-| `gaia plugin install <path>` | Install a plugin from a local directory |
-| `gaia plugin remove <name>` | Remove an installed plugin |
+| `gaia backup create <profile> [-o file]` | Create manifest-backed TAR archive for profile |
+| `gaia backup <file>` | Inspect archive manifest without unpacking |
+| `gaia backup list [-dir <path>]` | List existing backup archives |
+| `gaia restore <file> [-profile <name>] [-force]` | Restore databases, skills, and configuration from archive |
 
-## Review
+All archives feature SHA256 file validation, permission checks, and path-traversal attack protection.
+
+## Self-Updater
+
+| Command | Description |
+|---|---|
+| `gaia update --check` | Check GitHub releases for newer GAIA versions |
+| `gaia update` | Download and apply the latest release binary |
+| `gaia update --backup` | Create pre-update backup of data before upgrading binary |
+| `gaia update --version <tag>` | Download and pin a specific release version (e.g. `v0.5.0`) |
+| `gaia update --force` | Force update even if version is current or downgrade |
+
+## Review & Gates (4R Receipt-Driven Development)
 
 | Command | Description |
 |---|---|
@@ -71,14 +99,13 @@ gaia skills add-tap https://github.com/owner/repo
 | `gaia review validate --gate <gate>` | Validate receipt at gate (`pre-commit`, `pre-push`, `pre-pr`) |
 | `gaia review install-hooks` | Install git hook scripts (`.git/hooks/pre-commit`, `.git/hooks/pre-push`) |
 
-## Policy
+## Policy & Permissions
 
 | Command | Description |
 |---|---|
 | `gaia policy init` | Initialize a policy configuration (`.gaia/policy.yaml`) with default `sandbox` tier |
 | `gaia policy init --tier=<tier>` | Initialize policy with specified tier (`read`, `sandbox`, `full`) |
 | `gaia policy init --global` | Initialize global policy at `~/.config/gaia/policy.yaml` |
-| `gaia policy init --tier=full --global` | Initialize global policy with `full` tier |
 
 ## Delivery
 
@@ -92,34 +119,15 @@ gaia skills add-tap https://github.com/owner/repo
 | `gaia delivery discard <id>` | Mark a queued item as discarded |
 | `gaia delivery diff <id>` | Inspect PR title, body, and git diff stat for a queued item |
 
-## Gateway
+## Session & Diagnostics
 
 | Command | Description |
 |---|---|
-| `gaia gateway start` | Start messaging gateway |
-| `gaia gateway stop` | Stop messaging gateway |
-| `gaia gateway status` | Show gateway status |
+| `gaia session list` | List recent conversations and multi-channel sessions |
+| `gaia session restore <id>` | Restore and inspect previous session context |
+| `gaia doctor` | Comprehensive environment, tool, and database diagnostics |
+| `gaia desktop` | Launch Wails desktop UI app |
 
-## Session
-
-| Command | Description |
-|---|---|
-| `gaia session list` | List recent conversations |
-| `gaia session restore <id>` | Load a previous session |
-
-## Other
-
-| Command | Description |
-|---|---|
-| `gaia doctor` | System diagnostics |
-| `gaia onboard` | Guided SDD walkthrough |
-| `gaia desktop` | Launch Wails desktop app |
-| `gaia cron` | Cron scheduler |
-| `gaia tracker check` | Check upstream releases |
-| `gaia tracker report` | Port status report |
-| `gaia tracker port <id>` | Create port issue |
-| `gaia webhook` | Webhook subscriptions |
-| `gaia lsp` | LSP integration |
 
 ## Policy Guard
 
