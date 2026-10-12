@@ -1,5 +1,9 @@
 # Subagent System
 
+<p align="center">
+  <img src="../assets/dev_profile_banner.png" alt="GAIA Dev Profile Subagent Constellation" width="90%">
+</p>
+
 GAIA has **12 specialized subagents**, each autonomously learning in its domain. They are divided into two groups: **SDD subagents** (pipeline-coupled) and **on-demand subagents** (dispatched by user request).
 
 ---

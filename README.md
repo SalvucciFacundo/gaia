@@ -98,191 +98,33 @@ graph TD
 
 ---
 
-## 🎭 Profiles & Persona Evolution
+## 🌟 Core Architectural Pillars
 
-GAIA separates **who the agent is** from **what the agent can do**.
+Click any pillar to explore its dedicated in-depth documentation guide:
 
-### Built-in Profiles
-- **`dev` (Software Architect)**: Autonomous software engineer specialized in architecture, refactoring, ODD workflows, tests, and Git operations.
-- **`assistant` (Personal Assistant)**: Versatile companion for research, synthesis, daily workflows, reminders, and web tasks.
-- **`art` (Visual Reasoning & Creative)**: Creative partner focused on design systems, image prompts, aesthetics, and ComfyUI workflows.
+### 🎭 [Modular Profiles & Extensible Personas](docs/persona.md)
+Profiles define identity and reasoning demeanor (`SOUL.md`), completely decoupled from tool access. Ships with `dev` (software architect), `assistant` (daily assistant), and `art` (visual reasoning), plus support for unlimited user-defined custom profiles with dynamic Bayesian Soul Evolution and real-time Prompt Injection Defense.  
+👉 **[Read the Profiles & Persona Guide →](docs/persona.md)**
 
-### Bayesian Soul Evolution
-Every profile maintains a distinct `SOUL.md`. As the agent interacts, the Bayesian soul engine records reinforcement metrics and dynamically refines its operational demeanor while the security scanner detects and rejects prompt injection attempts in real-time.
+### 🧰 [Global Tool Catalog & Decoupling](docs/skills.md)
+Every tool lives in a central catalog. No tool is hardcoded to a profile: configure any tool for any profile at runtime (`gaia profile tools enable <profile> <tool>`) or declaratively in `config.yaml`. Supports dynamic parameter inspection (`tool_search`, `load_tool`) and autonomous skill learning (`create_skill`, `read_skill`).  
+👉 **[Explore Tool Catalog & Skills →](docs/skills.md)**
 
-### Profile CLI Management
-```bash
-# List all registered profiles and active status
-gaia profile list
+### 📡 [Multi-Channel Messaging & Voice Engine](docs/gateway.md)
+Run GAIA as an autonomous background daemon across Telegram, WhatsApp (Meta Cloud API), Discord, and Slack. Features bi-directional audio with inbound speech-to-text (OpenAI Whisper STT) and outbound speech synthesis (ElevenLabs / OpenAI TTS), plus interactive inline approval buttons for sensitive operations.  
+👉 **[Configure Gateways & Voice →](docs/gateway.md)**
 
-# Switch active profile
-gaia profile switch dev
+### 🌐 [OpenAI-Compatible REST & Streaming API Server](docs/cli.md#server-mode-openai-restsse-api--web-ui)
+Drop-in replacement server for OpenAI endpoints (`gaia serve` / `gaia api`) exposing `POST /v1/chat/completions` with JSON and real-time streaming SSE (`text/event-stream`). Connect any existing AI client (Cursor, LibreChat, Open WebUI, Continue) with constant-time Bearer token authentication and configurable CORS.  
+👉 **[Inspect Server API & CLI Commands →](docs/cli.md)**
 
-# Enable or disable profiles
-gaia profile enable art
-gaia profile disable assistant
-```
+### 🌐 [Headless Browser Automation](docs/architecture.md#package-layout-60-modular-packages)
+Embedded headless browser driver powered by `chromedp` with zero-config auto-detection for Chrome, Chromium, Brave, Edge, and Flatpak. Supports complex client-side JavaScript execution, DOM navigation, full-page screenshots, and structured DOM-to-markdown extraction.  
+👉 **[Read Browser & Architecture Overview →](docs/architecture.md)**
 
----
-
-## 🧰 Global Tool Catalog & Per-Profile Decoupling
-
-No tool or gateway is locked to a specific profile. Any profile can be customized to use any combination of tools from the global catalog:
-
-```bash
-# List tools available to a profile (both active and available in catalog)
-gaia profile tools list dev
-
-# Enable or disable individual tools for a profile
-gaia profile tools enable dev browser_navigate
-gaia profile tools disable dev exec_command
-
-# Reset profile back to its suggested toolset
-gaia profile tools reset dev
-```
-
-You can also customize tools declaratively in `config.yaml`:
-```yaml
-current_profile: "dev"
-profiles:
-  dev:
-    enabled: true
-    model: "claude-3-5-sonnet"
-    tools:
-      - exec_command
-      - read_file
-      - write_file
-      - browser_navigate
-      - web_search
-      - create_skill
-```
-
-### Catalog Tool Categories
-- **Web Intelligence**: Multi-provider search (`duckduckgo`, `brave`, `searxng`) + secure fetch with SSRF mitigation and HTML-to-Markdown extraction.
-- **Headless Browser**: Full JavaScript rendering, screenshots, and DOM navigation via Chromium/Chrome/Brave/Edge.
-- **System & Git**: Sandboxed shell commands, atomic file edits, Lipgloss visual diffs, and ephemeral Git worktree isolation.
-- **Autonomous Skills**: Dynamically create and inspect procedural skill documents (`SKILL.md`).
-- **Catalog Introspection**: `tool_search` and `load_tool` for runtime parameter inspection.
-
----
-
-## 📡 Multi-Channel Messaging Gateways & Voice Engine
-
-Deploy GAIA as a continuous background daemon communicating over multiple messaging platforms simultaneously.
-
-### Supported Gateways
-- **Telegram**: Real-time long-polling or webhooks, user allowlist, full media ingest, voice message transcription, and outbound voice responses.
-- **WhatsApp**: Native Meta Cloud API integration with webhook challenge verification and HMAC-SHA256 signature security.
-- **Discord**: Discord bot integration with channel scoping and attachment ingestion.
-- **Slack**: Events API and Socket Mode adapter for workspace collaboration.
-
-### Bi-directional Audio & Voice Engine
-- **Inbound STT (Speech-to-Text)**: Automatically transcribes voice notes and audio clips using OpenAI Whisper with automatic MIME-type detection.
-- **Outbound TTS (Text-to-Speech)**: Synthesizes spoken voice notes using ElevenLabs or OpenAI TTS (`alloy`, `echo`, `fable`, `onyx`, `nova`, `shimmer`).
-- **Interactive Approval Gates**: Interactive inline approval buttons for high-risk tool operations sent directly to Telegram or WhatsApp.
-
-Run the gateway daemon:
-```bash
-gaia gateway run
-```
-
----
-
-## 🌐 OpenAI-Compatible REST & Streaming API Server
-
-Expose GAIA as a drop-in replacement for OpenAI endpoints, allowing any existing client (Cursor, LibreChat, Open WebUI, Continue) to connect to GAIA:
-
-```bash
-# Start API server on default port 8080
-gaia serve
-
-# Or customize host, port, and authentication key
-gaia serve --port 9090 --host 0.0.0.0 --key "my-secret-key"
-```
-
-### Endpoints
-- `POST /v1/chat/completions`: Supports standard JSON payloads and real-time streaming SSE (`text/event-stream` ending in `data: [DONE]`).
-- `GET /v1/models`: Enumerates available models and active profiles.
-- `GET /healthz` & `GET /api/health`: Liveness and readiness health checks.
-- **Security**: Constant-time Bearer token authentication (`subtle.ConstantTimeCompare`) and configurable CORS headers.
-
----
-
-## 🌐 Headless Browser Automation
-
-GAIA features an embedded headless browser driver powered by `chromedp` and zero-config system executable detection:
-
-- **Auto-Detection**: Discovers native `google-chrome`, `chromium`, `brave`, `microsoft-edge`, or Flatpak browser installations.
-- **Execution**: Runs in `--headless=new` mode with configurable viewports, timeouts, and user data directories.
-- **Tools**:
-  - `browser_navigate`: Navigates to any URL, executes client-side scripts, and converts the rendered DOM to clean Markdown.
-  - `browser_action`: Performs interactive actions (`click`, `type`, `scroll`, `evaluate` JavaScript).
-  - `browser_screenshot`: Captures full-page screenshots saved to disk.
-  - `browser_close`: Terminates the headless session and releases browser processes.
-
----
-
-## 🧠 Mnemosyne Persistent Memory Engine
-
-GAIA's memory subsystem (`internal/mneme`) provides project-isolated, hybrid search memory that persists across restarts and context windows:
-
-- **Hybrid Search Engine**: Combines SQLite FTS5 Full-Text Search with Vector Cosine Similarity using Reciprocal Rank Fusion (RRF).
-- **Project Isolation**: Observations and context layers are partitioned by project workspace and lifecycle state (`active` vs `needs_review`).
-- **Curator & Summarizer**: Automatic compaction, distillation of long sessions, and extraction of durable facts and user preferences.
-
----
-
-## 🎓 Autonomous Skills & Procedural Learning
-
-GAIA follows the open standard defined by `agentskills.io`:
-
-- **Autonomous Skill Creation**: The agent can create new operational skills (`create_skill`) or read existing skills (`read_skill`) when discovering novel solutions.
-- **CLI Management**:
-  ```bash
-  # List all installed skills
-  gaia skill list
-
-  # Inspect a skill
-  gaia skill show my-skill
-
-  # Create or update a skill via CLI
-  gaia skill create my-skill --desc "Skill description" --trigger "When working on..."
-
-  # Delete a skill
-  gaia skill delete my-skill -f
-  ```
-
----
-
-## 🛠️ Operations: Backup, Restore & Self-Updater
-
-GAIA includes built-in operational tooling for lifecycle maintenance:
-
-### 1. Profile Backup & Restore
-Back up databases, profiles, credentials, skills, and configuration into manifest-backed TAR archives protected with SHA256 checksums and path-traversal sanitization:
-```bash
-# Create a backup archive
-gaia backup create dev -o dev-backup.tar.gz
-
-# Inspect archive contents without unpacking
-gaia backup dev-backup.tar.gz
-
-# Restore into a target profile
-gaia restore dev-backup.tar.gz -profile dev -force
-```
-
-### 2. Autonomous Self-Updater
-Inspect and update the GAIA binary directly from GitHub releases with SemVer comparison, checksum validation, and atomic binary replacement:
-```bash
-# Check if a newer version is available
-gaia update --check
-
-# Apply latest update with automatic pre-update backup
-gaia update --backup
-
-# Pin or install a specific release version
-gaia update --version v0.6.0
-```
+### 🧠 [Mnemosyne Persistent Memory Engine](docs/architecture.md#mnemosyne-memory-architecture)
+Hybrid memory engine combining SQLite FTS5 Full-Text Search with Vector Cosine Similarity via Reciprocal Rank Fusion (RRF). Observations and durable facts are partitioned by project workspace and lifecycle states (`active` vs `needs_review`) with automatic background compaction.  
+👉 **[Learn about Memory & Storage →](docs/architecture.md)**
 
 ---
 
@@ -319,6 +161,7 @@ Explore the complete guides in the [docs/](docs) directory:
 | **Unified Ecosystem Master Plan** | [docs/unified-gaia-ecosystem.md](docs/unified-gaia-ecosystem.md) |
 | **AGIS to GAIA Porting Guide** | [docs/agis-to-gaia-porting-guide.md](docs/agis-to-gaia-porting-guide.md) |
 | **Profiles & Persona System** | [docs/persona.md](docs/persona.md) |
+| **Gateways & Voice Engine** | [docs/gateway.md](docs/gateway.md) |
 | **Skills Hub** | [docs/skills.md](docs/skills.md) |
 | **Subagents System** | [docs/subagents.md](docs/subagents.md) |
 | **Security Architecture** | [docs/security.md](docs/security.md) |
