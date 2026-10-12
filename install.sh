@@ -36,20 +36,14 @@ BINARY_NAME="gaia-${OS}-${ARCH}"
 
 echo "🔍 Detected Platform: ${OS}/${ARCH}"
 
-# 3. Get latest release tag from GitHub API
-LATEST_RELEASE=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" 2>/dev/null | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/' || echo "")
-
-if [ -z "$LATEST_RELEASE" ]; then
-  DOWNLOAD_URL="https://github.com/${REPO}/releases/latest/download/${BINARY_NAME}"
-else
-  DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${LATEST_RELEASE}/${BINARY_NAME}"
-  echo "📦 Downloading GAIA release ${LATEST_RELEASE}..."
-fi
+# 3. Download release binary
+DOWNLOAD_URL="https://github.com/${REPO}/releases/latest/download/${BINARY_NAME}"
+echo "📦 Downloading GAIA from GitHub Releases..."
 
 TMP_DIR=$(mktemp -d)
 TMP_FILE="${TMP_DIR}/gaia"
 
-if ! curl -fsSL "$DOWNLOAD_URL" -o "$TMP_FILE"; then
+if ! curl -fL --progress-bar "$DOWNLOAD_URL" -o "$TMP_FILE"; then
   echo "⚠️ Failed to download prebuilt binary from release. Building from source if Go is available..."
   if command -v go >/dev/null 2>&1; then
     go install "github.com/${REPO}/cmd/gaia@latest"
