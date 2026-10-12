@@ -1,120 +1,93 @@
-# Security Model & PolicyGuard
+# GAIA Security Model & Defense in Depth
 
-GAIA is a programming-first autonomous agent with access to the local file system, terminal, git, and external APIs. Security is enforced at multiple layers to protect against accidental damage, secret leaks, and unauthorized execution.
+GAIA is an autonomous agent with broad local filesystem, terminal, and network capabilities. To ensure safe operation in mission-critical environments, GAIA employs a **multi-layered Defense in Depth architecture**:
 
----
-
-## API Key & Secret Storage
-
-| Risk | Mitigation |
-|---|---|
-| Keys stored in plain text | Keys stored in OS keychain (Windows Credential Manager, macOS Keychain, Linux secret-service) or encrypted config file |
-| Keys leaked in conversation | Automatic redaction of `sk-*`, `ghp_*`, `github_pat_*`, `Bearer *`, and custom secret patterns from messages |
-| Keys leaked in tool output | Redaction engine scans all tool stdout/stderr before returning to LLM |
-| Subagent access to secrets | **Secret scoping**: each subagent only receives the exact environment secrets required |
-
-API keys can be configured via:
-1. **Environment variables** — `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, etc.
-2. **Config file** — `~/.gaia/config.yaml` (auto-redacted from output)
-3. **OS keychain** — Recommended for production
+```mermaid
+graph TD
+    Inbound["Inbound Traffic (TUI / API / Gateways)"] --> L1["Layer 1: Prompt Injection Scanner (internal/scan)"]
+    L1 --> L2["Layer 2: Transport & Webhook Crypto (HMAC-SHA256 & Timing-Safe Auth)"]
+    L2 --> L3["Layer 3: Magic-Byte Media Verification (internal/gateway/media)"]
+    L3 --> L4["Layer 4: Cognitive PolicyGuard & Confirmation Modes"]
+    L4 --> L5["Layer 5: Network SSRF Guard & DNS Rebind Defense"]
+    L5 --> L6["Layer 6: Tool Sandboxing & Path-Traversal Sanitization"]
+    L6 --> L7["Layer 7: Out-of-Band Interactive Approver (TG / WA)"]
+    L7 --> Exec["Safe Tool Execution"]
+```
 
 ---
 
-## PolicyGuard Security Tiers
+## 🛡️ Multi-Layer Security Architecture
 
-PolicyGuard governs project-level execution boundaries via explicit policy tiers initialized per project or per platform:
+### Layer 1: Real-Time Prompt Injection Defense (`internal/scan/`)
+Every inbound message from any source is scanned before reaching the Brain:
+- **Jailbreak Mitigation**: Detects adversarial roleplays, simulation traps, and DAN-style bypasses.
+- **System Prompt Exfiltration Protection**: Identifies attempts to dump internal instructions, `SOUL.md` weights, or configuration tokens.
+- **Indirect Prompt Injection Scanner**: Scans third-party content (scraped web pages, Git commits, fetched issues) to prevent remote instructions from taking over the agent loop.
 
+### Layer 2: Cryptographic Transport & Constant-Time Auth
+- **OpenAI API Server (`internal/server/auth.go`)**: Validates Bearer tokens using `subtle.ConstantTimeCompare` to completely neutralize timing attack vectors.
+- **WhatsApp Meta Cloud API (`internal/gateway/whatsapp.go`)**: Verifies HMAC-SHA256 payload signatures against the configured Meta App Secret (`X-Hub-Signature-256`) before parsing incoming webhook events.
+
+### Layer 3: Magic-Byte Media Ingestion (`internal/gateway/media.go`)
+Attachments received over Telegram, WhatsApp, Discord, or Slack are not trusted by file extension alone:
+- **File Signature Inspection**: Ingested files are validated against their initial magic bytes to verify genuine audio (`audio/ogg`, `audio/mpeg`, `audio/mp4`), images (`image/png`, `image/jpeg`, `image/webp`), and documents.
+- **Spoofing Prevention**: Prevents executable binaries or polyglot scripts disguised with image or audio extensions from reaching downstream transcription or vision pipelines.
+
+### Layer 4: PolicyGuard Security Tiers (`internal/core/policyguard/`)
+PolicyGuard enforces workspace-level boundaries:
+
+| Tier | Filesystem Scope | Allowed Tool Operations | Target Environment |
+|---|---|---|---|
+| **`read`** | Read-only | File reading, AST search, code review | Security auditing, unfamiliar codebases |
+| **`sandbox`** | Current workspace only | Gated tools and shell allowlist; paths locked to repo | Standard engineering, feature dev |
+| **`full`** | System-wide | Unrestricted shell and file modification | Trusted local workstation |
+
+Initialize workspace tier:
 ```bash
 gaia policy init --tier=sandbox
 ```
 
-| Tier | Workspace Scope | Network & Tools | Best for |
-|---|---|---|---|
-| **full** | Unrestricted filesystem access | All tools and shell commands allowed | Trusted projects, local development |
-| **sandbox** | Restricted to current workspace directory | Gated tools and shell allowlist | Standard development, external PRs |
-| **read** | Read-only filesystem access | File reading and search tools only; no code execution | Code review, security inspection |
+### Layer 5: SSRF Guard & DNS Rebind Mitigation (`internal/tools/web/fetch/`)
+The web fetch tool implements rigorous Server-Side Request Forgery defenses:
+- **Private IP Blocking**: Prohibits requests to `127.0.0.1`, `::1`, RFC 1918 subnets (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`), link-local IPs (`169.254.0.0/16`), and AWS metadata endpoints (`169.254.169.254`).
+- **DNS Resolution Pinning**: Resolves domain IPs and validates every returned IP address before establishing connections, preventing DNS rebinding exploits.
+
+### Layer 6: Path Traversal Sanitization & Backup Integrity (`internal/backup/`)
+- **Archive Extraction Protection**: The restore subsystem inspects every archive path, rejecting any target containing `..`, absolute root paths, or symlink targets pointing outside the profile directory.
+- **Cryptographic Manifest Verification**: Backups include a signed manifest with SHA256 hashes and file permissions. Restore aborts immediately upon any checksum mismatch.
+
+### Layer 7: Out-of-Band Interactive Approver (`internal/gateway/approver.go`)
+When running as a headless daemon over Telegram or WhatsApp, operations requiring human authorization generate an **Interactive Approval Gate**:
+- The agent pauses execution and transmits an inline authorization card with **[Approve]** and **[Deny]** buttons directly to the authorized user's chat.
+- Execution resumes only after a cryptographically authorized click from an allowlisted user ID.
 
 ---
 
-## Confirmation Modes
+## 🔑 Secret Redaction & Key Protection
 
-GAIA supports 4 interaction confirmation levels:
-
-| Mode | Behavior | Best for |
-|---|---|---|
-| **always** (default) | Ask before every dangerous operation | New users, learning the agent |
-| **per-session** | Ask once per session; all subsequent ops auto-confirm | Daily coding sessions |
-| **per-action** | Confirm only the current action; next action asks again | One-off commands |
-| **never** (YOLO) | Never ask; all operations execute without confirmation | CI/CD, automation, experienced users |
-
-Change modes in-session:
-
-```text
-/trust session      → Trust all actions this session
-/trust once         → Trust only the next action
-/trust always       → Revert to always-ask mode
-/trust never        → YOLO mode — no confirmations
-```
-
-Configure the default in `config.yaml`:
-
-```yaml
-security:
-  confirmation_mode: always
-```
-
-Headless mode (`gaia exec`) respects confirmation mode. If `always`, headless operations block unless `--yes` is passed.
-
----
-
-## Tool Execution Security
-
-| Risk | Mitigation |
+| Vector | Mitigation |
 |---|---|
-| Shell injection via tool arguments | All shell commands use parameterized execution (no string interpolation). Path and argument validation before execution. |
-| Path traversal (accessing files outside project) | `ValidatePath()` resolves symlinks and validates against an allowed workspace root. |
-| URL safety (SSRF, malicious endpoints) | `ValidateURL()` blocks private IP ranges, localhost, internal services by default. |
-| Dangerous commands (rm -rf, dd, etc.) | Threat pattern detection flags known dangerous command patterns. Require explicit override. |
-| Resource exhaustion | Iteration budget caps per subagent. Timeout per command. Max output size limit. |
-
-### Shell Allowlist
-
-The shell module maintains an allowlist of safe commands:
-
-```text
-git, go, npm, npx, pnpm, yarn, cargo, rustc, python, python3,
-node, deno, bun, make, cmake, mvn, gradle, docker, kubectl,
-curl, wget, tar, zip, unzip, gzip, cat, head, tail, grep,
-awk, sed, sort, cut, tr, wc, find, xargs, echo, printf, whoami
-```
-
-Commands not on the allowlist require explicit user confirmation.
+| Keys leaked in chat history | Automatic redaction of `sk-*`, `ghp_*`, `github_pat_*`, `Bearer *`, and custom token regexes from all inbound and outbound streams. |
+| Keys leaked in tool logs | The logging middleware scrubs all environment variables, stdout, and stderr streams before persisting or presenting turns. |
+| Subagent secret scoping | Subagents run in isolated environments receiving only authorized environment variables. |
 
 ---
 
-## Skill Security
+## 🚦 Interaction Trust Modes
 
-| Risk | Mitigation |
+Configure confirmation behavior in `config.yaml` or change dynamically in session:
+
+| Mode | Behavior |
 |---|---|
-| Malicious skill loading | **Skill provenance**: track origin (official hub, community tap, user-created). **AST audit**: parse skill files for dangerous patterns before loading. |
-| Skill exfiltration | Skills run in a restricted context with defined read/write scope. Network access gated by tool permissions. |
-| Skill privilege escalation | Skills cannot modify other skills or GAIA's own config. Skills cannot disable security features. |
+| **`interactive`** (default) | Prompts for confirmation before executing any state-changing or high-risk tool. |
+| **`always`** | Prompts before every shell command or file edit. |
+| **`session`** | Prompts once for permission; remembers authorization for the duration of the current session. |
+| **`never` (YOLO)** | Never prompts; executes autonomously (intended strictly for isolated CI/CD containers). |
 
-Audit installed skills:
-
-```bash
-gaia audit skills           # Scan for dangerous patterns
-gaia skills list --verbose  # Show provenance for each skill
+Switch trust modes dynamically in the TUI:
+```text
+/trust session    → Trust operations for this session
+/trust always     → Require human approval for all actions
+/trust once       → Approve only the next immediate tool call
 ```
 
----
-
-## Security Audit Commands
-
-```bash
-gaia doctor              # Check security config, key storage, permissions
-gaia policy init         # Initialize PolicyGuard tier for current workspace
-gaia audit secrets       # Scan project for committed secrets
-gaia audit skills        # Scan installed skills for dangerous patterns
-gaia security log        # Show security-relevant events (approvals, denials)
-```
