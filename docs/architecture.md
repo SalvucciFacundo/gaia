@@ -1,151 +1,299 @@
-# Architecture
+# GAIA System Architecture
 
-GAIA follows a **hexagonal (ports & adapters) architecture** written in Go. The core is framework-agnostic, with all integrations behind interface boundaries.
-
----
-
-## Package Layout
-
-```text
-gaia/
-├── cmd/gaia/                 # CLI entry points (main, exec, review, cron, gateway, etc.)
-├── internal/
-│   ├── agent/                # Subagent system (spawner, registry, sdd, ops, learn)
-│   ├── core/                 # Core domain (domain, ports, kernel, policyguard, registry)
-│   ├── modules/              # Tool modules (shell, fileops, gitops, security)
-│   ├── review/               # BR review engine (engine, states, lenses, CAS store)
-│   ├── skills/               # Skills Hub (registry, downloader, tap, AST audit)
-│   ├── cron/                 # Cron scheduler & delivery targets
-│   ├── mcp/                  # MCP client (JSON-RPC stdio & SSE)
-│   ├── gateway/              # Multi-platform messaging gateway (Telegram, Discord, Slack)
-│   ├── webhook/              # Webhook listener (HTTP + HMAC-SHA256)
-│   ├── lsp/                  # LSP client & diagnostics parser
-│   ├── plugins/              # Plugin loader and manager
-│   ├── browser/              # Headless browser MCP plugin
-│   ├── doctor/               # System diagnostics and self-healing
-│   └── config/               # YAML configuration loader & saver
-├── internal/adapters/        # Infrastructure Adapters
-│   ├── llm/                  # 19 LLM providers router & credential pool
-│   ├── tui/                  # Cyberpunk Bubbletea TUI
-│   ├── desktop/              # Wails Desktop UI
-│   ├── db/                   # SQLite persistence & migrations
-│   └── output/               # JSON/text output formatters
-├── docs/                     # 18 official documentation guides
-└── Makefile
-```
+GAIA follows a strict **Hexagonal Architecture (Ports and Adapters)** implemented in Go. The core cognitive loop is completely framework-agnostic, with all protocols, storage engines, UI layers, and messaging gateways decoupled behind clean interface boundaries.
 
 ---
 
-## The Agent Loop (Brain)
-
-`internal/core/kernel.go` — The Brain is the heart of GAIA:
-
-```mermaid
-flowchart TD
-    IN["User Message / Prompt"] --> PROC["ProcessMessage(ctx, content)"]
-    
-    PROC --> ODD{"DetectODDRoute(content)"}
-    ODD -- "Feature Tracking (/odd)" --> FEAT["Feature Tracking Pipeline (@proposer, @specifier, ...)"]
-    ODD -- "Delegated Worker" --> WORKER["Dynamic Bounded Worker (@explorer, @implementer, @verifier)"]
-    ODD -- "Inline Budget (/inline)" --> INLINE["Inline Parent Execution"]
-    
-    INLINE --> KG["Knowledge Graph Recall (Query Facts)"]
-    KG --> SKILL["Skill Registry (Select Active Skills)"]
-    SKILL --> ROUTE["Provider Router (Select LLM & Pool)"]
-    ROUTE --> LLM["LLM Call (Stream or Chat)"]
-    
-    LLM --> TOOLS{"Tool Calls Requested?"}
-    TOOLS -- "Yes" --> GUARD["PolicyGuard & Edit Authority (Permission Check)"]
-    GUARD --> EXEC["ToolRegistry.Execute(module)"]
-    EXEC --> TRACK["MidTurnBudgetTracker (Monitor reads, tokens, writes)"]
-    TRACK --> MIDDELEG{"Crossed Boundaries?"}
-    MIDDELEG -- "Yes" --> DYNMID["Dynamic Mid-Turn Worker Delegation"]
-    MIDDELEG -- "No" --> REDACT["RedactSecrets (Mask Output)"]
-    REDACT --> LLM
-    
-    TOOLS -- "No" --> BUD["Consume Iteration Budget"]
-    BUD --> SAVE["Save Turn to SQLite Session Store"]
-    SAVE --> OUT["Stream Output to TUI / Web / Gateway"]
-```
-
----
-
-## Subagent System
-
-`internal/agent/` — Each subagent is an autonomous LLM-powered worker with its own memory namespace:
-
-```mermaid
-flowchart TD
-    ORCH["🧠 GAIA Orchestrator"] --> SPAWN["Spawner.RunLoop(ctx, systemPrompt, tools)"]
-    
-    SPAWN --> BRAIN["1. Spawns Isolated Brain instance"]
-    SPAWN --> TOOLS["2. Filters tool allowlist (Scope Confinement)"]
-    SPAWN --> MEM["3. Injects dedicated SQLite Memory Namespace"]
-    SPAWN --> BUDGET["4. Executes bounded iteration & token budget"]
-    
-    BUDGET --> RES["5. Returns Terminal SubagentResult"]
-    RES --> ORCH
-```
-
----
-
-## Review State Machine
-
-`internal/review/state.go` — 13 states with content-bound SHA256 receipts:
-
-```mermaid
-flowchart TD
-    UNREV["unreviewed"] --> REV["reviewing\n(Start review)"]
-    REV --> JD{"Judgment Day?"}
-    JD -- "Yes" --> CONF["judges_confirmed\n(Dual Judges)"]
-    JD -- "No" --> FROZEN["findings_frozen"]
-    CONF --> FROZEN
-    
-    FROZEN --> CLASS["evidence_classified\n(Classify Severity)"]
-    CLASS --> CHK{"Blockers Found?"}
-    CHK -- "Yes" --> FIX["fix_required ➔ fixing ➔ fix_validating"]
-    FIX --> READY["ready_final_verification"]
-    CHK -- "No" --> READY
-    
-    READY --> FINAL["final_verifying\n(Tests + Build check)"]
-    FINAL --> APP["approved\n(SHA256 CAS Receipt)"]
-    FINAL --> ESC["escalated\n(Human decision)"]
-    FINAL --> INV["invalidated\n(Code changed)"]
-```
-
----
-
-## LLM Provider Router & Failover
-
-`internal/adapters/llm/router.go` — Manages 19 providers with automatic failover and rate-limit cooldown:
-
-```mermaid
-flowchart TD
-    REQ["Router.Chat / Stream(ctx, messages)"] --> P1["Try Primary Provider (e.g. Anthropic)"]
-    P1 -- "Success" --> OK["Return Stream / Response"]
-    P1 -- "Rate Limit / 429" --> COOL["Set Cooldown & Try Fallback (e.g. DeepSeek / OpenAI)"]
-    COOL -- "Success" --> OK
-    COOL -- "Fail" --> P3["Try Local Provider (e.g. Ollama)"]
-    P3 -- "Success" --> OK
-    P3 -- "All Failed" --> ERR["Return Structured Provider Error"]
-```
-
-Each provider adapter implements:
-- `Chat(ctx, messages) → (*Message, error)`
-- `Stream(ctx, messages) → (<-chan TokenChunk, error)`
-- `Tools() → []ToolDef`
-
----
-
-## Persistence & Storage
+## 🏛️ High-Level Hexagonal Topology
 
 ```mermaid
 graph TD
-    subgraph Storage ["SQLite Storage Engine (~/.gaia/gaia.db)"]
-        S1["Sessions & Conversation History"]
-        S2["Knowledge Graph Facts & FTS5 Index"]
-        S3["Cron Scheduled Jobs & History"]
-        S4["Skills Metadata & Trust Registry"]
-        S5["CAS Review Receipts & Verification Evidence"]
+    subgraph Drivers ["Driving Adapters (Primary / Inbound)"]
+        TUI["Cyberpunk TUI (BubbleTea)"]
+        WEB["Web UI Dashboard (templ + htmx)"]
+        API["OpenAI API Server (/v1/chat/completions)"]
+        GW["Messaging Gateways (TG, WA, DC, Slack)"]
+        CLI["CLI Commands (exec, profile, backup, skill)"]
     end
+
+    subgraph PortsIn ["Inbound Ports"]
+        P_Chat["ChatCompletionService"]
+        P_Gateway["GatewayEventDispatcher"]
+        P_Session["SessionManagementPort"]
+    end
+
+    subgraph Core ["Cognitive Core (Hexagon)"]
+        Brain["GAIA Brain (Orchestrator)"]
+        Profiles["Profiles Engine (dev, assistant, art)"]
+        Soul["Bayesian Soul & Persona Evolution"]
+        Catalog["Global Tool Catalog"]
+        ODD["Organic Driven Development (ODD)"]
+        Subagents["12+ Autonomous Subagents"]
+        Scanner["Prompt Injection Scanner"]
+    end
+
+    subgraph PortsOut ["Outbound Ports"]
+        P_LLM["LLMProvider (19 Vendors)"]
+        P_Memory["MemoryRepository (Mnemosyne)"]
+        P_Audio["AudioTranscriber & Synthesizer"]
+        P_Browser["BrowserDriver (Chromedp)"]
+        P_Tools["ToolExecutor"]
+    end
+
+    subgraph Driven ["Driven Adapters (Secondary / Outbound)"]
+        LLM["Router & Credential Pool (OpenAI, Anthropic, DeepSeek, etc.)"]
+        MNEME["Mneme Engine (SQLite FTS5 + Vector + RRF)"]
+        AUDIO["Audio Adapters (Whisper STT, ElevenLabs / OpenAI TTS)"]
+        BROWSER["CLIDriver (Chrome, Brave, Edge, Flatpak)"]
+        SYS["System Drivers (FileOps, GitOps, Sandbox Shell)"]
+    end
+
+    Drivers --> PortsIn
+    PortsIn --> Core
+    Core --> PortsOut
+    PortsOut --> Driven
 ```
+
+---
+
+## 📦 Package Layout (60 Modular Packages)
+
+```text
+gaia/
+├── cmd/gaia/                     # Unified CLI & Daemon Entry Points
+│   ├── main.go                   # Command routing & flag dispatch
+│   ├── profile.go                # Profile management & tool enablement
+│   ├── serve.go                  # OpenAI REST/SSE API server & Web UI
+│   ├── gateway.go                # Multi-channel messaging daemon
+│   ├── skill.go                  # Skill CRUD & hub inspection
+│   ├── backup.go                 # Profile backup & restore
+│   ├── update.go                 # Self-updater CLI
+│   └── exec.go                   # Headless batch execution
+│
+├── internal/
+│   ├── core/                     # Core Domain, Brain & Execution Kernel
+│   │   ├── domain/               # Core data models, configs, tool defs
+│   │   ├── ports/                # Hexagonal ports (Transcriber, Synthesizer, LLM)
+│   │   ├── kernel.go             # Brain loop & tool invocation engine
+│   │   ├── blocking/             # Human confirmation & interactive guard
+│   │   └── policyguard/          # Tier-based execution security
+│   │
+│   ├── profiles/                 # Modular Profiles & Persona Subsystem
+│   │   ├── manager.go            # Thread-safe profile manager & tool filter
+│   │   ├── assistant.go          # Personal assistant profile definition
+│   │   ├── dev.go                # Software architect profile definition
+│   │   └── art.go                # Visual & creative profile definition
+│   │
+│   ├── persona/                  # Bayesian Soul Evolution & Tuning
+│   ├── scan/                     # Real-time Prompt Injection Scanner
+│   │
+│   ├── tools/                    # Global Tool Catalog & Built-in Toolsets
+│   │   ├── catalog.go            # ToolCatalog registry & category index
+│   │   ├── browser/              # Headless browser automation (chromedp driver)
+│   │   ├── web/fetch/            # SSRF-guarded fetch & HTML-to-Markdown
+│   │   ├── web/search/           # Multi-provider web search (DDG, Brave, SearXNG)
+│   │   ├── create_skill.go       # Autonomous skill creation tool
+│   │   ├── read_skill.go         # Autonomous skill inspection tool
+│   │   ├── tool_search.go        # Dynamic tool search in catalog
+│   │   └── load_tool.go          # Lazy tool parameter inspection
+│   │
+│   ├── mneme/                    # Mnemosyne Persistent Memory Engine
+│   │   ├── migrations/           # SQLite migrations (0001 to 0008)
+│   │   ├── sqlite.go             # SQLite connection & CRUD repository
+│   │   ├── fts.go                # SQLite FTS5 Full-Text Search
+│   │   ├── vector.go             # Vector cosine similarity
+│   │   ├── rrf.go                # Reciprocal Rank Fusion hybrid search
+│   │   ├── hybrid.go             # Combined FTS + Vector retriever
+│   │   ├── usermodel.go          # User model & durable preferences
+│   │   ├── curator.go            # Background memory compaction & distillation
+│   │   └── summarizer.go         # Turn-level session summarization
+│   │
+│   ├── server/                   # OpenAI-Compatible REST & SSE Server
+│   │   ├── server.go             # HTTP server with graceful shutdown
+│   │   ├── chat.go               # /v1/chat/completions (JSON & SSE stream)
+│   │   ├── auth.go               # Constant-time Bearer token verification
+│   │   ├── cors.go               # Configurable CORS middleware
+│   │   └── types.go              # OpenAI DTOs & chunk structures
+│   │
+│   ├── gateway/                  # Multi-Platform Messaging Gateways
+│   │   ├── multiplexer.go        # Cross-gateway message & audio multiplexer
+│   │   ├── telegram.go           # Telegram Bot API adapter
+│   │   ├── whatsapp.go           # WhatsApp Meta Cloud API & webhooks
+│   │   ├── discord.go            # Discord Bot gateway adapter
+│   │   ├── slack.go              # Slack Events API & Socket Mode
+│   │   ├── media.go              # Magic-byte media ingest & validation
+│   │   └── approver.go           # Interactive inline approval gates
+│   │
+│   ├── adapters/
+│   │   ├── audio/                # Multi-Provider Audio Processing Engine
+│   │   │   ├── factory.go        # Transcriber & Synthesizer factory
+│   │   │   ├── whisper.go        # OpenAI Whisper STT client
+│   │   │   ├── elevenlabs.go     # ElevenLabs TTS client
+│   │   │   └── openai.go         # OpenAI TTS client
+│   │   ├── llm/                  # 19 LLM Provider Router & Credential Pool
+│   │   ├── tui/                  # BubbleTea Cyberpunk TUI & Lipgloss diffs
+│   │   └── web/views/            # Web UI Dashboard (templ + TailwindCSS)
+│   │
+│   ├── subagents/                # Ephemeral Worktrees & Distillation
+│   ├── session/                  # Multi-Channel Conversation Sessions
+│   ├── backup/                   # Manifest-Backed TAR Backup & Restore
+│   ├── updater/                  # GitHub Release Self-Updater with SemVer
+│   ├── version/                  # SemVer comparison & build metadata
+│   └── modules/                  # System Modules (shell, fileops, gitops)
+```
+
+---
+
+## 🧠 The Agent Loop (Brain & ODD Pipeline)
+
+`internal/core/kernel.go` orchestrates execution using **Organic Driven Development (ODD)**:
+
+```mermaid
+flowchart TD
+    IN["Inbound Message (TUI / API / Gateway)"] --> SCAN["Injection Scanner (internal/scan)"]
+    SCAN -- "Threat Detected" --> REJECT["Reject Message & Log Alert"]
+    SCAN -- "Clean" --> ROUTE{"Detect ODD Route"}
+
+    ROUTE -- "Feature Tracking (/odd)" --> FEAT["Spec & Tasks Pipeline"]
+    ROUTE -- "Delegated Unit" --> SUB["Dynamic Bounded Subagent"]
+    ROUTE -- "Inline Budget (/inline)" --> BRAIN["Parent Brain Loop"]
+
+    BRAIN --> CTX["Hydrate Context (Mneme Memory + Active SOUL)"]
+    CTX --> TOOLS["Filter Active Tools from Catalog (ProfileConfig.Tools)"]
+    TOOLS --> LLM["LLM Router Call (19 Providers)"]
+
+    LLM --> DECIDE{"Tool Requested?"}
+    DECIDE -- "Yes" --> POLICY{"PolicyGuard Check"}
+    POLICY -- "High Risk" --> CONFIRM["Interactive Human Approval (TUI / Gateway Button)"]
+    CONFIRM -- "Approved" --> EXEC["Execute Catalog Tool"]
+    CONFIRM -- "Denied" --> FEEDBACK["Return Denial to LLM"]
+    POLICY -- "Permitted" --> EXEC
+
+    EXEC --> MID{"Crossed Boundary?"}
+    MID -- "Yes" --> DELEGATE["Spawn Bounded Worker"]
+    MID -- "No" --> REDACT["Redact Secrets & Return Result"]
+    REDACT --> LLM
+
+    DECIDE -- "No" --> FINALIZE["Record Turn & Summary to Mneme"]
+    FINALIZE --> DISPATCH["Dispatch Response (SSE / Chat / Voice Note)"]
+```
+
+---
+
+## 🧰 Global Tool Catalog & Profile Decoupling
+
+GAIA strictly separates **Identity** from **Capabilities**:
+
+```mermaid
+graph LR
+    subgraph Profiles ["Profile Layer"]
+        P_Dev["dev (Software Architect)"]
+        P_Ast["assistant (Personal Assistant)"]
+        P_Art["art (Visual Reasoning)"]
+    end
+
+    subgraph Catalog ["Global Tool Catalog (internal/tools)"]
+        T_Web["web_search, fetch"]
+        T_Browser["browser_navigate, action, screenshot"]
+        T_Sys["exec_command, fileops, git"]
+        T_Skill["create_skill, read_skill"]
+        T_Meta["tool_search, load_tool"]
+    end
+
+    subgraph Execution ["Execution Engine"]
+        Brain["GAIA Brain"]
+    end
+
+    P_Dev -.->|"Selected Tools [A, B, C]"| Catalog
+    P_Ast -.->|"Selected Tools [B, D, E]"| Catalog
+    P_Art -.->|"Selected Tools [C, E]"| Catalog
+    Catalog --> Brain
+```
+
+- Each profile suggests a baseline toolset, but the user can enable or disable **any** tool for **any** profile at runtime via `gaia profile tools enable <profile> <tool>` or declaratively via `config.yaml`.
+- The Brain dynamically routes requested tool calls through the `ToolCatalog` using thread-safe execution handlers.
+
+---
+
+## 📡 Multi-Channel Gateway & Audio Multiplexer
+
+The messaging gateway architecture enables simultaneous bi-directional interaction across Telegram, WhatsApp, Discord, and Slack:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as User (Telegram / WhatsApp)
+    participant GW as Gateway Adapter (WA / TG)
+    participant MUX as Multiplexer
+    participant STT as Whisper Audio STT
+    participant Brain as GAIA Brain
+    participant TTS as ElevenLabs / OpenAI TTS
+
+    User->>GW: Sends Voice Note (.ogg / .m4a)
+    GW->>MUX: Ingests Audio Attachment
+    MUX->>STT: Transcribes audio bytes
+    STT-->>MUX: "Create unit test for auth module"
+    MUX->>Brain: Dispatches text message
+    Brain->>Brain: Executes tasks via ToolCatalog
+    Brain-->>MUX: Outbound reply text
+    opt TTS Enabled
+        MUX->>TTS: Synthesizes speech from reply
+        TTS-->>MUX: Audio bytes (.mp3 / .ogg)
+        MUX->>GW: SendVoice(chat_id, audio)
+        GW-->>User: Returns voice note
+    end
+    MUX->>GW: SendText(chat_id, text)
+    GW-->>User: Returns markdown text message
+```
+
+---
+
+## 🧠 Mnemosyne Memory Architecture
+
+```mermaid
+graph TD
+    subgraph Inputs ["Observation Sources"]
+        UserTurns["User Messages & Goals"]
+        ToolOutputs["Tool Outputs & Findings"]
+        Distillation["Subagent Distillation Pipeline"]
+    end
+
+    subgraph Mneme ["Mnemosyne Engine (internal/mneme)"]
+        Ingest["Repository.SaveObservation()"]
+        FTS["FTS5 Inverted Index (Lexical BM25)"]
+        Vec["Vector Cosine Index (Semantic Embeddings)"]
+        RRF["Reciprocal Rank Fusion (RRF Aggregator)"]
+        Curator["Curator & Summarizer (Compaction)"]
+    end
+
+    subgraph Storage ["SQLite Persistence (~/.config/gaia/mneme.db)"]
+        DB_Obs["observations (project, workspace, status)"]
+        DB_Conv["conversations (goal, next_steps, relevant_files)"]
+        DB_User["user_model (preferences & habits)"]
+    end
+
+    Inputs --> Ingest
+    Ingest --> FTS
+    Ingest --> Vec
+    Ingest --> DB_Obs
+    Ingest --> DB_Conv
+    FTS --> RRF
+    Vec --> RRF
+    RRF --> SearchResult["Hybrid Recall (ObservationsByProject)"]
+    Curator --> DB_Obs
+    Curator --> DB_User
+```
+
+---
+
+## 🛡️ Security, Review & PolicyGuard
+
+1. **PolicyGuard (`internal/core/policyguard/`)**:
+   - Three operational tiers: `read`, `sandbox`, `full`.
+   - Denies destructive commands (`rm -rf /`, raw disk formatting, unsafe credentials exposure) and escalates overrides to human confirmation.
+2. **Interactive Approver (`internal/gateway/approver.go`)**:
+   - Out-of-band interactive approval over Telegram/WhatsApp for dangerous tool operations using inline keyboard buttons.
+3. **4R Review Engine (`internal/review/`)**:
+   - Receipt-Driven Development evaluating 4 lenses: **Risk**, **Resilience**, **Readability**, and **Reliability**.
+   - Generates cryptographically sealed SHA256 CAS receipts enforced at `pre-commit` and `pre-push` Git hooks.
+
