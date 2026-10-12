@@ -1,168 +1,260 @@
-# Configuration Reference
+# GAIA Configuration Reference
 
-GAIA is configured via `~/.gaia/config.yaml`. A template is created on first run.
+GAIA is configured via a single YAML file loaded from:
+1. `--config <path>` flag (highest priority)
+2. `$GAIA_CONFIG` environment variable
+3. `$GAIA_HOME/config.yaml`
+4. `~/.config/gaia/config.yaml` (default fallback)
 
 ---
 
-## Full Configuration
+## 📄 Complete Annotated `config.yaml`
 
 ```yaml
-# ~/.gaia/config.yaml
+# ── Active Profile & Profiles Configuration ──────────────────────
+# Defines which profile is active by default and customizes per-profile tools and models.
+current_profile: "dev"                # "dev", "assistant", "art", or any custom profile ID
 
-# ── LLM Provider Configuration ──────────────────────────────
+profiles:
+  dev:
+    enabled: true
+    model: "claude-3-5-sonnet-20241022" # Optional: overrides default LLM model for this profile
+    tools:                             # Omit to use default profile tools, or customize explicitly:
+      - exec_command
+      - read_file
+      - write_file
+      - browser_navigate
+      - browser_action
+      - browser_screenshot
+      - web_search
+      - web_fetch
+      - create_skill
+      - read_skill
+
+  assistant:
+    enabled: true
+    model: "gpt-4o"
+    tools:
+      - web_search
+      - web_fetch
+      - browser_navigate
+      - read_file
+      - read_skill
+
+  art:
+    enabled: false
+    model: "gemini-2.5-flash"
+    tools:
+      - browser_navigate
+      - browser_screenshot
+      - read_file
+
+# ── Primary LLM & Routing ────────────────────────────────────────
 llm:
-  default_provider: anthropic      # Default provider for all subagents
-  default_model: claude-sonnet-4-20250514
+  provider: "anthropic"                # "anthropic", "openai", "deepseek", "ollama", "groq", "openrouter", etc.
+  model: "claude-3-5-sonnet-20241022"
+  fallback_chain:                      # Providers to try when encountering rate limits or 429 errors
+    - "openai"
+    - "deepseek"
+    - "ollama"
+  trust_mode: "interactive"            # "interactive", "always", "paranoid"
 
-# ── Per-Subagent Model Configuration ───────────────────────
-# Each subagent can use a different provider and model.
-# Omitted subagents use the default llm config.
-# You can repeat the same model with different reasoning_effort.
-subagents:
-  designer:
-    provider: anthropic
-    model: claude-sonnet-4-20250514
-    fallback: claude-haiku-3-5-20241022
-    reasoning_effort: high           # high, medium, low
+# ── API Keys Pool ────────────────────────────────────────────────
+# Keys can also be injected via environment variables (e.g., OPENAI_API_KEY).
+api_keys:
+  anthropic: "sk-ant-..."
+  openai: "sk-proj-..."
+  deepseek: "sk-..."
+  groq: "gsk_..."
+  elevenlabs: "eleven_..."
 
-  implementer:
-    provider: openai
-    model: gpt-4o
-    fallback: gpt-4o-mini
-    reasoning_effort: medium
+# ── OpenAI-Compatible REST & SSE API Server ──────────────────────
+# Controls `gaia serve` / `gaia api` behavior.
+server:
+  host: "0.0.0.0"                      # Bind address (use 127.0.0.1 for local only)
+  port: 8080                           # Server port
+  api_key: ""                          # Optional: Require Bearer token authentication
+  cors_origins:                        # Allowed CORS origins
+    - "*"
+  read_timeout: 30s
+  write_timeout: 120s
 
-  explorer:
-    provider: openrouter
-    model: qwen/qwen3-30b-a3b:free
-    reasoning_effort: low
-
-  verifier:
-    provider: anthropic
-    model: claude-haiku-3-5-20241022
-    reasoning_effort: low
-
-  reviewer:
-    provider: anthropic
-    model: claude-opus-4-20250514
-    reasoning_effort: high
-
-# ── Persona Configuration ───────────────────────────────────
-persona:
-  orchestrator_seed: teacher        # teacher, professional, strict, friendly, custom
-  evolution_enabled: true           # false = freeze persona, never evolve
-  evolution_review: prompt          # prompt = ask before evolving, auto = evolve silently
-  language: auto                    # auto, es, en, pt, etc.
-  custom_file: ~/.gaia/persona.md   # Custom persona file (SOUL.md compatible)
-
-# ── Skills Configuration ───────────────────────────────────
-skills:
-  dir: ~/.gaia/skills
-  auto_install_wizard: true
-  taps: []
-    # - name: community-go
-    #   url: https://github.com/user/skills
-
-# ── Memory Configuration ───────────────────────────────────
-memory:
-  engram_enabled: true
-  knowledge_graph: true
-  nudge_interval: 10                 # Prompt memory save every N tool calls
-
-# ── Context Engineering ────────────────────────────────────
-context:
-  max_history: 20                    # Max recent messages to keep
-  compaction_threshold: 50           # Compact after N messages
-  recall_enabled: true               # Enable memory recall per turn
-  kg_recall_enabled: true            # Enable knowledge graph recall
-
-# ── Terminal Backends ──────────────────────────────────────
-terminal:
-  backend: local                     # local, docker, ssh
-  timeout: 180
-  docker:
-    container: ubuntu                # Container name for docker backend
-    image: ubuntu:22.04              # Image for auto-start
-  ssh:
-    host: ""
-    port: 22
-    user: ""
-    key_path: ~/.ssh/id_rsa
-
-# ── Security ───────────────────────────────────────────────
-security:
-  confirmation_mode: always          # always, per-session, per-action, never
-  secret_redaction: true             # Auto-redact keys from messages
-  path_restriction: true             # Restrict file access to project root
-  url_validation: true               # Validate URLs before fetch
-  skill_audit: true                  # AST-audit skills before loading
-  allowed_hosts: []                  # URL whitelist (empty = no restriction)
-    # - github.com
-    # - api.github.com
-  blocked_paths:                     # Never allow access to these paths
-    - ~/.ssh
-    - ~/.gnupg
-  keychain: auto                     # auto, os-keychain, encrypted-file, plaintext
-
-# ── User Interface ─────────────────────────────────────────
-ui:
-  mode: tui                          # tui, desktop
-  theme: rose-pine                   # TUI theme
-
-# ── MCP Servers ────────────────────────────────────────────
-mcp:
-  servers: []
-    # - name: my-server
-    #   command: npx
-    #   args: ["-y", "@modelcontextprotocol/server-filesystem"]
-    #   env:
-    #     MY_VAR: value
-
-# ── Cron Jobs ──────────────────────────────────────────────
-cron:
-  jobs: []
-
-# ── Gateway (Messaging) ────────────────────────────────────
+# ── Multi-Channel Messaging Gateways ─────────────────────────────
+# Controls `gaia gateway run` behavior.
 gateway:
-  enabled: false
+  enabled: true
+
+  # Telegram Bot
   telegram:
-    token: ""
+    enabled: true
+    token: "123456789:ABCDefgh..."
+    allowlist:                         # Authorized Telegram usernames or user IDs
+      - "123456789"
+      - "myusername"
+
+  # WhatsApp Meta Cloud API
+  whatsapp:
+    enabled: false
+    api_token: "EAAB..."               # Permanent System User Access Token
+    phone_number_id: "10987654321"     # WhatsApp Business Phone Number ID
+    verify_token: "my-webhook-secret"  # Webhook Challenge Token for Meta webhook setup
+    app_secret: "a1b2c3d4..."          # Meta App Secret for HMAC-SHA256 signature verification
+    listen_addr: ":3003"               # Webhook listening port
+    allowed_users:                     # Authorized WhatsApp phone numbers (E.164 format)
+      - "+1234567890"
+
+  # Discord Bot
   discord:
     enabled: false
+    token: "MTE..."                    # Discord Bot Token
+    allowlist:
+      - "user#1234"
 
-# ── Webhooks ───────────────────────────────────────────────
-webhook:
-  port: 8765
-  hmac_secret: ""
+  # Slack Events API
+  slack:
+    enabled: false
+    bot_token: "xoxb-..."              # Bot User OAuth Token
+    signing_secret: "sec_..."          # Slack Signing Secret
+    listen_addr: ":3002"
+    allowed_users: []
 
-# ── LSP Servers ────────────────────────────────────────────
-lsp:
-  servers: []
-    # - language: go
-    #   command: gopls
-    #   args: []
-    # - language: python
-    #   command: pylsp
-    #   args: []
+# ── Multimodal Perception & Audio Engine ─────────────────────────
+multimodal:
+  enabled: true
+  api_key: ""                          # Defaults to api_keys.openai if empty
 
-# ── Script Injection ───────────────────────────────────────
-scripts:
-  pre_process: []
-    # - path: ~/.gaia/scripts/check-env.sh
-    #   always: false               # true = run every turn, false = per agent run
+  # Inbound Audio Transcription (Whisper STT)
+  audio:
+    enabled: true
+    provider: "openai"                 # "openai", "whisper-local", "groq"
+    model: "whisper-1"
+    max_audio_size_mb: 25
+
+  # Vision (Image Inspection)
+  vision:
+    enabled: true
+    provider: "openai"
+    model: "gpt-4o"
+    max_image_size_mb: 10
+
+# Outbound Speech Synthesis (Voice Notes)
+tts:
+  enabled: true
+  provider: "openai"                   # "openai", "elevenlabs"
+  model: "tts-1"                       # "tts-1", "tts-1-hd", or elevenlabs model
+  voice: "alloy"                       # OpenAI: alloy, echo, fable, onyx, nova, shimmer
+                                       # ElevenLabs: voice ID (e.g. 21m00Tcm4TlvDq8ikWAM)
+  speed: 1.0
+  format: "mp3"                        # "mp3", "opus", "aac", "flac"
+
+# ── Headless Browser Automation ──────────────────────────────────
+browser:
+  enabled: true
+  executable_path: ""                  # Empty = auto-detect Chrome/Chromium/Brave/Edge/Flatpak
+  headless: true                       # Set to false to inspect browser window visually
+  viewport_width: 1280
+  viewport_height: 720
+  user_data_dir: ""                    # Persistent profile directory (empty = ephemeral session)
+  timeout: 30s
+
+# ── Persistence & Database ───────────────────────────────────────
+db:
+  path: "~/.config/gaia/gaia.db"       # Main session, state, and facts database
+
+# ── Policy & Security ────────────────────────────────────────────
+policy:
+  tier: "sandbox"                      # "read" (read-only), "sandbox" (safe dev), "full" (unrestricted)
+  blocked_commands:
+    - "rm -rf /"
+    - "mkfs"
+    - "dd if=/dev/zero"
+
+system:
+  requires_confirmation: true          # Prompt human before executing high-risk commands
+  language: "auto"                     # Preferred assistant interaction language ("es", "en", "auto")
+
+# ── Execution Backends ───────────────────────────────────────────
+terminal:
+  backend: "local"                     # "local", "docker", "ssh"
+  docker:
+    container: "gaia-sandbox"
+    workdir: "/workspace"
+  ssh:
+    host: "dev-server.internal"
+    port: 22
+    user: "developer"
+    key_path: "~/.ssh/id_rsa"
 ```
 
 ---
 
-## Environment Variables
+## 🔑 Environment Variables Reference
 
-| Variable | Override | Default |
+Any configuration value can be configured or overridden using standard environment variables:
+
+| Environment Variable | Description | Default |
 |---|---|---|
-| `OPENAI_API_KEY` | `llm.provider=openai` API key | — |
-| `ANTHROPIC_API_KEY` | `llm.provider=anthropic` API key | — |
-| `GEMINI_API_KEY` | `llm.provider=gemini` API key | — |
-| `OLLAMA_URL` | Ollama server URL | `http://localhost:11434` |
-| `GITHUB_TOKEN` | Copilot auth token | — |
-| `GAIA_CONFIG` | Config file path | `~/.gaia/config.yaml` |
-| `GAIA_HOME` | GAIA data directory | `~/.gaia` |
-| `GAIA_SKILLS_DIR` | Skills directory | `~/.gaia/skills` |
-| `GAIA_LOG_LEVEL` | Log level | `info` |
+| `GAIA_CONFIG` | Explicit path to `config.yaml` | `~/.config/gaia/config.yaml` |
+| `GAIA_HOME` | GAIA data home directory | `~/.config/gaia` |
+| `OPENAI_API_KEY` | OpenAI API key for LLM, Whisper, and TTS | — |
+| `ANTHROPIC_API_KEY` | Anthropic API key for Claude models | — |
+| `DEEPSEEK_API_KEY` | DeepSeek API key | — |
+| `GROQ_API_KEY` | Groq API key for fast inference / Whisper | — |
+| `ELEVENLABS_API_KEY` | ElevenLabs API key for speech synthesis | — |
+| `OLLAMA_URL` | Base URL for local Ollama server | `http://localhost:11434` |
+| `GAIA_LOG_LEVEL` | Log verbosity (`debug`, `info`, `warn`, `error`) | `info` |
+
+---
+
+## 💡 Configuration Recipes
+
+### 1. Developer Workstation (Browser + Voice + Sandbox)
+```yaml
+current_profile: "dev"
+llm:
+  provider: "anthropic"
+  model: "claude-3-5-sonnet-20241022"
+browser:
+  enabled: true
+  headless: true
+policy:
+  tier: "sandbox"
+```
+
+### 2. Autonomous Gateway Daemon (WhatsApp + Telegram + Audio)
+```yaml
+current_profile: "assistant"
+gateway:
+  enabled: true
+  telegram:
+    enabled: true
+    token: "${TELEGRAM_BOT_TOKEN}"
+    allowlist: ["${TELEGRAM_USER_ID}"]
+  whatsapp:
+    enabled: true
+    api_token: "${WHATSAPP_API_TOKEN}"
+    phone_number_id: "${WHATSAPP_PHONE_ID}"
+    verify_token: "${WHATSAPP_VERIFY_TOKEN}"
+    app_secret: "${WHATSAPP_APP_SECRET}"
+    listen_addr: ":3003"
+    allowed_users: ["+1234567890"]
+multimodal:
+  audio:
+    enabled: true
+    provider: "openai"
+tts:
+  enabled: true
+  provider: "openai"
+  voice: "alloy"
+```
+
+### 3. OpenAI-Compatible API Server (for Cursor / Open WebUI)
+```yaml
+server:
+  host: "0.0.0.0"
+  port: 8080
+  api_key: "secret-bearer-key"
+  cors_origins: ["*"]
+current_profile: "dev"
+```
+
