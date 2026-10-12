@@ -1,189 +1,139 @@
-# Skills Hub
+# Skills & Tool Discovery Hub
 
-Skills are procedural memory for GAIA — they teach the agent how to handle specific tasks, languages, and frameworks. GAIA is designed as a **language-neutral autonomous coding agent** and ships with **zero pre-installed skills**. You install only what your stack needs.
+Skills represent **procedural memory** in GAIA — they teach the agent how to execute domain-specific workflows, testing patterns, and architectural conventions. GAIA follows the open specification defined by [agentskills.io](https://agentskills.io).
 
----
-
-## Philosophy
-
-```text
-GAIA ships with NO pre-installed skills (100% Neutral core).
-You install only what your specific stack requires.
-
-This guarantees:
-  • Context lean (only relevant skills in index)
-  • Language agnostic (no bias towards any specific framework)
-  • Prompts focused (no unused instructions clogging memory)
-  • Agent fast (minimal footprint per execution turn)
-```
+Unlike monolithic prompts, GAIA pairs **procedural skills** with a **Global Tool Catalog**, providing dynamic tool discovery and autonomous skill self-learning.
 
 ---
 
-## Quick Start
+## 🚀 Quick CLI Management
+
+Manage skills using the modern `gaia skill` CLI:
 
 ```bash
-# Search for skills
-gaia skills search "go testing"
-gaia skills search "react typescript"
+# List all installed and bundled skills (with description and triggers)
+gaia skill list
 
-# Install skills for your stack
-gaia skills install go
-gaia skills install typescript-react
+# Inspect a skill in detail
+gaia skill show go-testing
+gaia skill show go-testing --raw       # Dump raw markdown/frontmatter
 
-# Manage installed skills
-gaia skills list                         # See what is installed
-gaia skills activate go-testing          # Enable a skill
-gaia skills deactivate go-linting        # Disable without uninstalling
-gaia skills remove go-testing            # Delete permanently
+# Create or update a skill interactively or with flags
+gaia skill create my-workflow \
+  --desc "Standardized release checklist" \
+  --trigger "When cutting a new release" \
+  --body "Procedure and steps..."
+
+# Delete a skill with confirmation
+gaia skill delete my-workflow -f
+
+# Security audit all skills for dangerous AST patterns
+gaia skills audit
 ```
 
 ---
 
-## First-Run Wizard
+## 🤖 Autonomous Skill Learning Tools (`internal/tools/`)
 
-On first run, GAIA setup wizard:
-1. Detects your project language and framework (from go.mod, package.json, Cargo.toml, pyproject.toml, etc.)
-2. Queries the Skills Hub for popular matching skills
-3. Shows recommendations with descriptions
-4. Installs your selections to ~/.gaia/skills/
-5. Activates them for the workspace
+GAIA isn't limited to human-authored skills. The Brain and subagents can actively learn, document, and inspect skills during execution:
+
+### 1. `create_skill`
+Enables the agent to codify novel workflows, bug fixes, or architecture conventions directly into `SKILL.md`:
+- **Validation**: Enforces canonical naming (`^[a-zA-Z0-9_-]+$`) and prevents unintentional file overwrites unless explicitly requested.
+- **Structured Sections**: Requires `## When to Use`, `## Critical Rules`, `## Workflow`, and `## Examples`.
+- **Immediate Reload**: Newly created skills are automatically registered in the active skill hub without restarting GAIA.
+
+### 2. `read_skill`
+Enables the agent to retrieve and study a skill definition on demand:
+- **Lazy Hydration**: Reads the exact markdown procedure and examples when intent matches.
+- **Usage Tracking**: Increments invocation counters and updates timestamp metrics for the skill.
 
 ---
 
-## Skill Format
+## 🔍 Dynamic Tool Discovery & Introspection
 
-Skills are SKILL.md files with YAML frontmatter:
+When working on unfamiliar tasks, the agent doesn't need all 30+ tool schemas pre-loaded in its prompt. It discovers capabilities dynamically:
 
-```yaml
+### 1. `tool_search`
+Searches the `ToolCatalog` by keywords or category:
+- **Categories**: `web`, `browser`, `memory`, `shell`, `filesystem`, `vcs`, `multimodal`, `gateway`, `skills`, `meta`.
+- **Example**: Searching for `"browser"` or `"scrape"` returns `browser_navigate`, `browser_action`, `browser_screenshot`, and `web_fetch`.
+
+### 2. `load_tool`
+Loads the detailed JSON Schema, argument types, and behavioral constraints for a specific tool returned by `tool_search`:
+- **Token Efficiency**: Keeps the base system prompt lean by only hydrating full parameter schemas when the agent decides to use a tool.
+
+---
+
+## 📝 Canonical Skill Format (`SKILL.md`)
+
+All skills follow YAML frontmatter standards:
+
+```markdown
 ---
 name: go-testing
 description: "Write Go tests — table-driven, subtests, parallel, fakes"
 version: 1.0.0
 languages: [go]
 tags: [testing, tdd, go]
-category: development
-author: gaia-community
-license: MIT
 metadata:
-  gaia:
-    fallback_for_tools: [terminal]
-    requires_tools: [terminal, read, write]
+  requires_tools: [exec_command, read_file, write_file]
 ---
 
 # Go Testing
 
 ## When to Use
-When writing or reviewing Go test code.
+Use when writing new unit tests, refactoring test suites, or reviewing test coverage.
 
-## Procedure
-1. Use table-driven tests with descriptive names
-2. Use t.Run() for subtests
-3. Use t.Parallel() for independent tests
-4. Use cmp.Diff() for complex comparisons
+## Critical Rules
+- Table-driven tests must use `t.Run()` for subtests.
+- Never use `require` assertions inside goroutines.
+- Always clean up temporary resources using `t.Cleanup()`.
 
-## Pitfalls
-- Do not use require in goroutines (panics)
-- Do not ignore t.Cleanup for resource cleanup
-- Do not use ioutil (deprecated since Go 1.16)
+## Workflow
+1. Scaffold test cases in a slice of struct definitions.
+2. Iterate test cases and call `t.Parallel()` when tests are thread-safe.
+3. Compare expected and actual outputs using `cmp.Diff()` or standard comparisons.
 
-## Verification
-Run go test ./... -count=1 and check all tests pass.
+## Examples
+```go
+func TestCalculate(t *testing.T) {
+    tests := []struct{
+        name string
+        in   int
+        want int
+    }{
+        {name: "zero", in: 0, want: 0},
+        {name: "positive", in: 5, want: 10},
+    }
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            got := Calculate(tt.in)
+            if got != tt.want {
+                t.Errorf("Calculate(%d) = %d, want %d", tt.in, got, tt.want)
+            }
+        })
+    }
+}
+```
 ```
 
 ---
 
-## Skill Sources
+## 🌐 Community Taps & Discovery
 
-Skills are discovered and loaded from the following locations:
-
-| Source | Path | Priority | Read-only |
-|---|---|---|---|
-| User-installed | `~/.gaia/skills/` | Primary | No |
-| Community taps | `~/.gaia/taps/{name}/` | Extended | No |
-| Project-local | `.gaia/skills/` (in project repo) | Workspace-specific | No |
-
-### Community Taps
-
-Add skill repositories from GitHub:
+Extend GAIA's skill library with community repositories from GitHub:
 
 ```bash
-gaia skills add-tap github.com/user/gaia-skills
-gaia skills add-tap https://github.com/community/awesome-skills
+# Add a tap from GitHub
+gaia skills add-tap github.com/community/awesome-gaia-skills
+
+# List active taps
+gaia skills list-taps
+
+# Remove a tap
+gaia skills remove-tap github.com/community/awesome-gaia-skills
 ```
 
-Taps are git-cloned into `~/.gaia/taps/` and scanned for `SKILL.md` files.
+Taps are cloned locally and scanned with the **AST Security Scanner** to ensure they contain no malicious shell injections, credential sniffers, or obfuscated payloads before being made available to the agent.
 
-### Creating Your Own Skills
-
-Skills are markdown files with YAML frontmatter. Create custom skills in `~/.gaia/skills/custom/`:
-
-```bash
-mkdir -p ~/.gaia/skills/custom/my-skill
-cat > ~/.gaia/skills/custom/my-skill/SKILL.md << 'EOF'
----
-name: my-skill
-description: "My custom skill for specific task"
-version: 1.0.0
-tags: [custom]
----
-
-# My Skill
-
-...
-EOF
-```
-
----
-
-## Progressive Loading & Intent-Driven Discovery
-
-To avoid context saturation and save tokens, GAIA implements **Intent-Driven Discovery & Lazy Path Loading**:
-
-```text
-Level 0 (Index only):       Lightweight SkillMeta catalog in context (names, triggers, tags)
-Level 1 (Intent matching):  MatchSkills resolves relevant skills from task description & file context
-Level 2 (Path injection):   Exact SKILL.md paths injected under '## Skills to load before work'
-Level 3 (Lazy reading):     Subagent reads full SKILL.md on demand using file_read
-```
-
-### How it Works:
-1. **Catalog Awareness**: The Brain maintains only lightweight metadata (`SkillMeta`) without loading full markdown bodies into the orchestrator prompt.
-2. **Intent Matching**: When a task is dispatched, `MatchSkills` evaluates the task intent against skill triggers and tags.
-3. **Path Resolution**: `ResolveSkillPaths` maps matched skills to concrete file paths.
-4. **On-Demand Loading**: The subagent reads the full `SKILL.md` body using `file_read` only when needed, **saving 80%+ of prompt tokens** and keeping context windows lean.
-
----
-
-## Bundled Workflow Skills
-
-GAIA includes built-in workflow skills designed for spec-driven engineering and review workload protection:
-
-| Skill | Purpose | Target Subagent |
-|---|---|---|
-| `chained-pr` | Slices large changes (>400 lines) into chained PRs (`stacked-to-main` / `feature-branch-chain`) | Planner, Implementer |
-| `work-unit-commits` | Plans atomic, reviewable commits keeping tests and docs with code | Implementer |
-| `branch-pr` | Standardized branch naming (`type/description`) and issue linkage | Implementer, Archiver |
-| `cognitive-doc-design` | Formats technical documentation, PRs, and guides to reduce cognitive load | Designer, Specifier, Archiver |
-| `comment-writer` | Authoring warm, direct, and constructive review comments | Reviewer, Learner |
-| `rdd-defect-workflow` | Investigating and fixing review authority, receipts, and budget defects | Reviewer, Verifier, Debugger |
-
----
-
-## 🧠 Auto-Learning & Skill Creation
-
-To keep skills up-to-date and tailored to your development flow, GAIA features automated learning mechanisms:
-
-### Subagent Auto-Learning
-After a subagent executes 5 times, the background learning loop automatically aggregates observed execution patterns and generates a corresponding patterns skill. These are stored locally under `~/.gaia/skills/`:
-- `explorer-patterns/` — Patterns observed during codebase exploration.
-- `implementer-patterns/` — Coding and refactoring patterns.
-- `verifier-patterns/` — Testing and verification habits.
-
-You can audit and edit these skills at any time to refine GAIA behavior. Use `gaia skills list` to view them.
-
-### Learner Subagent
-You can actively ask the `@learner` subagent to analyze your codebase and propose new skills by invoking:
-```bash
-@learner analyze
-```
-The subagent will scan the project, identify repetitive patterns, and generate a new `SKILL.md` template proposal.
