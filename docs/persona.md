@@ -1,113 +1,133 @@
-# Persona System
+# Profiles & Persona Evolution System
 
-GAIA's persona system controls how the agent communicates. Unlike traditional SOUL.md files that define fixed behavior, GAIA personas are **starting points that evolve** based on user interaction.
+GAIA strictly separates **Identity and Cognitive Stance** from **Operational Tools and Gateways**. The persona system controls how the agent communicates, reasons, and evolves, while the modular profile system lets users switch seamlessly between specialized identities.
 
-> A persona that tells the agent exactly how to behave prevents learning.
-> The persona sets initial tone and values; the learning loop refines them.
-
----
-
-## How Personas Evolve
-
-```
-Session 1:  Persona "Strict" → "No acepto código sin tests"
-               ↓
-Session 10: The agent learned that integration tests are more
-            valuable than unit tests for THIS project
-               ↓
-Session 50: "I check that tests cover happy path + 2 edge cases.
-            For APIs, prioritize integration tests."
-```
-
-The learning loop tracks:
-- What communication styles get the best results for each user
-- Which feedback patterns catch more bugs
-- What level of detail the user prefers per context
-- When to push back vs when to comply (learned from user reactions)
+Unlike static system prompts, GAIA profiles start with a foundational `SOUL.md` that undergoes **Bayesian Soul Evolution** based on real user interactions.
 
 ---
 
-## Built-in Personas
+## 🎭 The Modular Profiles Engine (`internal/profiles/`)
 
-| Persona | Seed Behavior | Can Evolve To |
-|---|---|---|
-| **Teacher** | Warm but firm. Explains WHY, not just what. Corrects with fundamentals. | Discovers user prefers examples → adapts |
-| **Professional** | Neutral, direct, efficient. No personality overlay. | User responds to encouragement → becomes warmer |
-| **Strict** | Demanding. No code without tests, error handling, types. | Learns which rules matter for THIS project → nuanced strictness |
-| **Friendly** | Relaxed, conversational, encouraging. | User needs more direct feedback → balances warmth with honesty |
-| **Custom** | Defined by user via SOUL.md-compatible file. | User's seed gets refined by experience |
+GAIA comes with three built-in profiles and supports creating custom profiles:
+
+| Profile | Target Domain | Core Focus | Default Suggested Tools |
+|---|---|---|---|
+| **`dev`** | Software Engineering | Architecture, clean code, refactoring, tests, Git ops, ODD/SDD workflows | `exec_command`, `read_file`, `write_file`, `browser_navigate`, `create_skill` |
+| **`assistant`** | Daily Work & Research | General assistance, web research, meeting notes, reminders, multi-channel chat | `web_search`, `web_fetch`, `browser_navigate`, `read_file`, `read_skill` |
+| **`art`** | Visual & Design | Visual reasoning, design systems, ComfyUI, aesthetic critiques, prompt engineering | `browser_navigate`, `browser_screenshot`, `read_file` |
+
+### Profile Independence & Tool Decoupling
+Any tool in the **Global Tool Catalog** can be enabled or disabled for any profile. Profiles do not own tools; they simply configure which tools from the catalog are active:
+
+```bash
+# List all profiles with active status and enabled tool counts
+gaia profile list
+
+# Switch the active profile
+gaia profile switch dev
+
+# Customize tools for a profile
+gaia profile tools list dev
+gaia profile tools enable dev browser_navigate
+gaia profile tools disable dev exec_command
+gaia profile tools reset dev
+```
 
 ---
 
-## Custom Persona (SOUL.md Compatible)
+## 🧬 Bayesian Soul Evolution (`internal/persona/`)
 
-Create a custom persona file:
+Every profile maintains its own `SOUL.md`. As the agent interacts with you, the Bayesian soul engine records reinforcement signals and refines its behavioral priors:
 
-```markdown
-# GAIA Persona Seed — Senior Rustacean
-
-## Starting Tone
-- Direct and precise, like a senior Rust engineer
-- Short responses unless asked for details
-- This is a seed — expect it to evolve with use
-
-## Core Values (evolve with experience)
-- Correctness over speed
-- Type safety is non-negotiable
-
-## Communication Preferences
-- Start with the conclusion, then justify
-- Suggest safer alternatives
 ```
+Session 1:   Initial Seed → Strict adherence to comprehensive unit test scaffolding
+                ↓
+Session 10:  Learns that integration and end-to-end tests provide higher value for THIS project
+                ↓
+Session 50:  Adapted Persona: "Prioritize integration tests for HTTP gateways; enforce unit tests for state machines."
+```
+
+### What the Learning Loop Refines:
+- **Tone & Conciseness**: Adapts response lengths and depth to user preferences.
+- **Verification Strictness**: Learns which technical rules matter most in the current workspace.
+- **Pushback vs. Compliance**: Discovers when to challenge architectural mistakes versus when to follow explicit instructions.
+
+### Freezing Soul Evolution
+If you prefer a deterministic, unvarying persona (traditional static `SOUL.md` behavior):
 
 ```yaml
-# ~/.gaia/config.yaml
+# config.yaml
 persona:
-  orchestrator_seed: custom
-  custom_file: ~/.gaia/rust-persona.md
+  evolution_enabled: false   # Freezes current state; disables dynamic Bayesian updates
 ```
 
 ---
 
-## Per-Subagent Personas
+## 🛡️ Real-Time Prompt Injection Defense (`internal/scan/`)
 
-Each subagent starts with a seed persona matching its role, **and evolves independently**:
+Before any inbound user message or gateway event reaches the Brain, GAIA's security scanner (`internal/scan/`) analyzes the prompt for adversarial patterns:
 
-| Subagent | Seed Persona | Evolves Based On |
-|---|---|---|
-| **Orchestrator** | As selected by user | User reactions, correction patterns |
-| **Explorer** | Curious, thorough | Which search patterns find relevant code faster |
-| **Proposer** | Structured, clear | Which proposal formats get approved more |
-| **Specifier** | Precise, exhaustive | Which detail level catches requirement gaps |
-| **Designer** | Architect, pragmatic | Which design patterns work vs cause rework |
-| **Implementer** | Focused, productive | Which coding patterns cause fewer bugs |
-| **Verifier** | Skeptical, thorough | Which test types catch regressions |
-| **Reviewer** | Strict, constructive | Which review comments actually prevent bugs |
-| **Debugger** | Analytical, methodical | Which root cause patterns repeat |
+- **Jailbreak Detection**: Blocks classic evasion strategies (DAN, role reversal, simulated developer mode).
+- **Exfiltration Mitigation**: Prevents prompt leak attacks designed to dump `SOUL.md` or internal system instructions.
+- **Instruction Hijacking**: Detects indirect prompt injections embedded inside untrusted web pages, scraped HTML, or third-party Git repositories.
 
 ---
 
-## Freezing a Persona
+## ⚙️ Configuration Reference
 
-If you want the agent to STOP evolving (keep a fixed personality):
+In `~/.config/gaia/config.yaml`:
 
 ```yaml
-persona:
-  evolution_enabled: false   # Freeze — never change behavior
-```
+# Select default active profile
+current_profile: "dev"
 
-When frozen, the persona becomes a static instruction set (like traditional SOUL.md).
+profiles:
+  dev:
+    enabled: true
+    model: "claude-3-5-sonnet-20241022"  # Profile-specific model override
+    tools:
+      - exec_command
+      - read_file
+      - write_file
+      - browser_navigate
+      - web_search
+      - create_skill
+
+  assistant:
+    enabled: true
+    model: "gpt-4o"
+    tools:
+      - web_search
+      - web_fetch
+      - browser_navigate
+      - read_file
+      - read_skill
+
+  art:
+    enabled: false
+    model: "gemini-2.5-flash"
+    tools:
+      - browser_navigate
+      - browser_screenshot
+      - read_file
+
+persona:
+  evolution_enabled: true                # Set false to freeze persona
+  evolution_review: "prompt"             # "prompt" (confirm changes) or "auto" (silent evolution)
+  language: "auto"                       # "es", "en", or "auto"
+```
 
 ---
 
-## Quick Switching
+## 💬 In-Session TUI Commands
 
-```
-/persona strict          → Switch seed to strict
-/persona teacher         → Switch seed to teacher
-/persona freeze          → Stop evolution, keep current persona
-/persona unfreeze        → Re-enable evolution
-/persona reset           → Reset to seed (clear all learned adaptations)
-/persona status          → Show current persona + evolution state
-/persona custom my-rust  → Load custom seed from file
-```
+While chatting in the terminal TUI, use these slash commands to inspect or adjust personas on the fly:
+
+| Command | Action |
+|---|---|
+| `/persona status` | Show active profile, soul version, and Bayesian metrics |
+| `/persona freeze` | Pause Bayesian updates and keep current persona fixed |
+| `/persona unfreeze` | Re-enable automatic soul evolution |
+| `/persona reset` | Revert current persona back to its initial `SOUL.md` seed |
+| `/persona switch <id>` | Switch active profile without restarting the session |
+
