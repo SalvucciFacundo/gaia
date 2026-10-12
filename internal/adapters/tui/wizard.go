@@ -390,7 +390,7 @@ func (m *WizardModel) View() string {
 	switch m.step {
 	case StepWelcome:
 		doc.WriteString(bannerTitleStyle.Render("WELCOME TO GAIA — SETUP WIZARD") + "\n\n")
-		doc.WriteString("GAIA will guide you through setting up your LLM Provider, Security Policy, Language, and Development Skills.\n\n")
+		doc.WriteString("GAIA will guide you through setting up your LLM Provider, Profile, Security Policy, and Skills.\n\n")
 		doc.WriteString("Press " + lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#00F5D4")).Render("ENTER") + " to begin setup.\n")
 
 	case StepProviderSelect:

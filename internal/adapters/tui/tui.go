@@ -123,12 +123,17 @@ func RenderHeaderBanner(width int) string {
 func RenderWizardBanner(width int) string {
 	title := bannerTitleStyle.Render(gaiaTitleASCII)
 	subtitle := bannerSubStyle.Render("Go Autonomous Intelligence Agent — Initial Setup")
-	fullBanner := lipgloss.JoinVertical(lipgloss.Center, title, subtitle)
+	titleBlock := lipgloss.JoinVertical(lipgloss.Center, title, subtitle)
+
+	avatar := avatarStyle.Render(gaiaAvatarASCII)
+
+	// Combine avatar and title banner horizontally for a cybernetic welcome
+	content := lipgloss.JoinHorizontal(lipgloss.Center, avatar, "    ", titleBlock)
 
 	if width > 0 {
-		return bannerBoxStyle.Width(width - 4).Render(fullBanner)
+		return bannerBoxStyle.Width(width - 4).Render(content)
 	}
-	return bannerBoxStyle.Render(fullBanner)
+	return bannerBoxStyle.Render(content)
 }
 
 // MessageProcessor is the interface the TUI uses to send user input
