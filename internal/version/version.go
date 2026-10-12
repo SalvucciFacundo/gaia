@@ -11,7 +11,7 @@ import (
 
 var (
 	// Version is the application version, injected at build time via -ldflags.
-	Version = "v0.5.0"
+	Version = "v2.0.0"
 	// Commit is the git commit SHA, injected at build time via -ldflags.
 	Commit = "none"
 	// BuildDate is the RFC3339 build timestamp, injected at build time via -ldflags.
