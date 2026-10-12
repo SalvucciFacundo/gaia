@@ -58,8 +58,11 @@ Features with partial/stub implementations that need to be completed.
 
 ### `/voice <on|off>` — Toggle voice mode
 
-**Current state**: Not implemented.
-**Note**: Requires TTS (text-to-speech) integration. Low priority for a programming-first agent.
+**Current state**: Implemented.
+**Location**: `internal/adapters/audio/` & `internal/gateway/multiplexer.go`
+- [x] Inbound audio transcription with OpenAI Whisper STT
+- [x] Outbound audio voice note synthesis with ElevenLabs and OpenAI TTS
+- [x] Bi-directional voice support over Telegram and WhatsApp
 
 ---
 
@@ -67,21 +70,18 @@ Features with partial/stub implementations that need to be completed.
 
 ### `/kanban` — Project board from chat
 
-**Current state**: Not implemented.
-**Note**: Complex feature. Would need GitHub Issues integration or a local kanban data store.
+**Current state**: Planned.
+**Note**: Will integrate with GitHub Projects / Issues and local state.
 
 ---
 
 ## Messaging (Gateway)
 
-Commands from Hermes that would apply to gateway mode (Telegram, Discord, etc.):
+Implemented gateway capabilities across Telegram, WhatsApp (Meta Cloud API), Discord, and Slack:
 
-- `/sethome` — Set current chat as delivery home
-- `/approve` — Approve pending dangerous command
-- `/deny` — Deny pending dangerous command
-- `/commands` — Browse all commands (paginated)
-- `/restart` — Gracefully restart gateway
-- `/update` — Update GAIA to latest version
-- `/topic` — Multi-session DM mode (Telegram)
+- [x] `/approve` & `/deny` — Interactive approval gates with inline keyboard buttons
+- [x] `gaia update` — Self-updater CLI with SemVer, GitHub release download, and atomic binary upgrade
+- [x] Multi-platform audio transcription and voice responses
+- [x] Magic-byte media ingest validation
+- [x] Multi-channel session manager
 
-These require gateway integration and are lower priority than core features.
