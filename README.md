@@ -15,29 +15,31 @@
 <p align="center">
   ·
 </p>
+**GAIA (Go Autonomous Intelligence Agent)** is an enterprise-grade, single-binary autonomous AI assistant and software engineering platform built from the ground up in Go.
 
-**GAIA (Go Autonomous Intelligence Agent)** is a programming-first autonomous AI agent and coding assistant written in Go.  
-Features Spec-Driven Development (SDD), 19 supported LLM providers, Cyberpunk TUI, and a real-time Web UI Dashboard (`templ` + `htmx`). Single binary, zero external dependencies, Windows/macOS/Linux.
+GAIA couples autonomous agency with strict operational boundaries:
+- **Zero External Runtimes**: Compiles into a single, self-contained native binary with embedded SQLite, FTS5, web assets, templates, and migrations.
+- **Organic Driven Development (ODD)**: Dynamically scales from quick inline direct execution to multi-subagent teams without context bloat.
+- **Decoupled Architecture**: Profiles define cognitive bias and identity (`SOUL.md`), while tools, multi-channel gateways, and audio engines live in a shared, globally configurable catalog.
+- **Omnichannel Access**: Interact via interactive Cyberpunk TUI, built-in Web UI Dashboard (`templ` + `htmx`), OpenAI-compatible REST/SSE API, or native messaging gateways (Telegram, WhatsApp Cloud API, Discord, Slack) with bi-directional voice notes.
 
 ---
 
-## 🚀 Quick Start
+## ⚡ Quick Start
 
-Get GAIA running in your local environment or remote containers instantly.
+### 1. One-Line Installation
 
-### Linux & macOS (One-line installer)
-
+**Linux & macOS:**
 ```bash
 curl -fsSL https://raw.githubusercontent.com/SalvucciFacundo/gaia/main/install.sh | bash
 ```
 
-### Windows (PowerShell)
-
+**Windows (PowerShell):**
 ```powershell
 iwr -useb https://raw.githubusercontent.com/SalvucciFacundo/gaia/main/install.ps1 | iex
 ```
 
-### Build from Source
+### 2. Build from Source
 
 ```bash
 git clone https://github.com/SalvucciFacundo/gaia.git
@@ -46,94 +48,259 @@ go build -o gaia ./cmd/gaia/
 ./gaia
 ```
 
-### First Run
+### 3. First Run Wizard
 
-On the first run, GAIA starts an interactive setup wizard in the terminal to configure your LLM provider and install recommended skills.
+On first launch, GAIA automatically starts an interactive terminal setup wizard:
+- Select your primary LLM provider (OpenAI, Anthropic, DeepSeek, Ollama, Groq, OpenRouter, etc.).
+- Choose and activate your starting profile (`dev`, `assistant`, `art`).
+- Optionally initialize messaging gateways and audio synthesizers.
 
-### Docker / SSH Backends
+---
 
-Execute commands directly inside containers or remote hosts:
-```bash
-gaia exec "explain this project" --backend docker
-gaia exec "list files" --backend ssh://user@server
+## 🧩 Architectural Foundations
+
+GAIA is built across **60 modular Go packages** adhering to Hexagonal Architecture (Ports and Adapters):
+
+```mermaid
+graph TD
+    subgraph Interfaces ["User & Transport Interfaces"]
+        TUI["Cyberpunk TUI (BubbleTea)"]
+        WEB["Web UI Dashboard (templ + htmx)"]
+        API["OpenAI API Server (/v1/chat/completions)"]
+        GW["Messaging Gateways (TG, WA, DC, Slack)"]
+    end
+
+    subgraph Core ["Cognitive Core"]
+        Brain["GAIA Brain (Orchestrator)"]
+        Profiles["Profiles Engine (dev, assistant, art)"]
+        Soul["Bayesian Soul & Persona Evolution"]
+        Catalog["Global Tool Catalog"]
+        Subagents["12+ Autonomous Subagents"]
+    end
+
+    subgraph Infra ["Engine & Storage"]
+        Mneme["Mnemosyne Memory (FTS5 + Vector + RRF)"]
+        Audio["Audio Engine (Whisper STT + ElevenLabs/OpenAI TTS)"]
+        Browser["Headless Browser Driver (Chromedp)"]
+        Ops["Backup & Self-Updater"]
+    end
+
+    Interfaces --> Brain
+    Brain --> Profiles
+    Brain --> Catalog
+    Brain --> Subagents
+    Profiles --> Soul
+    Catalog --> Mneme
+    Catalog --> Audio
+    Catalog --> Browser
+    Brain --> Ops
 ```
 
 ---
 
-## ✨ Features
+## 🎭 Profiles & Persona Evolution
 
-### 🧠 12+ Specialized Autonomous Subagents
-Each subagent learns independently in its domain and improves with use. Talk to any subagent with `@name`:
-`@explorer investigate this codebase` or `@implementer refactor the auth module`.
+GAIA separates **who the agent is** from **what the agent can do**.
 
-| Subagent | Type | Role |
+### Built-in Profiles
+- **`dev` (Software Architect)**: Autonomous software engineer specialized in architecture, refactoring, ODD workflows, tests, and Git operations.
+- **`assistant` (Personal Assistant)**: Versatile companion for research, synthesis, daily workflows, reminders, and web tasks.
+- **`art` (Visual Reasoning & Creative)**: Creative partner focused on design systems, image prompts, aesthetics, and ComfyUI workflows.
+
+### Bayesian Soul Evolution
+Every profile maintains a distinct `SOUL.md`. As the agent interacts, the Bayesian soul engine records reinforcement metrics and dynamically refines its operational demeanor while the security scanner detects and rejects prompt injection attempts in real-time.
+
+### Profile CLI Management
+```bash
+# List all registered profiles and active status
+gaia profile list
+
+# Switch active profile
+gaia profile switch dev
+
+# Enable or disable profiles
+gaia profile enable art
+gaia profile disable assistant
+```
+
+---
+
+## 🧰 Global Tool Catalog & Per-Profile Decoupling
+
+No tool or gateway is locked to a specific profile. Any profile can be customized to use any combination of tools from the global catalog:
+
+```bash
+# List tools available to a profile (both active and available in catalog)
+gaia profile tools list dev
+
+# Enable or disable individual tools for a profile
+gaia profile tools enable dev browser_navigate
+gaia profile tools disable dev exec_command
+
+# Reset profile back to its suggested toolset
+gaia profile tools reset dev
+```
+
+You can also customize tools declaratively in `config.yaml`:
+```yaml
+current_profile: "dev"
+profiles:
+  dev:
+    enabled: true
+    model: "claude-3-5-sonnet"
+    tools:
+      - exec_command
+      - read_file
+      - write_file
+      - browser_navigate
+      - web_search
+      - create_skill
+```
+
+### Catalog Tool Categories
+- **Web Intelligence**: Multi-provider search (`duckduckgo`, `brave`, `searxng`) + secure fetch with SSRF mitigation and HTML-to-Markdown extraction.
+- **Headless Browser**: Full JavaScript rendering, screenshots, and DOM navigation via Chromium/Chrome/Brave/Edge.
+- **System & Git**: Sandboxed shell commands, atomic file edits, Lipgloss visual diffs, and ephemeral Git worktree isolation.
+- **Autonomous Skills**: Dynamically create and inspect procedural skill documents (`SKILL.md`).
+- **Catalog Introspection**: `tool_search` and `load_tool` for runtime parameter inspection.
+
+---
+
+## 📡 Multi-Channel Messaging Gateways & Voice Engine
+
+Deploy GAIA as a continuous background daemon communicating over multiple messaging platforms simultaneously.
+
+### Supported Gateways
+- **Telegram**: Real-time long-polling or webhooks, user allowlist, full media ingest, voice message transcription, and outbound voice responses.
+- **WhatsApp**: Native Meta Cloud API integration with webhook challenge verification and HMAC-SHA256 signature security.
+- **Discord**: Discord bot integration with channel scoping and attachment ingestion.
+- **Slack**: Events API and Socket Mode adapter for workspace collaboration.
+
+### Bi-directional Audio & Voice Engine
+- **Inbound STT (Speech-to-Text)**: Automatically transcribes voice notes and audio clips using OpenAI Whisper with automatic MIME-type detection.
+- **Outbound TTS (Text-to-Speech)**: Synthesizes spoken voice notes using ElevenLabs or OpenAI TTS (`alloy`, `echo`, `fable`, `onyx`, `nova`, `shimmer`).
+- **Interactive Approval Gates**: Interactive inline approval buttons for high-risk tool operations sent directly to Telegram or WhatsApp.
+
+Run the gateway daemon:
+```bash
+gaia gateway run
+```
+
+---
+
+## 🌐 OpenAI-Compatible REST & Streaming API Server
+
+Expose GAIA as a drop-in replacement for OpenAI endpoints, allowing any existing client (Cursor, LibreChat, Open WebUI, Continue) to connect to GAIA:
+
+```bash
+# Start API server on default port 8080
+gaia serve
+
+# Or customize host, port, and authentication key
+gaia serve --port 9090 --host 0.0.0.0 --key "my-secret-key"
+```
+
+### Endpoints
+- `POST /v1/chat/completions`: Supports standard JSON payloads and real-time streaming SSE (`text/event-stream` ending in `data: [DONE]`).
+- `GET /v1/models`: Enumerates available models and active profiles.
+- `GET /healthz` & `GET /api/health`: Liveness and readiness health checks.
+- **Security**: Constant-time Bearer token authentication (`subtle.ConstantTimeCompare`) and configurable CORS headers.
+
+---
+
+## 🌐 Headless Browser Automation
+
+GAIA features an embedded headless browser driver powered by `chromedp` and zero-config system executable detection:
+
+- **Auto-Detection**: Discovers native `google-chrome`, `chromium`, `brave`, `microsoft-edge`, or Flatpak browser installations.
+- **Execution**: Runs in `--headless=new` mode with configurable viewports, timeouts, and user data directories.
+- **Tools**:
+  - `browser_navigate`: Navigates to any URL, executes client-side scripts, and converts the rendered DOM to clean Markdown.
+  - `browser_action`: Performs interactive actions (`click`, `type`, `scroll`, `evaluate` JavaScript).
+  - `browser_screenshot`: Captures full-page screenshots saved to disk.
+  - `browser_close`: Terminates the headless session and releases browser processes.
+
+---
+
+## 🧠 Mnemosyne Persistent Memory Engine
+
+GAIA's memory subsystem (`internal/mneme`) provides project-isolated, hybrid search memory that persists across restarts and context windows:
+
+- **Hybrid Search Engine**: Combines SQLite FTS5 Full-Text Search with Vector Cosine Similarity using Reciprocal Rank Fusion (RRF).
+- **Project Isolation**: Observations and context layers are partitioned by project workspace and lifecycle state (`active` vs `needs_review`).
+- **Curator & Summarizer**: Automatic compaction, distillation of long sessions, and extraction of durable facts and user preferences.
+
+---
+
+## 🎓 Autonomous Skills & Procedural Learning
+
+GAIA follows the open standard defined by `agentskills.io`:
+
+- **Autonomous Skill Creation**: The agent can create new operational skills (`create_skill`) or read existing skills (`read_skill`) when discovering novel solutions.
+- **CLI Management**:
+  ```bash
+  # List all installed skills
+  gaia skill list
+
+  # Inspect a skill
+  gaia skill show my-skill
+
+  # Create or update a skill via CLI
+  gaia skill create my-skill --desc "Skill description" --trigger "When working on..."
+
+  # Delete a skill
+  gaia skill delete my-skill -f
+  ```
+
+---
+
+## 🛠️ Operations: Backup, Restore & Self-Updater
+
+GAIA includes built-in operational tooling for lifecycle maintenance:
+
+### 1. Profile Backup & Restore
+Back up databases, profiles, credentials, skills, and configuration into manifest-backed TAR archives protected with SHA256 checksums and path-traversal sanitization:
+```bash
+# Create a backup archive
+gaia backup create dev -o dev-backup.tar.gz
+
+# Inspect archive contents without unpacking
+gaia backup dev-backup.tar.gz
+
+# Restore into a target profile
+gaia restore dev-backup.tar.gz -profile dev -force
+```
+
+### 2. Autonomous Self-Updater
+Inspect and update the GAIA binary directly from GitHub releases with SemVer comparison, checksum validation, and atomic binary replacement:
+```bash
+# Check if a newer version is available
+gaia update --check
+
+# Apply latest update with automatic pre-update backup
+gaia update --backup
+
+# Pin or install a specific release version
+gaia update --version v0.6.0
+```
+
+---
+
+## 📋 Complete CLI Command Summary
+
+| Command | Category | Description |
 |---|---|---|
-| **Explorer** | SDD | Investigates codebase patterns |
-| **Proposer** | SDD | Creates change proposals |
-| **Specifier** | SDD | Writes detailed specifications |
-| **Designer** | SDD | Technical architecture |
-| **Planner** | SDD | Task breakdown |
-| **Implementer** | SDD | Writes code following specs |
-| **Verifier** | SDD | Runs tests against specs |
-| **Archiver** | SDD | Closes and archives changes |
-| **Reviewer** | On-demand | BR code review (4 lenses) |
-| **Debugger** | On-demand | Root cause analysis + fix |
-| **Researcher** | On-demand | Web search + documentation |
-| **Learner** | Background | Creates and improves skills |
-
-### 🔀 Mixture of Agents (MoA)
-Run multiple LLM models in parallel on the same task. Collect all responses and synthesize them into one coherent result.
-- **Parallel execution**: Goroutine fan-out with a 30-second timeout per model.
-- **Synthesis**: Primary model automatically merges responses and reconciles contradictions.
-
-### 📋 Organic Driven Development (ODD) & Modern Engram Protocol
-Modern autonomous workflow adapting dynamically to task complexity:
-- **Inline Direct Execution**: Small, bounded tasks execute directly in the primary turn without worker overhead (`/inline` or deprecated `/direct`).
-- **Dynamic Bounded Workers**: Tasks crossing evidence, write, or verification boundaries delegate to focused workers (`@explorer`, `@implementer`, `@verifier`).
-- **Feature Tracking**: Complex initiatives and architectural overhauls use structured specs and tasks (`/odd`, with `/sdd` supported as a deprecated backup command).
-- **Engram v1.15.3+ Protocol**: Persistent memory with lifecycle states (`active`/`needs_review`), runtime session tracking, and prompt pollution protection (`capture_prompt: false`).
-
-### 📝 BR Code Review
-Bounded code review with 4 lenses (Risk, Resilience, Readability, Reliability) + content-bound receipts (SHA256). Pre-commit/pre-push gates validate against the same receipt — no silent re-reviews.
-
-### 🧠 Knowledge Graph — Three-Scope Learning
-GAIA structures memory across three scopes to balance context size and fidelity:
-- **User scope**: Your coding habits (crosses all projects)
-- **Language scope**: Language-specific patterns (crosses same-language projects)
-- **Project scope**: Specific project context and details (single project only)
-
-### 🛠️ Progressive Skills + Security Audit
-Manage and install skills for your project stack from the official registry or community taps.
-- **AST Security Audit**: Scans installed skills for dangerous command execution, obfuscated scripts, or credential leaks.
-- **Auto-Learning**: Subagents automatically save and refine patterns into skills.
-
-### 🌐 Web UI Dashboard (`gaia serve`)
-GAIA includes an autonomous Web UI Dashboard compiled directly into the single Go binary using **`templ`**, **`TailwindCSS`**, and **`templ-islands` (HTMX + SSE streaming)**.
-- **Multi-Workspace Sidebar**: Switch between active project directories seamlessly.
-- **Live Stream Chat**: Real-time token-by-token LLM output powered by SSE streams.
-- **Subagent Visualizer**: Reactive pipeline showing the 12 active subagents (`@explorer`, `@implementer`, `@verifier`).
-- **Zero Runtime Dependencies**: Simply run `gaia serve 8080` to launch the Web UI.
-
-### 🔐 Credential Pool & 19 LLM Providers
-Configure keys for 19 supported LLM providers (`copilot`, `openai`, `anthropic`, `ollama`, `deepseek`, `openrouter`, `groq`, `qwen`, `together`, `perplexity`, `fireworks`, `opencode`, `kimi`, `glm`, `nvidia`, `huggingface`, `deepinfra`, `cerebras`) with automatic failover and cooldown when encountering rate limits.
-
-### ⏩ Async Background Tasks & Queueing
-Run tasks in the background while continuing the main conversation, or queue follow-up prompts to execute sequentially.
-
-### 🛡️ PolicyGuard — Permission System
-Tier-based security (`read`, `sandbox`, `full`) for autonomous command execution. Denies dangerous operations automatically (e.g. `rm -rf /`) and escalates overrides to the user interactively.
-
-### 🌲 Git Worktree Isolation
-Background subagents (`/background` and async tasks) execute inside ephemeral `git worktree` instances. Prevents race conditions and file collisions with the user's active working tree.
-
-### ⚡ CodeGraph & AST Indexer
-Go-native AST indexer and SQLite graph engine. Resolves interface implementations, call hierarchies, and symbol definitions in sub-millisecond latency (<0.51ms) to save 80%+ tokens during exploration.
-
-### 👁️ Interactive TUI Diff Viewer
-Terminal visual diff viewer with Lipgloss syntax highlighting, hunk navigation (`n`/`p`), selective staging (`s`/`u`/`d`), and line-level steering prompt (`e`/`r`) before commit.
-
-### 🧩 LSP-Powered Active Refactor
-Language Server Protocol client integration exposing project-wide symbol renaming (`RenameSymbol`), reference lookups (`FindReferences`), and compiler quick-fixes (`CodeActions`) with atomic rollback.
+| `gaia` | Core | Launches the interactive Cyberpunk TUI |
+| `gaia exec "<prompt>"` | Core | Executes prompt in headless batch mode |
+| `gaia serve [--port N]` | Server | Starts the OpenAI-compatible REST/SSE API server |
+| `gaia gateway [run]` | Gateway | Starts the Telegram, WhatsApp, Discord, Slack daemon |
+| `gaia profile [subcommand]` | Profiles | Manage profiles (`list`, `switch`, `enable`, `disable`, `tools`) |
+| `gaia profile tools [enable\|disable\|list\|reset]` | Tools | Configure tools enabled for any profile |
+| `gaia skill [list\|create\|show\|delete]` | Skills | Manage agent skills |
+| `gaia backup [create\|restore\|list]` | Ops | Create or inspect profile backup archives |
+| `gaia restore <archive>` | Ops | Restore configuration and databases from archive |
+| `gaia update [--check\|--backup]` | Ops | Check for updates and upgrade GAIA binary |
+| `gaia doctor` | Diagnostics | Run environment health checks and diagnostics |
 
 ---
 
@@ -148,49 +315,46 @@ Explore the complete guides in the [docs/](docs) directory:
 | **CLI Commands** | [docs/cli.md](docs/cli.md) |
 | **TUI & In-Session Commands** | [docs/tui-commands.md](docs/tui-commands.md) |
 | **Configuration Reference** | [docs/configuration.md](docs/configuration.md) |
-| **SDD Workflow** | [docs/sdd.md](docs/sdd.md) |
 | **Architecture Overview** | [docs/architecture.md](docs/architecture.md) |
-| **Subagent System** | [docs/subagents.md](docs/subagents.md) |
-| **BR Review System** | [docs/review.md](docs/review.md) |
-| **Context Management Layers** | [docs/context-layers.md](docs/context-layers.md) |
-| **Token Efficiency & KG** | [docs/token-efficiency.md](docs/token-efficiency.md) |
+| **Unified Ecosystem Master Plan** | [docs/unified-gaia-ecosystem.md](docs/unified-gaia-ecosystem.md) |
+| **AGIS to GAIA Porting Guide** | [docs/agis-to-gaia-porting-guide.md](docs/agis-to-gaia-porting-guide.md) |
+| **Profiles & Persona System** | [docs/persona.md](docs/persona.md) |
 | **Skills Hub** | [docs/skills.md](docs/skills.md) |
-| **Plugin System** | [docs/plugins.md](docs/plugins.md) |
-| **Design System** | [docs/design-system.md](docs/design-system.md) |
+| **Subagents System** | [docs/subagents.md](docs/subagents.md) |
 | **Security Architecture** | [docs/security.md](docs/security.md) |
-| **Persona System** | [docs/persona.md](docs/persona.md) |
-| **Unified Gateway Proposal** | [docs/unified-architecture.md](docs/unified-architecture.md) |
-| **Architecture Roadmap** | [docs/roadmap.md](docs/roadmap.md) |
-| **Hermes Gap Analysis** | [docs/hermes-commands-review.md](docs/hermes-commands-review.md) |
-| **Pending Features** | [docs/pending-implementations.md](docs/pending-implementations.md) |
+| **Context Management Layers** | [docs/context-layers.md](docs/context-layers.md) |
+| **Token Efficiency & Memory** | [docs/token-efficiency.md](docs/token-efficiency.md) |
+| **Design System** | [docs/design-system.md](docs/design-system.md) |
 | **Full Specification** | [SPEC.md](SPEC.md) |
 
 ---
 
-## 📊 Project Stats
+## 📊 Technical Specifications
 
-| Metric | Value |
+| Characteristic | Specification |
 |---|---|
 | **Language** | Go 1.23+ |
-| **Architecture** | Hexagonal (ports & adapters) |
-| **Packages** | 33 |
-| **Subagents** | 12+ (static + dynamic at runtime) |
-| **LLM Providers** | 19 Supported Providers (OpenAI, Anthropic, DeepSeek, Ollama, Copilot, Groq, OpenRouter, etc.) |
-| **User Interfaces** | Cyberpunk TUI, Web UI Dashboard (`templ-islands`), Wails Desktop |
-| **Gateway Platforms** | Telegram, Discord, Slack, WhatsApp MCP, Signal MCP |
-| **License** | MIT |
+| **Packages** | 60 internal and cmd packages |
+| **Architectural Style** | Hexagonal (Ports & Adapters) |
+| **Supported LLMs** | 19 providers (OpenAI, Anthropic, DeepSeek, Ollama, Groq, OpenRouter, etc.) |
+| **Database** | Embedded SQLite 3 with FTS5 and Vector Search |
+| **Web Server** | Native Go `net/http` with SSE streaming and JSON API |
+| **User Interfaces** | BubbleTea TUI, `templ` + `htmx` Web Dashboard, OpenAI API |
+| **Gateways** | Telegram, WhatsApp Meta Cloud API, Discord, Slack |
+| **Audio Processing** | Whisper STT, ElevenLabs TTS, OpenAI TTS |
+| **License** | MIT License |
 
 ---
 
 ## 🤝 Contributing
 
-Substantial changes follow the built-in SDD workflow. PRs are welcome!
+Contributions are welcome! Please run test suites before submitting PRs:
 
 ```bash
 git clone https://github.com/SalvucciFacundo/gaia.git
 cd gaia
+go test -count=1 ./...
 go build ./cmd/gaia
-go test ./...
 ```
 
 ---
