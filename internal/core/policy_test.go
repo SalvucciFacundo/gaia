@@ -729,3 +729,66 @@ func TestOverride_AskFlow(t *testing.T) {
 		t.Errorf("unapproved file_write reason: got %q, want ask_once", result.Reason)
 	}
 }
+
+func TestPolicyGuard_MemoryMutationRBAC(t *testing.T) {
+	pg := NewPolicyGuard(TierFull, nil, nil)
+	pg.SetActiveProfile("dev")
+
+	// Set validator mock adhering to the RBAC contract
+	pg.SetMemoryValidator(func(callerProfile, targetTopicKey string, isWrite bool) (bool, bool, string) {
+		if !isWrite {
+			return true, false, ""
+		}
+		if targetTopicKey == "gaia/profile/art/proj/color" {
+			return false, true, "cross-profile memory mutation: dev -> art"
+		}
+		if targetTopicKey == "gaia/shared/proj/rules" {
+			return false, true, "cannot write to shared namespace"
+		}
+		if targetTopicKey == "gaia/profile/dev/proj/standards" {
+			return true, false, ""
+		}
+		return true, false, ""
+	})
+
+	// 1. Self profile mutation -> Allowed
+	res := pg.Evaluate("mem_save", map[string]interface{}{
+		"topic_key": "gaia/profile/dev/proj/standards",
+		"content":   "use idiomatic go",
+	})
+	if !res.Allowed {
+		t.Errorf("self profile mutation should be allowed, got: %+v", res)
+	}
+
+	// 2. Cross profile mutation -> Blocked, prompts user (ask_user)
+	res = pg.Evaluate("mem_save", map[string]interface{}{
+		"topic_key": "gaia/profile/art/proj/color",
+		"content":   "modify art style",
+	})
+	if res.Allowed {
+		t.Errorf("cross-profile mutation should NOT be allowed directly")
+	}
+	if res.SuggestedAction != "ask_user" {
+		t.Errorf("expected SuggestedAction ask_user, got %s", res.SuggestedAction)
+	}
+	if !strings.Contains(res.Reason, "cross-profile") {
+		t.Errorf("expected Reason to mention cross-profile, got %s", res.Reason)
+	}
+
+	// 3. Shared namespace write -> Blocked, prompts user (ask_user)
+	res = pg.Evaluate("mem_update", map[string]interface{}{
+		"topic_key": "gaia/shared/proj/rules",
+	})
+	if res.Allowed || res.SuggestedAction != "ask_user" {
+		t.Errorf("shared write should require approval, got: %+v", res)
+	}
+
+	// 4. Non-mutation tool (e.g. search) -> Unaffected
+	res = pg.Evaluate("search_memory", map[string]interface{}{
+		"topic_key": "gaia/profile/art/proj/color",
+	})
+	if !res.Allowed {
+		t.Errorf("search_memory should remain allowed, got: %+v", res)
+	}
+}
+

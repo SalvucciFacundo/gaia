@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -745,3 +746,157 @@ func TestBrain_DelegateMidTurnODD_PostTurnHooks(t *testing.T) {
 		t.Error("expected delegation display message in UI")
 	}
 }
+
+type parallelRecordingRepo struct {
+	stubRepo
+	mu       sync.Mutex
+	messages []domain.Message
+}
+
+func (r *parallelRecordingRepo) SaveMessage(ctx context.Context, msg domain.Message) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.messages = append(r.messages, msg)
+	return nil
+}
+
+type testParallelModule struct {
+	mu             sync.Mutex
+	executionOrder []string
+}
+
+func (m *testParallelModule) Name() string        { return "parallel_test" }
+func (m *testParallelModule) Description() string { return "Test parallel execution" }
+func (m *testParallelModule) GetTools() []domain.ToolCall {
+	return []domain.ToolCall{
+		{Name: "mem_slow"},
+		{Name: "mem_fast"},
+		{Name: "mem_med"},
+		{Name: "file_write"},
+	}
+}
+func (m *testParallelModule) Tools() []domain.ToolDef {
+	return []domain.ToolDef{
+		{Name: "mem_slow"},
+		{Name: "mem_fast"},
+		{Name: "mem_med"},
+		{Name: "file_write"},
+	}
+}
+
+func (m *testParallelModule) Execute(ctx context.Context, name string, args map[string]interface{}) (*domain.ToolResult, error) {
+	switch name {
+	case "mem_slow":
+		time.Sleep(50 * time.Millisecond)
+	case "mem_fast":
+		time.Sleep(5 * time.Millisecond)
+	case "mem_med":
+		time.Sleep(25 * time.Millisecond)
+	case "file_write":
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	m.mu.Lock()
+	m.executionOrder = append(m.executionOrder, name)
+	m.mu.Unlock()
+
+	return &domain.ToolResult{
+		Success: true,
+		Output:  "output_" + name,
+	}, nil
+}
+
+func TestBrain_ParallelToolCalls_OrderPreserved(t *testing.T) {
+	mod := &testParallelModule{}
+	repo := &parallelRecordingRepo{}
+	ui := &stubUI{}
+	brain := NewBrain(&stubProvider{}, repo, ui, nil, domain.DefaultBudget())
+	brain.RegisterModule(mod)
+
+	msg := &domain.Message{
+		Role: domain.RoleAssistant,
+		ToolCalls: []domain.ToolCall{
+			{ID: "call_1", Name: "mem_slow"},
+			{ID: "call_2", Name: "mem_fast"},
+			{ID: "call_3", Name: "mem_med"},
+		},
+	}
+
+	start := time.Now()
+	err := brain.handleToolCalls(context.Background(), msg)
+	elapsed := time.Since(start)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Concurrency verification: total elapsed time should be < 75ms (parallel takes ~50ms vs sequential ~80ms)
+	if elapsed > 150*time.Millisecond {
+		t.Errorf("expected parallel execution to complete quickly, took %v", elapsed)
+	}
+
+	// Execution order check: mem_fast should finish before mem_slow
+	mod.mu.Lock()
+	firstFinished := mod.executionOrder[0]
+	mod.mu.Unlock()
+	if firstFinished != "mem_fast" {
+		t.Errorf("expected mem_fast to finish first, but %s finished first", firstFinished)
+	}
+
+	// Order preservation check: repo.messages must have 3 tool messages + 1 assistant message,
+	// and tool messages MUST be in original order: mem_slow, mem_fast, mem_med
+	repo.mu.Lock()
+	defer repo.mu.Unlock()
+	if len(repo.messages) != 4 {
+		t.Fatalf("expected 4 saved messages (3 tool + 1 assistant), got %d", len(repo.messages))
+	}
+
+	if repo.messages[0].Content != "output_mem_slow" {
+		t.Errorf("expected message 0 to be output_mem_slow, got %s", repo.messages[0].Content)
+	}
+	if repo.messages[1].Content != "output_mem_fast" {
+		t.Errorf("expected message 1 to be output_mem_fast, got %s", repo.messages[1].Content)
+	}
+	if repo.messages[2].Content != "output_mem_med" {
+		t.Errorf("expected message 2 to be output_mem_med, got %s", repo.messages[2].Content)
+	}
+}
+
+func TestBrain_ParallelToolCalls_MixedSafety(t *testing.T) {
+	mod := &testParallelModule{}
+	repo := &parallelRecordingRepo{}
+	ui := &stubUI{}
+	brain := NewBrain(&stubProvider{}, repo, ui, nil, domain.DefaultBudget())
+	brain.RegisterModule(mod)
+
+	msg := &domain.Message{
+		Role: domain.RoleAssistant,
+		ToolCalls: []domain.ToolCall{
+			{ID: "call_1", Name: "mem_fast"},
+			{ID: "call_2", Name: "file_write"},
+			{ID: "call_3", Name: "mem_med"},
+		},
+	}
+
+	err := brain.handleToolCalls(context.Background(), msg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	repo.mu.Lock()
+	defer repo.mu.Unlock()
+	if len(repo.messages) != 4 {
+		t.Fatalf("expected 4 saved messages, got %d", len(repo.messages))
+	}
+
+	if repo.messages[0].Content != "output_mem_fast" {
+		t.Errorf("message 0: got %s, want output_mem_fast", repo.messages[0].Content)
+	}
+	if repo.messages[1].Content != "output_file_write" {
+		t.Errorf("message 1: got %s, want output_file_write", repo.messages[1].Content)
+	}
+	if repo.messages[2].Content != "output_mem_med" {
+		t.Errorf("message 2: got %s, want output_mem_med", repo.messages[2].Content)
+	}
+}
+

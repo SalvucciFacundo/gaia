@@ -5,35 +5,182 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 
+	"gaia/internal/adapters/tui"
+	"gaia/internal/config"
 	"gaia/internal/core"
+
+	tea "github.com/charmbracelet/bubbletea"
 	"gopkg.in/yaml.v3"
 )
 
 // handlePolicyCLI implements "gaia policy <subcommand>".
-// Usage: gaia policy init [--tier=read|sandbox|full] [--global]
+// Usage:
+//   gaia policy status [--verbose]
+//   gaia policy panel
+//   gaia policy init [--tier=read|sandbox|full] [--global]
 func handlePolicyCLI(args []string) {
-	fs := flag.NewFlagSet("policy", flag.ExitOnError)
-	tier := fs.String("tier", "sandbox", "Default tier: read, sandbox, or full")
-	isGlobal := fs.Bool("global", false, "Create global policy instead of project-level")
-
-	var flagArgs []string
-	hasInit := false
-	for _, arg := range args {
-		if arg == "init" && !hasInit {
-			hasInit = true
-			continue
-		}
-		flagArgs = append(flagArgs, arg)
+	if len(args) == 0 {
+		printPolicyUsage()
+		return
 	}
 
-	if !hasInit {
-		fmt.Fprintln(os.Stderr, "Usage: gaia policy init [--tier=read|sandbox|full] [--global]")
+	subcommand := args[0]
+	subArgs := args[1:]
+
+	// Also support flags before subcommand if someone runs `gaia policy --tier=full init`
+	if strings.HasPrefix(subcommand, "-") {
+		found := false
+		for i, arg := range args {
+			if !strings.HasPrefix(arg, "-") {
+				subcommand = arg
+				subArgs = append(args[:i], args[i+1:]...)
+				found = true
+				break
+			}
+		}
+		if !found {
+			printPolicyUsage()
+			return
+		}
+	}
+
+	switch subcommand {
+	case "status":
+		handlePolicyStatus(subArgs)
+	case "panel", "tui":
+		handlePolicyPanel(subArgs)
+	case "init":
+		fs := flag.NewFlagSet("policy init", flag.ExitOnError)
+		tier := fs.String("tier", "sandbox", "Default tier: read, sandbox, or full")
+		isGlobal := fs.Bool("global", false, "Create global policy instead of project-level")
+		fs.Parse(subArgs)
+		handlePolicyInit(*tier, *isGlobal)
+	default:
+		printPolicyUsage()
 		os.Exit(1)
 	}
+}
 
-	fs.Parse(flagArgs)
-	handlePolicyInit(*tier, *isGlobal)
+func printPolicyUsage() {
+	fmt.Println("Usage: gaia policy <command> [options]")
+	fmt.Println()
+	fmt.Println("Commands:")
+	fmt.Println("  status    Display effective permissions across 4 categories and blast radiuses")
+	fmt.Println("  panel     Open the interactive Cyberpunk TUI permissions control panel")
+	fmt.Println("  init      Create initial policy.yaml configuration file")
+	fmt.Println()
+	fmt.Println("Options:")
+	fmt.Println("  --verbose, -v   Show granular tool states in status command")
+	fmt.Println("  --tier=<tier>   Default tier for init: read, sandbox, or full")
+	fmt.Println("  --global        Initialize global user policy instead of project policy")
+}
+
+func getAllDefaultTools() []string {
+	toolSet := make(map[string]bool)
+	for _, cat := range core.StandardCategories {
+		for _, t := range cat.DefaultTools {
+			toolSet[t] = true
+		}
+	}
+	tools := make([]string, 0, len(toolSet))
+	for t := range toolSet {
+		tools = append(tools, t)
+	}
+	sort.Strings(tools)
+	return tools
+}
+
+func loadPolicyGuard() (*core.PolicyGuard, []string) {
+	tools := getAllDefaultTools()
+	cfg, err := config.Load()
+	if err != nil {
+		return core.NewPolicyGuard(core.TierSandbox, nil, nil), tools
+	}
+	tier := core.PolicyTier(cfg.Policy.Tier)
+	if tier == "" {
+		tier = core.TierSandbox
+	}
+	overrides := make(map[string]core.OverridePolicy)
+	for k, v := range cfg.Policy.Overrides {
+		overrides[k] = core.OverridePolicy(v)
+	}
+	return core.NewPolicyGuard(tier, overrides, nil), tools
+}
+
+func handlePolicyStatus(args []string) {
+	fs := flag.NewFlagSet("policy status", flag.ExitOnError)
+	verbose := fs.Bool("verbose", false, "Show detailed tool breakdown")
+	fs.BoolVar(verbose, "v", false, "Show detailed tool breakdown (shorthand)")
+	fs.Parse(args)
+
+	guard, tools := loadPolicyGuard()
+	tier := "sandbox"
+	if guard != nil {
+		tier = string(guard.Tier())
+	}
+
+	fmt.Println("================================================================================")
+	fmt.Printf("🛡️  GAIA Security & Permissions Status (Tier: %s)\n", strings.ToUpper(tier))
+	fmt.Println("================================================================================")
+	fmt.Printf("%-24s %-12s %-24s %s\n", "CATEGORY", "STATUS", "BLAST RADIUS", "TOOLS")
+	fmt.Println("--------------------------------------------------------------------------------")
+
+	summaries := core.GetCategorySummaries(guard, tools)
+	for _, s := range summaries {
+		var badge string
+		switch s.State {
+		case core.StateAllow:
+			badge = "🟢 ALLOW"
+		case core.StateAsk:
+			badge = "🟡 ASK"
+		case core.StateBlock:
+			badge = "🔴 BLOCK"
+		}
+
+		fmt.Printf("%-24s %-12s %-24s %d tools\n", s.Name, badge, s.BlastRadius, len(s.Tools))
+	}
+	fmt.Println("--------------------------------------------------------------------------------")
+	fmt.Println("Run 'gaia policy panel' for the interactive TUI control panel.")
+
+	if *verbose {
+		fmt.Println()
+		fmt.Println("Granular Tool Breakdown:")
+		for _, s := range summaries {
+			fmt.Printf("\n  📁 %s (💥 %s):\n", s.Name, s.BlastRadius)
+			sortedTools := make([]core.ToolState, len(s.Tools))
+			copy(sortedTools, s.Tools)
+			sort.Slice(sortedTools, func(i, j int) bool {
+				return sortedTools[i].Name < sortedTools[j].Name
+			})
+			for _, t := range sortedTools {
+				var dot string
+				switch t.State {
+				case core.StateAllow:
+					dot = "🟢 ALLOW"
+				case core.StateAsk:
+					dot = "🟡 ASK  "
+				case core.StateBlock:
+					dot = "🔴 BLOCK"
+				}
+				fmt.Printf("    • %-20s %s\n", t.Name, dot)
+			}
+		}
+	}
+}
+
+func handlePolicyPanel(args []string) {
+	guard, tools := loadPolicyGuard()
+	model := tui.NewPolicyPanelModel(guard, tools)
+	model.SetStandalone(true)
+
+	p := tea.NewProgram(model, tea.WithAltScreen())
+	if _, err := p.Run(); err != nil {
+		fmt.Fprintf(os.Stderr, "Error running policy panel: %v\n", err)
+		os.Exit(1)
+	}
 }
 
 func handlePolicyInit(tier string, isGlobal bool) {

@@ -2750,6 +2750,11 @@ func (b *Brain) Registry() *ToolRegistry {
 	return b.registry
 }
 
+// PolicyGuard returns the brain's policy guard (nil if not configured).
+func (b *Brain) PolicyGuard() *PolicyGuard {
+	return b.policy
+}
+
 // Step executes a single turn through the full agent loop (implements gateway.BrainRunner).
 func (b *Brain) Step(ctx context.Context, input string) error {
 	return b.ProcessMessage(ctx, input)
@@ -3415,85 +3420,178 @@ func (b *Brain) readStream(ctx context.Context, reader io.Reader) (*domain.Messa
 	return response, scanner.Err()
 }
 
+// toolCallItem tracks execution lifecycle and results for one tool call in a turn.
+type toolCallItem struct {
+	tc      domain.ToolCall
+	result  *domain.ToolResult
+	skipped bool
+	denied  bool
+	errMsg  string
+}
+
+// isParallelSafeTool returns true if a tool call is read-only and requires no human confirmation.
+func (b *Brain) isParallelSafeTool(tc domain.ToolCall) bool {
+	// Guard confirmation check
+	if b.guard != nil && b.guard.ShouldConfirm(tc.Name) {
+		return false
+	}
+	// Policy check: must be explicitly allowed without prompt
+	if b.policy != nil {
+		res := b.policy.Evaluate(tc.Name, tc.Arguments)
+		if !res.Allowed {
+			return false
+		}
+	}
+	// Tier check: must be read-only tier
+	return ClassifyTool(tc.Name) == TierRead
+}
+
 func (b *Brain) handleToolCalls(ctx context.Context, msg *domain.Message, tracker ...*MidTurnBudgetTracker) error {
 	var tr *MidTurnBudgetTracker
 	if len(tracker) > 0 {
 		tr = tracker[0]
 	}
-	for _, tc := range msg.ToolCalls {
-		// Policy guard evaluation (additive — runs before ConfirmGuard)
-		if b.policy != nil {
-			result := b.policy.Evaluate(tc.Name, tc.Arguments)
-			if !result.Allowed {
-				// Check smart escalation
-				switch result.SuggestedAction {
-				case "skip":
-					// Silently skip — tool is cosmetic/read-only
-					continue
-				case "alternative":
-					// Block but notify — alternatives not auto-dispatched yet
-					toolMsg := domain.Message{
-						Role:    domain.RoleTool,
-						Content: fmt.Sprintf("Policy denied: %s (reason: %s). Try an alternative tool.", tc.Name, result.Reason),
+
+	n := len(msg.ToolCalls)
+	if n == 0 {
+		return nil
+	}
+
+	items := make([]toolCallItem, n)
+	for i, tc := range msg.ToolCalls {
+		items[i].tc = tc
+	}
+
+	// Partition and dispatch: contiguous parallel-safe tools run concurrently in goroutines;
+	// state-mutating or interactive tools run sequentially.
+	i := 0
+	for i < n {
+		if b.isParallelSafeTool(items[i].tc) {
+			start := i
+			for i < n && b.isParallelSafeTool(items[i].tc) {
+				i++
+			}
+			end := i
+
+			if end-start == 1 {
+				res, err := b.registry.Execute(ctx, items[start].tc.Name, items[start].tc.Arguments)
+				if err != nil {
+					res = &domain.ToolResult{
+						Success: false,
+						Error:   err.Error(),
 					}
-					b.repo.SaveMessage(ctx, toolMsg)
-					continue
-				default:
-					// "ask_user" or "block" — prompt confirmation
-					if result.SuggestedAction == "ask_user" {
-						confirmed, err := b.ui.PromptConfirmation(fmt.Sprintf(
-							"Policy blocks %s (reason: %s). Allow anyway?",
-							tc.Name, result.Reason))
-						if err != nil || !confirmed {
-							toolMsg := domain.Message{
-								Role:    domain.RoleTool,
-								Content: fmt.Sprintf("User denied policy-blocked tool %s.", tc.Name),
+				}
+				items[start].result = res
+			} else {
+				// Execute parallel batch concurrently
+				var wg sync.WaitGroup
+				for j := start; j < end; j++ {
+					j := j
+					wg.Add(1)
+					go func() {
+						defer wg.Done()
+						res, err := b.registry.Execute(ctx, items[j].tc.Name, items[j].tc.Arguments)
+						if err != nil {
+							res = &domain.ToolResult{
+								Success: false,
+								Error:   err.Error(),
 							}
-							b.repo.SaveMessage(ctx, toolMsg)
+						}
+						items[j].result = res
+					}()
+				}
+				wg.Wait()
+			}
+		} else {
+			// Sequential execution with policy evaluation and confirmation gates
+			tc := items[i].tc
+
+			// Policy guard evaluation (additive — runs before ConfirmGuard)
+			if b.policy != nil {
+				result := b.policy.Evaluate(tc.Name, tc.Arguments)
+				if !result.Allowed {
+					switch result.SuggestedAction {
+					case "skip":
+						items[i].skipped = true
+						i++
+						continue
+					case "alternative":
+						items[i].denied = true
+						items[i].errMsg = fmt.Sprintf("Policy denied: %s (reason: %s). Try an alternative tool.", tc.Name, result.Reason)
+						i++
+						continue
+					default:
+						if result.SuggestedAction == "ask_user" {
+							confirmed, err := b.ui.PromptConfirmation(fmt.Sprintf(
+								"Policy blocks %s (reason: %s). Allow anyway?",
+								tc.Name, result.Reason))
+							if err != nil || !confirmed {
+								items[i].denied = true
+								items[i].errMsg = fmt.Sprintf("User denied policy-blocked tool %s.", tc.Name)
+								i++
+								continue
+							}
+							b.policy.Session().ApproveSession(tc.Name)
+						} else {
+							items[i].denied = true
+							items[i].errMsg = fmt.Sprintf("Policy blocked: %s (reason: %s)", tc.Name, result.Reason)
+							i++
 							continue
 						}
-						// User approved — update session approvals
-						b.policy.Session().ApproveSession(tc.Name)
-					} else {
-						toolMsg := domain.Message{
-							Role:    domain.RoleTool,
-							Content: fmt.Sprintf("Policy blocked: %s (reason: %s)", tc.Name, result.Reason),
-						}
-						b.repo.SaveMessage(ctx, toolMsg)
-						continue
 					}
 				}
 			}
-		}
 
-		// Confirmation gate (legacy ConfirmGuard — kept for backward compat)
-		if b.guard != nil && b.guard.ShouldConfirm(tc.Name) {
-			confirmed, err := b.ui.PromptConfirmation(fmt.Sprintf("Allow tool %s with args %v?", tc.Name, tc.Arguments))
-			if err != nil || !confirmed {
-				toolMsg := domain.Message{
-					Role:    domain.RoleTool,
-					Content: "User denied tool execution.",
+			// Confirmation gate (legacy ConfirmGuard — kept for backward compat)
+			if b.guard != nil && b.guard.ShouldConfirm(tc.Name) {
+				confirmed, err := b.ui.PromptConfirmation(fmt.Sprintf("Allow tool %s with args %v?", tc.Name, tc.Arguments))
+				if err != nil || !confirmed {
+					items[i].denied = true
+					items[i].errMsg = "User denied tool execution."
+					i++
+					continue
 				}
-				b.repo.SaveMessage(ctx, toolMsg)
-				continue
+				b.guard.Approve(tc.Name)
 			}
-			b.guard.Approve(tc.Name)
+
+			// Execute via registry
+			res, err := b.registry.Execute(ctx, tc.Name, tc.Arguments)
+			if err != nil {
+				res = &domain.ToolResult{
+					Success: false,
+					Error:   err.Error(),
+				}
+			}
+			items[i].result = res
+			i++
+		}
+	}
+
+	// Post-execution: process audit, facts, budget tracking, and persistence in exact original index order
+	for idx := range items {
+		item := &items[idx]
+		if item.skipped {
+			continue
+		}
+		if item.denied {
+			toolMsg := domain.Message{
+				Role:    domain.RoleTool,
+				Content: item.errMsg,
+			}
+			b.repo.SaveMessage(ctx, toolMsg)
+			continue
 		}
 
-		// Execute via registry
-		result, execErr := b.registry.Execute(ctx, tc.Name, tc.Arguments)
-		if execErr != nil {
-			result = &domain.ToolResult{
-				Success: false,
-				Error:   execErr.Error(),
-			}
+		result := item.result
+		if result == nil {
+			result = &domain.ToolResult{Success: false, Error: "no result returned"}
 		}
 
 		// Audit log: record tool execution if policy has audit override
-		b.logAudit(tc.Name, tc.Arguments, result.Success)
+		b.logAudit(item.tc.Name, item.tc.Arguments, result.Success)
 
 		// Parent Hot Memory: persist direct inline tool execution / mutations into KnowledgeGraph
-		b.saveDirectActionFact(ctx, tc.Name, tc.Arguments, result)
+		b.saveDirectActionFact(ctx, item.tc.Name, item.tc.Arguments, result)
 
 		output := result.Output
 		if !result.Success {
@@ -3505,7 +3603,7 @@ func (b *Brain) handleToolCalls(ctx context.Context, msg *domain.Message, tracke
 
 		// Record tool execution into MidTurnBudgetTracker if wired
 		if tr != nil {
-			tr.RecordToolCall(tc.Name, tc.Arguments, output)
+			tr.RecordToolCall(item.tc.Name, item.tc.Arguments, output)
 		}
 
 		toolMsg := domain.Message{

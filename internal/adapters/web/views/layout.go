@@ -50,7 +50,11 @@ func RenderLayout(data WebDashboardData) templ.Component {
                 </h1>
             </div>
         </div>
-        <div class="flex items-center space-x-4">
+        <div class="flex items-center space-x-3">
+            <button hx-get="/web/policy" hx-target="#modal-container" class="text-xs px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-[#00F5D4] border border-[#00F5D4]/30 rounded-lg transition flex items-center gap-1.5 font-mono cursor-pointer shadow-sm shadow-[#00F5D4]/10">
+                <span>🛡️</span>
+                <span class="font-semibold">Permissions</span>
+            </button>
             <div class="text-xs text-slate-400 bg-slate-800/80 px-3 py-1.5 rounded-md border border-slate-700 font-mono flex items-center gap-2">
                 <span class="w-2 h-2 rounded-full bg-[#00F5D4] animate-pulse"></span>
                 <span>Provider: <strong class="text-slate-200">%s</strong></span>

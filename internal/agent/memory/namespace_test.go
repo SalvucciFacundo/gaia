@@ -133,3 +133,103 @@ func TestNamespaceManager_SessionID(t *testing.T) {
 		t.Error("SaveInstructions should mention needs_review lifecycle state")
 	}
 }
+
+func TestNamespaceManager_ProfilePrefix(t *testing.T) {
+	mgr := NewNamespaceManager("gaia")
+
+	want := "gaia/profile/dev/gaia"
+	got := mgr.ProfilePrefix("dev")
+	if got != want {
+		t.Errorf("ProfilePrefix: want %q, got %q", want, got)
+	}
+
+	wantKey := "gaia/profile/art/gaia/palette"
+	gotKey := mgr.ProfileTopicKey("art", "palette")
+	if gotKey != wantKey {
+		t.Errorf("ProfileTopicKey: want %q, got %q", wantKey, gotKey)
+	}
+}
+
+func TestNamespaceManager_ParseTopicKey(t *testing.T) {
+	mgr := NewNamespaceManager("gaia")
+
+	// Profile topic key
+	info, ok := mgr.ParseTopicKey("gaia/profile/dev/gaia/patterns/code")
+	if !ok || info.Domain != "profile" || info.Owner != "dev" || info.Project != "gaia" || info.Topic != "patterns/code" {
+		t.Errorf("ParseTopicKey profile failed: got %+v, ok=%v", info, ok)
+	}
+
+	// Shared topic key
+	info, ok = mgr.ParseTopicKey("gaia/shared/gaia/global-decisions")
+	if !ok || info.Domain != "shared" || info.Owner != "shared" || info.Topic != "global-decisions" {
+		t.Errorf("ParseTopicKey shared failed: got %+v, ok=%v", info, ok)
+	}
+
+	// Subagent topic key
+	info, ok = mgr.ParseTopicKey("gaia/subagent/explorer/gaia/discovery")
+	if !ok || info.Domain != "subagent" || info.Owner != "explorer" || info.Topic != "discovery" {
+		t.Errorf("ParseTopicKey subagent failed: got %+v, ok=%v", info, ok)
+	}
+
+	// Invalid key
+	_, ok = mgr.ParseTopicKey("other/invalid/key")
+	if ok {
+		t.Error("ParseTopicKey should fail on non-gaia keys")
+	}
+}
+
+func TestNamespaceManager_ValidateMemoryAccess(t *testing.T) {
+	mgr := NewNamespaceManager("gaia")
+
+	// 1. Cross-profile read: always allowed without human approval
+	allowed, needApproval, _ := mgr.ValidateMemoryAccess("dev", "gaia/profile/art/gaia/color-scheme", false)
+	if !allowed || needApproval {
+		t.Errorf("cross-profile read should be allowed without approval, got allowed=%v, needApproval=%v", allowed, needApproval)
+	}
+
+	// 2. Self write: dev writing to dev -> allowed, no approval needed
+	allowed, needApproval, _ = mgr.ValidateMemoryAccess("dev", "gaia/profile/dev/gaia/standards", true)
+	if !allowed || needApproval {
+		t.Errorf("self-write should be allowed without approval, got allowed=%v, needApproval=%v", allowed, needApproval)
+	}
+
+	// 3. Cross-profile write: dev writing to art -> not allowed directly, requires human approval
+	allowed, needApproval, reason := mgr.ValidateMemoryAccess("dev", "gaia/profile/art/gaia/color-scheme", true)
+	if allowed || !needApproval {
+		t.Errorf("cross-profile write should require approval, got allowed=%v, needApproval=%v", allowed, needApproval)
+	}
+	if !strings.Contains(reason, "cross-profile") {
+		t.Errorf("expected reason to mention cross-profile, got %q", reason)
+	}
+
+	// 4. Shared write: profile writing to shared -> requires human approval
+	allowed, needApproval, reason = mgr.ValidateMemoryAccess("dev", "gaia/shared/gaia/rules", true)
+	if allowed || !needApproval {
+		t.Errorf("shared write should require approval, got allowed=%v, needApproval=%v", allowed, needApproval)
+	}
+	if !strings.Contains(reason, "shared namespace") {
+		t.Errorf("expected reason to mention shared namespace, got %q", reason)
+	}
+}
+
+func TestNamespaceManager_ProfileInstructions(t *testing.T) {
+	mgr := NewNamespaceManager("myproj")
+	mgr.SetSessionID("sess-999")
+
+	saveInstr := mgr.ProfileSaveInstructions("dev")
+	if !strings.Contains(saveInstr, "gaia/profile/dev/myproj") {
+		t.Error("ProfileSaveInstructions should contain profile prefix")
+	}
+	if !strings.Contains(saveInstr, "Cross-Profile Collaboration") {
+		t.Error("ProfileSaveInstructions should describe cross-profile reading")
+	}
+	if !strings.Contains(saveInstr, "Mutation Restriction") {
+		t.Error("ProfileSaveInstructions should state mutation restriction")
+	}
+
+	searchInstr := mgr.ProfileSearchInstructions("dev")
+	if !strings.Contains(searchInstr, "gaia/profile/dev/myproj") {
+		t.Error("ProfileSearchInstructions should contain profile scope")
+	}
+}
+

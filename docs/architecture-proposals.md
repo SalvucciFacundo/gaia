@@ -78,12 +78,23 @@ This document captures the approved proposals for GAIA's next evolution phases, 
 ---
 
 ## 5. Simplified Permissions & Policy Control Panel
-- **Status**: Planned
-- **Objective**: Replace obscure security configurations with an intuitive permissions matrix in both the Web UI and Cyberpunk TUI.
+- **Status**: Completed (`completed`)
+- **Objective**: Replace obscure security configurations with an intuitive 4x3 permissions matrix and blast radius indicators in both the Web UI and Cyberpunk TUI.
 - **Architecture**:
-  - **4 Functional Categories**: File Read/Write, Shell Execution, Network/Gateways, Memory Mutation.
-  - **3 Simple States**: `Always Allow`, `Ask Once Per Session`, `Block`.
-- **Target Files**:
-  - `internal/core/policy.go`
-  - `internal/adapters/web/`
-  - `internal/adapters/tui/`
+  - **4 Functional Categories**: `Filesystem & Disk`, `Terminal & Commands`, `Network & Internet`, `Memory & State`.
+  - **3-State Traffic Light**: `🟢 Always Allow`, `🟡 Ask User`, `🔴 Block`.
+  - **Blast Radius Indicators**: Project Workspace, Local Machine (OS), External Internet, GAIA Storage.
+  - **Cyberpunk TUI & Web UI**: Interactive panel with accordion progressive disclosure for tool-by-tool breakdowns and spacebar/button state toggling.
+  - **CLI Command Suite**: `gaia policy status [-v]`, `gaia policy panel`, `gaia policy init`.
+- **Implemented Files**:
+  - `internal/core/policy_categories.go`
+  - `internal/core/policy_categories_test.go`
+  - `internal/core/kernel.go`
+  - `internal/adapters/tui/policy_panel.go`
+  - `internal/adapters/web/server.go`
+  - `internal/adapters/web/server_test.go`
+  - `internal/adapters/web/views/layout.go`
+  - `internal/adapters/web/views/policy_modal.go`
+  - `cmd/gaia/policy.go`
+  - `cmd/gaia/policy_test.go`
+

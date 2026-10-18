@@ -71,3 +71,35 @@ func TestPolicyCLIFlagParsing(t *testing.T) {
 		})
 	}
 }
+
+func TestGetAllDefaultTools(t *testing.T) {
+	tools := getAllDefaultTools()
+	if len(tools) == 0 {
+		t.Fatal("expected default tools to be non-empty")
+	}
+
+	toolMap := make(map[string]bool)
+	for _, tool := range tools {
+		toolMap[tool] = true
+	}
+
+	expected := []string{"file_read", "file_write", "shell_exec", "web_search", "mem_save"}
+	for _, exp := range expected {
+		if !toolMap[exp] {
+			t.Errorf("expected tool %q in default tools", exp)
+		}
+	}
+}
+
+func TestPolicyCLI_StatusExecution(t *testing.T) {
+	// Verify handlePolicyStatus runs without panicking with both normal and verbose flags
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("handlePolicyStatus panicked: %v", r)
+		}
+	}()
+
+	handlePolicyStatus([]string{})
+	handlePolicyStatus([]string{"-v"})
+}
+

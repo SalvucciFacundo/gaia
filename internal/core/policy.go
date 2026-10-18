@@ -113,14 +113,19 @@ func (sa *SessionApprovals) Reset() {
 	sa.once = make(map[string]bool)
 }
 
+// MemoryAccessValidator validates whether caller profile has access to the target memory topic.
+type MemoryAccessValidator func(callerProfile, targetTopicKey string, isWrite bool) (allowed bool, requiresHumanApproval bool, reason string)
+
 // PolicyGuard evaluates tool execution permissions based on tier,
 // per-tool overrides, deny rules, and the hardline blocklist.
 type PolicyGuard struct {
-	mu        sync.RWMutex
-	tier      PolicyTier
-	overrides map[string]OverridePolicy
-	store     PolicyStore
-	session   *SessionApprovals
+	mu              sync.RWMutex
+	tier            PolicyTier
+	overrides       map[string]OverridePolicy
+	store           PolicyStore
+	session         *SessionApprovals
+	activeProfile   string
+	memoryValidator MemoryAccessValidator
 }
 
 // NewPolicyGuard creates a PolicyGuard with the given configuration.
@@ -138,6 +143,27 @@ func NewPolicyGuard(tier PolicyTier, overrides map[string]OverridePolicy, store 
 		store:     store,
 		session:   NewSessionApprovals(),
 	}
+}
+
+// SetActiveProfile sets the active profile persona ID for policy evaluation.
+func (pg *PolicyGuard) SetActiveProfile(profile string) {
+	pg.mu.Lock()
+	defer pg.mu.Unlock()
+	pg.activeProfile = profile
+}
+
+// ActiveProfile returns the active profile persona ID.
+func (pg *PolicyGuard) ActiveProfile() string {
+	pg.mu.RLock()
+	defer pg.mu.RUnlock()
+	return pg.activeProfile
+}
+
+// SetMemoryValidator injects a memory access validation function.
+func (pg *PolicyGuard) SetMemoryValidator(v MemoryAccessValidator) {
+	pg.mu.Lock()
+	defer pg.mu.Unlock()
+	pg.memoryValidator = v
 }
 
 // Tier returns the current policy tier.
@@ -383,6 +409,29 @@ func (pg *PolicyGuard) Evaluate(toolName string, args map[string]interface{}) Po
 			Reason:      "path_rule",
 			BlockedTool: toolName,
 		}, toolName, reason)
+	}
+
+	// Step 3b: Profile-aware memory mutation validation (RBAC)
+	if isMemoryMutationTool(toolName) && pg.memoryValidator != nil {
+		topicKey := extractTopicKey(args)
+		if topicKey != "" {
+			allowed, needApproval, reason := pg.memoryValidator(pg.activeProfile, topicKey, true)
+			if needApproval {
+				return PolicyResult{
+					Allowed:         false,
+					Reason:          reason,
+					SuggestedAction: "ask_user",
+					BlockedTool:     toolName,
+				}
+			}
+			if !allowed {
+				return pg.resultWithEscalation(PolicyResult{
+					Allowed:     false,
+					Reason:      "memory_access_denied",
+					BlockedTool: toolName,
+				}, toolName, reason)
+			}
+		}
 	}
 
 	// Step 4: Tier check
@@ -669,3 +718,28 @@ func extractCmd(args map[string]interface{}) string {
 	}
 	return ""
 }
+
+// isMemoryMutationTool identifies tools that modify memory observations or topics.
+func isMemoryMutationTool(toolName string) bool {
+	switch toolName {
+	case "mem_save", "mem_update", "mem_delete", "save_observation":
+		return true
+	default:
+		return false
+	}
+}
+
+// extractTopicKey extracts a topic key argument for memory access checking.
+func extractTopicKey(args map[string]interface{}) string {
+	if args == nil {
+		return ""
+	}
+	if tk, ok := args["topic_key"].(string); ok && tk != "" {
+		return tk
+	}
+	if tk, ok := args["topic"].(string); ok && tk != "" {
+		return tk
+	}
+	return ""
+}
+

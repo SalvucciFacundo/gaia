@@ -2,11 +2,13 @@ package web
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 
 	"gaia/internal/adapters/web/views"
@@ -73,6 +75,8 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("/web/message", s.handleSendMessage)
 	mux.HandleFunc("/web/projects/select", s.handleSelectProject)
 	mux.HandleFunc("/web/stream", s.handleSSEStream)
+	mux.HandleFunc("/web/policy", s.handlePolicyStatus)
+	mux.HandleFunc("/web/policy/update", s.handlePolicyUpdate)
 
 	addr := net.JoinHostPort("0.0.0.0", s.port)
 	log.Printf("🚀 GAIA Web UI Dashboard listening on http://%s", addr)
@@ -189,4 +193,86 @@ func (s *Server) handleSelectProject(w http.ResponseWriter, r *http.Request) {
 	s.mu.Unlock()
 
 	http.Redirect(w, r, "/", http.StatusSeeOther)
+}
+
+func (s *Server) getPolicyGuardAndTools() (*core.PolicyGuard, []string) {
+	if s.brain == nil {
+		return nil, nil
+	}
+	var tools []string
+	if reg := s.brain.Registry(); reg != nil {
+		tools = reg.Tools()
+	}
+	return s.brain.PolicyGuard(), tools
+}
+
+func (s *Server) handlePolicyStatus(w http.ResponseWriter, r *http.Request) {
+	guard, tools := s.getPolicyGuardAndTools()
+	categories := core.GetCategorySummaries(guard, tools)
+
+	if r.URL.Query().Get("format") == "json" || strings.Contains(r.Header.Get("Accept"), "application/json") {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"categories": categories,
+		})
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	html := views.RenderPolicyModal(categories)
+	_, _ = w.Write([]byte(html))
+}
+
+func (s *Server) handlePolicyUpdate(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	guard, tools := s.getPolicyGuardAndTools()
+
+	category := r.URL.Query().Get("category")
+	if category == "" {
+		category = r.FormValue("category")
+	}
+	state := r.URL.Query().Get("state")
+	if state == "" {
+		state = r.FormValue("state")
+	}
+	toolName := r.URL.Query().Get("tool")
+	if toolName == "" {
+		toolName = r.FormValue("tool")
+	}
+
+	if guard != nil {
+		if category != "" && state != "" {
+			core.SetCategoryState(guard, core.PolicyCategoryID(category), core.SimplifiedState(state))
+		} else if toolName != "" && state != "" {
+			var override core.OverridePolicy
+			switch core.SimplifiedState(state) {
+			case core.StateAllow:
+				override = core.OverrideAllow
+			case core.StateAsk:
+				override = core.OverrideAskSession
+			case core.StateBlock:
+				override = core.OverrideDeny
+			}
+			guard.SetOverride(toolName, override)
+		}
+	}
+
+	categories := core.GetCategorySummaries(guard, tools)
+
+	if r.URL.Query().Get("format") == "json" || strings.Contains(r.Header.Get("Accept"), "application/json") {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"status":     "ok",
+			"categories": categories,
+		})
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	html := views.RenderPolicyModal(categories)
+	_, _ = w.Write([]byte(html))
 }
