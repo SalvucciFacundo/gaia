@@ -345,6 +345,9 @@ type SubagentTask struct {
 	Mode             string    // Execution mode: "plan" or "build"
 	IsDirectChat     bool      // True when routed via @name syntax; subagent responds directly to user
 	MoA              MoAConfig // Mixture-of-Agents config (empty = single-model)
+	InputKeys        []string  // Blackboard working memory keys to resolve and inject as context
+	OutputKeys       []string  // Expected Blackboard keys to emit
+	Ephemeral        bool      // Enforce bounded turns (max 3) and conversation context destruction
 }
 
 // ReviewState represents the state of a review transaction in the formal state machine.

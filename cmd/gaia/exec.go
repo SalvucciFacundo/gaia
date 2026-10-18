@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"gaia/internal/adapters/db"
@@ -12,12 +13,16 @@ import (
 	"gaia/internal/adapters/output"
 	"gaia/internal/adapters/tui"
 	"gaia/internal/agent"
+	"gaia/internal/agent/memory"
 	"gaia/internal/agent/ops"
 	"gaia/internal/agent/sdd"
+	"gaia/internal/blackboard"
 	"gaia/internal/config"
 	"gaia/internal/core"
 	"gaia/internal/core/domain"
 	"gaia/internal/core/ports"
+	blackboardmod "gaia/internal/modules/blackboard"
+	"gaia/internal/modules/codemode"
 	"gaia/internal/modules/fileops"
 	"gaia/internal/modules/gitops"
 	"gaia/internal/modules/shell"
@@ -150,9 +155,24 @@ func handleExec(args []string) {
 
 	// Register core execution modules
 	projectRoot, _ := os.Getwd()
+	projectName := filepath.Base(projectRoot)
+	namespaceMgr := memory.NewNamespaceManager(projectName)
+
+	activeProfile := cfg.CurrentProfile
+	if activeProfile == "" {
+		activeProfile = "dev"
+	}
+	policyGuard.SetActiveProfile(activeProfile)
+	policyGuard.SetMemoryValidator(namespaceMgr.ValidateMemoryAccess)
+
+	blackboardDir := filepath.Join(projectRoot, ".gaia", "blackboard")
+	bb := blackboard.New(blackboardDir)
+
 	brain.RegisterModule(shell.NewModule(projectRoot))
 	brain.RegisterModule(fileops.NewModule(projectRoot))
 	brain.RegisterModule(gitops.NewModule(projectRoot))
+	brain.RegisterModule(codemode.NewModule(projectRoot, brain.Registry()))
+	brain.RegisterModule(blackboardmod.NewModule(bb))
 
 	// Wire Subagent Spawner for ODD dynamic delegations
 	subagentRegistry := agent.NewRegistry()
@@ -162,10 +182,11 @@ func handleExec(args []string) {
 	_ = subagentRegistry.Register("reviewer", ops.NewReviewer)
 
 	spawner := agent.NewSpawner(agent.SpawnerConfig{
-		Provider: router,
-		Tools:    brain.Registry(),
-		Budget:   cfg.Budget,
-		Policy:   policyGuard,
+		Provider:   router,
+		Tools:      brain.Registry(),
+		Budget:     cfg.Budget,
+		Policy:     policyGuard,
+		Blackboard: bb,
 	}, subagentRegistry)
 	brain.SetSubagentPort(spawner)
 

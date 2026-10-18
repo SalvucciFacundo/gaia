@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"gaia/internal/agent/learn"
 	"gaia/internal/agent/memory"
+	"gaia/internal/blackboard"
 	"gaia/internal/core"
 	"gaia/internal/core/domain"
 	"gaia/internal/core/ports"
@@ -26,6 +28,7 @@ type SpawnerConfig struct {
 	AuditFunc      func(name string, args map[string]interface{}, allowed bool) // audit trail callback
 	DefaultTimeout time.Duration                                                // optional timeout for Spawn execution
 	WorktreeMgr    *WorktreeManager                                             // Git worktree isolation for async tasks
+	Blackboard     *blackboard.Blackboard                                       // L1 working memory ledger (nil = disabled)
 }
 
 // Spawner implements ports.SubagentPort. It creates isolated execution
@@ -72,6 +75,11 @@ func (s *Spawner) Namespace() *memory.NamespaceManager {
 // TaskManager returns the async task manager (may be nil if not configured).
 func (s *Spawner) TaskManager() *TaskManager {
 	return s.cfg.TaskManager
+}
+
+// Blackboard returns the spawner's Blackboard working memory (may be nil if not configured).
+func (s *Spawner) Blackboard() *blackboard.Blackboard {
+	return s.cfg.Blackboard
 }
 
 // SpawnAsync launches a subagent execution in a goroutine and returns immediately.
@@ -195,12 +203,41 @@ func (s *Spawner) RunLoop(ctx context.Context, task domain.SubagentTask, systemP
 		}
 	}
 
+	// Resolve and inject Blackboard input keys if specified
+	if s.cfg.Blackboard != nil && len(task.InputKeys) > 0 {
+		var bbFacts []string
+		for _, key := range task.InputKeys {
+			if entry, err := s.cfg.Blackboard.Get(key); err == nil {
+				payload, _ := blackboard.ReadPayload(entry)
+				bbFacts = append(bbFacts, fmt.Sprintf("- Key %q: %s", key, string(payload)))
+			}
+		}
+		if len(bbFacts) > 0 {
+			systemPrompt += "\n## Working Memory Context (Blackboard)\n" + strings.Join(bbFacts, "\n") + "\n"
+		}
+	}
+
 	messages := []domain.Message{
 		{Role: domain.RoleSystem, Content: systemPrompt},
 		{Role: domain.RoleUser, Content: task.Description},
 	}
 
-	for iter := 0; iter < s.cfg.Budget.MaxIterations; iter++ {
+	// Ephemeral worker mode: discard conversation context completely upon return
+	if task.Ephemeral {
+		defer func() {
+			messages = nil
+		}()
+	}
+
+	maxIterations := s.cfg.Budget.MaxIterations
+	if task.Ephemeral {
+		// Bounded turns for ephemeral workers (Reminis standard: max 3 turns)
+		if maxIterations <= 0 || maxIterations > 3 {
+			maxIterations = 3
+		}
+	}
+
+	for iter := 0; iter < maxIterations; iter++ {
 		// Check for cancellation before each LLM call
 		select {
 		case <-ctx.Done():
@@ -232,67 +269,142 @@ func (s *Spawner) RunLoop(ctx context.Context, task domain.SubagentTask, systemP
 		// If the model returns tool calls, execute them and feed results back
 		if len(resp.ToolCalls) > 0 {
 			messages = append(messages, *resp)
-			for _, tc := range resp.ToolCalls {
-				// Check cancellation between tool executions
+
+			type subagentToolCallItem struct {
+				tc         domain.ToolCall
+				toolResult *domain.ToolResult
+				deniedMsg  string
+			}
+
+			n := len(resp.ToolCalls)
+			items := make([]subagentToolCallItem, n)
+			for idx, tc := range resp.ToolCalls {
+				items[idx].tc = tc
+			}
+
+			isParallelSafe := func(tc domain.ToolCall) bool {
+				if len(task.AllowedEditRoots) > 0 {
+					lowerName := strings.ToLower(tc.Name)
+					if strings.Contains(lowerName, "write") || strings.Contains(lowerName, "edit") ||
+						strings.Contains(lowerName, "patch") || strings.Contains(lowerName, "create") {
+						return false
+					}
+				}
+				if s.cfg.Policy != nil {
+					res := s.cfg.Policy.Evaluate(tc.Name, tc.Arguments)
+					if !res.Allowed {
+						return false
+					}
+				}
+				return core.ClassifyTool(tc.Name) == core.TierRead
+			}
+
+			i := 0
+			for i < n {
 				select {
 				case <-ctx.Done():
 					return nil, ctx.Err()
 				default:
 				}
 
-				// Mechanical Edit Authority Enforcement
-				if len(task.AllowedEditRoots) > 0 {
-					lowerName := strings.ToLower(tc.Name)
-					if strings.Contains(lowerName, "write") || strings.Contains(lowerName, "edit") ||
-						strings.Contains(lowerName, "patch") || strings.Contains(lowerName, "create") {
-						targetPath := ""
-						if p, ok := tc.Arguments["path"].(string); ok && p != "" {
-							targetPath = p
-						} else if f, ok := tc.Arguments["file"].(string); ok && f != "" {
-							targetPath = f
-						} else if t, ok := tc.Arguments["target"].(string); ok && t != "" {
-							targetPath = t
-						}
+				if isParallelSafe(items[i].tc) {
+					start := i
+					for i < n && isParallelSafe(items[i].tc) {
+						i++
+					}
+					end := i
 
-						if targetPath != "" {
-							if !checkEditAuthority(targetPath, task.AllowedEditRoots) {
-								deniedOutput := fmt.Sprintf("Edit Authority Denied: target path %q is outside allowed edit roots (%v)",
-									targetPath, task.AllowedEditRoots)
-								messages = append(messages, domain.Message{
-									Role:    domain.RoleTool,
-									Content: deniedOutput,
-								})
-								continue
+					if end-start == 1 {
+						tr, execErr := filtered.Execute(ctx, items[start].tc.Name, items[start].tc.Arguments)
+						if execErr != nil {
+							tr = &domain.ToolResult{Success: false, Error: execErr.Error()}
+						}
+						items[start].toolResult = tr
+					} else {
+						var wg sync.WaitGroup
+						for j := start; j < end; j++ {
+							j := j
+							wg.Add(1)
+							go func() {
+								defer wg.Done()
+								tr, execErr := filtered.Execute(ctx, items[j].tc.Name, items[j].tc.Arguments)
+								if execErr != nil {
+									tr = &domain.ToolResult{Success: false, Error: execErr.Error()}
+								}
+								items[j].toolResult = tr
+							}()
+						}
+						wg.Wait()
+					}
+				} else {
+					tc := items[i].tc
+					// Mechanical Edit Authority Enforcement
+					if len(task.AllowedEditRoots) > 0 {
+						lowerName := strings.ToLower(tc.Name)
+						if strings.Contains(lowerName, "write") || strings.Contains(lowerName, "edit") ||
+							strings.Contains(lowerName, "patch") || strings.Contains(lowerName, "create") {
+							targetPath := ""
+							if p, ok := tc.Arguments["path"].(string); ok && p != "" {
+								targetPath = p
+							} else if f, ok := tc.Arguments["file"].(string); ok && f != "" {
+								targetPath = f
+							} else if t, ok := tc.Arguments["target"].(string); ok && t != "" {
+								targetPath = t
+							}
+
+							if targetPath != "" {
+								if !checkEditAuthority(targetPath, task.AllowedEditRoots) {
+									items[i].deniedMsg = fmt.Sprintf("Edit Authority Denied: target path %q is outside allowed edit roots (%v)",
+										targetPath, task.AllowedEditRoots)
+									i++
+									continue
+								}
 							}
 						}
 					}
+
+					// Evaluate policy before execution
+					if s.cfg.Policy != nil {
+						result := s.cfg.Policy.Evaluate(tc.Name, tc.Arguments)
+						if !result.Allowed {
+							items[i].deniedMsg = fmt.Sprintf("Policy denied: %s (reason: %s, action: %s)",
+								tc.Name, result.Reason, result.SuggestedAction)
+							i++
+							continue
+						}
+					}
+
+					toolResult, execErr := filtered.Execute(ctx, tc.Name, tc.Arguments)
+					if execErr != nil {
+						toolResult = &domain.ToolResult{
+							Success: false,
+							Error:   execErr.Error(),
+						}
+					}
+					items[i].toolResult = toolResult
+					i++
+				}
+			}
+
+			// Assemble results in exact original order
+			for idx := range items {
+				item := &items[idx]
+				if item.deniedMsg != "" {
+					messages = append(messages, domain.Message{
+						Role:    domain.RoleTool,
+						Content: item.deniedMsg,
+					})
+					continue
 				}
 
-				// Evaluate policy before execution
-				if s.cfg.Policy != nil {
-					result := s.cfg.Policy.Evaluate(tc.Name, tc.Arguments)
-					if !result.Allowed {
-						deniedOutput := fmt.Sprintf("Policy denied: %s (reason: %s, action: %s)",
-							tc.Name, result.Reason, result.SuggestedAction)
-						messages = append(messages, domain.Message{
-							Role:    domain.RoleTool,
-							Content: deniedOutput,
-						})
-						continue
-					}
-				}
-
-				toolResult, execErr := filtered.Execute(ctx, tc.Name, tc.Arguments)
-				if execErr != nil {
-					toolResult = &domain.ToolResult{
-						Success: false,
-						Error:   execErr.Error(),
-					}
+				toolResult := item.toolResult
+				if toolResult == nil {
+					toolResult = &domain.ToolResult{Success: false, Error: "no result returned"}
 				}
 
 				// Audit trail
 				if s.cfg.AuditFunc != nil {
-					s.cfg.AuditFunc(tc.Name, tc.Arguments, toolResult.Success)
+					s.cfg.AuditFunc(item.tc.Name, item.tc.Arguments, toolResult.Success)
 				}
 
 				output := toolResult.Output
@@ -312,13 +424,31 @@ func (s *Spawner) RunLoop(ctx context.Context, task domain.SubagentTask, systemP
 		}
 
 		// No tool calls — this is the final response
+		if s.cfg.Blackboard != nil {
+			producerID := task.ID
+			if producerID == "" {
+				producerID = "subagent"
+			}
+			if len(task.OutputKeys) > 0 {
+				for _, outKey := range task.OutputKeys {
+					_, _ = s.cfg.Blackboard.Set(producerID, outKey, []byte(resp.Content))
+				}
+			} else if task.Ephemeral && task.ID != "" {
+				_, _ = s.cfg.Blackboard.Set(producerID, fmt.Sprintf("tasks.%s.output", producerID), []byte(resp.Content))
+			}
+		}
 		return resp, nil
 	}
 
-	return &domain.Message{
+	budgetMsg := &domain.Message{
 		Role:    domain.RoleAssistant,
-		Content: fmt.Sprintf("Subagent budget exhausted after %d iterations.", s.cfg.Budget.MaxIterations),
-	}, nil
+		Content: fmt.Sprintf("Subagent budget exhausted after %d iterations.", maxIterations),
+	}
+	if s.cfg.Blackboard != nil && task.Ephemeral && task.ID != "" {
+		producerID := task.ID
+		_, _ = s.cfg.Blackboard.Set(producerID, fmt.Sprintf("tasks.%s.output", producerID), []byte(budgetMsg.Content))
+	}
+	return budgetMsg, nil
 }
 
 // checkEditAuthority validates whether targetPath falls within any of the allowedRoots.

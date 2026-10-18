@@ -21,6 +21,7 @@ import (
 	"gaia/internal/agent/memory"
 	agtops "gaia/internal/agent/ops"
 	agtsdd "gaia/internal/agent/sdd"
+	"gaia/internal/blackboard"
 	"gaia/internal/browser"
 	"gaia/internal/codegraph"
 	"gaia/internal/config"
@@ -29,6 +30,8 @@ import (
 	"gaia/internal/core/ports"
 	"gaia/internal/cron"
 	"gaia/internal/gateway"
+	blackboardmod "gaia/internal/modules/blackboard"
+	"gaia/internal/modules/codemode"
 	"gaia/internal/modules/fileops"
 	"gaia/internal/modules/gitops"
 	"gaia/internal/modules/multimodal"
@@ -257,6 +260,25 @@ func main() {
 		namespaceMgr.SetSessionID(sessionID)
 	}
 
+	// 7b1. Initialize PolicyGuard with active profile and memory namespace isolation (RBAC)
+	tier := core.PolicyTier(cfg.Policy.Tier)
+	if tier == "" {
+		tier = core.TierFull
+	}
+	overrides := make(map[string]core.OverridePolicy)
+	for k, v := range cfg.Policy.Overrides {
+		overrides[k] = core.OverridePolicy(v)
+	}
+	policyGuard := core.NewPolicyGuard(tier, overrides, nil)
+	activeProfile := cfg.CurrentProfile
+	if activeProfile == "" {
+		activeProfile = "dev"
+	}
+	policyGuard.SetActiveProfile(activeProfile)
+	policyGuard.SetMemoryValidator(namespaceMgr.ValidateMemoryAccess)
+	brain.SetPolicyGuard(policyGuard)
+	ui.SetPolicyGuard(policyGuard)
+
 	// 7b2. Initialize Knowledge Graph store for cross-domain facts.
 	kgStore := db.NewKnowledgeGraph(repo.DB())
 	brain.SetKnowledgeGraphStore(kgStore)
@@ -277,7 +299,11 @@ func main() {
 		}
 	}
 
-	// 7e. Wire subagent system with memory namespace, async task tracking, and MoA providers.
+	// 7e. Initialize Blackboard working memory (L1 RAM with artifacts spillover).
+	blackboardDir := filepath.Join(projectRoot, ".gaia", "blackboard")
+	bb := blackboard.New(blackboardDir)
+
+	// 7f. Wire subagent system with memory namespace, async task tracking, MoA providers, and Blackboard.
 	subagentRegistry := agent.NewRegistry()
 	subagentSpawner := agent.NewSpawner(agent.SpawnerConfig{
 		Provider:     router,
@@ -286,6 +312,8 @@ func main() {
 		Namespace:    namespaceMgr,
 		TaskManager:  taskManager,
 		MoAProviders: moaProviders,
+		Policy:       policyGuard,
+		Blackboard:   bb,
 	}, subagentRegistry)
 
 	// Register SDD subagents (M2: 5 phases; M3: +3 new phases)
@@ -335,6 +363,8 @@ func main() {
 	brain.RegisterModule(fileops.NewModule(projectRoot))
 	brain.RegisterModule(gitops.NewModule(projectRoot))
 	brain.RegisterModule(multimodal.NewModule(cfg.Multimodal, router))
+	brain.RegisterModule(codemode.NewModule(projectRoot, brain.Registry()))
+	brain.RegisterModule(blackboardmod.NewModule(bb))
 
 	// Register CodeGraph AST indexer & semantic query module
 	codegraphDB := filepath.Join(projectRoot, ".gaia", "codegraph.db")
