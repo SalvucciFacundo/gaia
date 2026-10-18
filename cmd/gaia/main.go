@@ -107,6 +107,9 @@ func main() {
 		case "blackboard":
 			handleBlackboardCLI(os.Args[2:])
 			return
+		case "overnight":
+			handleOvernightCLI(os.Args[2:])
+			return
 		}
 	}
 

@@ -58,16 +58,22 @@ This document captures the approved proposals for GAIA's next evolution phases, 
 ---
 
 ## 4. Overnight Autonomous Execution (Worktree Sandbox & Deferred Review)
-- **Status**: Planned
-- **Objective**: Allow the agent to execute multi-stage, long-running projects continuously (e.g., overnight) without getting blocked waiting for human confirmation between steps, presenting a single consolidated review before merging or publishing.
+- **Status**: Completed (`completed`)
+- **Objective**: Allow the agent to execute multi-stage, long-running projects continuously (e.g., overnight) across all profiles without getting blocked waiting for human confirmation between steps, presenting a single consolidated review before merging or publishing.
 - **Architecture**:
-  - **Ephemeral Git Worktree**: The agent works entirely inside an isolated worktree branch (`gaia/draft/{task_id}`).
-  - **Deferred Approval Queue**: Actions flagged as requiring approval (mutations, destructive actions) are staged in a transaction log rather than blocking execution.
-  - **Consolidated Review Pack**: Upon task completion, GAIA generates a structured report (diff summary, verification tests, decisions made) for one-click human approval.
-- **Target Files**:
-  - `internal/task/worktree.go`
-  - `internal/core/kernel.go`
-  - `internal/adapters/tui/diff_viewer.go`
+  - **Pre-flight Alignment Questionnaire**: Discovers architectural forks and sensitive boundaries, prompting the user before sleep to seal directives into an immutable `ActionPlan`.
+  - **Multi-Profile Sandboxing**: Git Worktree isolation for git projects (`gaia-wt/<plan_id>`) or filesystem staging (`.gaia/staging/<plan_id>`) for non-git tasks.
+  - **Deferred Review Queue**: Intercepts `PolicyGuard` `ask_user` actions into an append-only log without halting unattended execution.
+  - **Consolidated Review Pack**: Structured summary presenting code diffs, generated assets, test execution results, and pending deferred actions for one-click morning approval (`gaia overnight merge/apply`).
+- **Implemented Files**:
+  - `internal/overnight/types.go`
+  - `internal/overnight/preflight.go`
+  - `internal/overnight/deferred_queue.go`
+  - `internal/overnight/runner.go`
+  - `internal/overnight/overnight_test.go`
+  - `internal/adapters/db/sqlite.go`
+  - `cmd/gaia/overnight.go`
+  - `cmd/gaia/main.go`
 
 ---
 

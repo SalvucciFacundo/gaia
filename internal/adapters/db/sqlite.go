@@ -154,6 +154,34 @@ func (r *SQLiteRepo) migrate() error {
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	);
 	CREATE INDEX IF NOT EXISTS idx_blackboard_snapshots_session ON blackboard_snapshots(session_id, created_at);
+
+	-- Overnight autonomous execution plans
+	CREATE TABLE IF NOT EXISTS overnight_plans (
+		id TEXT PRIMARY KEY,
+		goal TEXT NOT NULL,
+		profile TEXT NOT NULL DEFAULT 'dev',
+		sandbox_mode TEXT NOT NULL DEFAULT 'git_worktree',
+		sandbox_path TEXT NOT NULL DEFAULT '',
+		branch_name TEXT NOT NULL DEFAULT '',
+		status TEXT NOT NULL DEFAULT 'planning',
+		plan_json TEXT NOT NULL DEFAULT '{}',
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		completed_at DATETIME
+	);
+	CREATE INDEX IF NOT EXISTS idx_overnight_plans_status ON overnight_plans(status, created_at);
+
+	-- Overnight deferred actions (approval queue)
+	CREATE TABLE IF NOT EXISTS overnight_deferred_actions (
+		id TEXT PRIMARY KEY,
+		plan_id TEXT NOT NULL,
+		tool_name TEXT NOT NULL,
+		arguments_json TEXT NOT NULL DEFAULT '{}',
+		reason TEXT NOT NULL DEFAULT '',
+		status TEXT NOT NULL DEFAULT 'pending',
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (plan_id) REFERENCES overnight_plans(id)
+	);
+	CREATE INDEX IF NOT EXISTS idx_overnight_deferred_plan ON overnight_deferred_actions(plan_id, status);
 	`
 	_, err := r.db.Exec(query)
 	return err
