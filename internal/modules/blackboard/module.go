@@ -6,13 +6,24 @@ import (
 	"fmt"
 	"strings"
 
+	"gaia/internal/adapters/db"
 	bb "gaia/internal/blackboard"
 	"gaia/internal/core/domain"
 )
 
+// SnapshotStore defines the interface for persisting and querying blackboard snapshots.
+type SnapshotStore interface {
+	SaveBlackboardSnapshot(ctx context.Context, sessionID, profile, label string, entries map[string]bb.MemoryEntry) (string, error)
+	GetBlackboardSnapshot(ctx context.Context, id string) (map[string]bb.MemoryEntry, *db.SnapshotMeta, error)
+	ListBlackboardSnapshots(ctx context.Context, sessionID, profile string) ([]db.SnapshotMeta, error)
+}
+
 // Module implements the blackboard working memory tools plugin.
 type Module struct {
-	bb *bb.Blackboard
+	bb      *bb.Blackboard
+	store   SnapshotStore
+	sessID  string
+	profile string
 }
 
 // NewModule creates a new blackboard module for GAIA.
@@ -23,6 +34,13 @@ func NewModule(blackboardInstance *bb.Blackboard) *Module {
 	return &Module{
 		bb: blackboardInstance,
 	}
+}
+
+// SetStore configures the snapshot persistence store, active session, and active profile.
+func (m *Module) SetStore(store SnapshotStore, sessionID, profile string) {
+	m.store = store
+	m.sessID = sessionID
+	m.profile = profile
 }
 
 // Name returns the module identifier.
@@ -41,6 +59,7 @@ func (m *Module) GetTools() []domain.ToolCall {
 		{Name: "blackboard_get"},
 		{Name: "blackboard_set"},
 		{Name: "blackboard_list"},
+		{Name: "blackboard_snapshot"},
 	}
 }
 
@@ -91,6 +110,29 @@ func (m *Module) Tools() []domain.ToolDef {
 				"properties": map[string]interface{}{},
 			},
 		},
+		{
+			Name:        "blackboard_snapshot",
+			Description: "Manage audit-safe, SHA-256 cryptographically verified checkpoints of working memory (Blackboard). Supports action='save' (creates immutable checkpoint), action='list' (lists stored checkpoints), action='get' (inspects verified snapshot contents), and action='restore' (restores verified state to working memory).",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"action": map[string]interface{}{
+						"type":        "string",
+						"enum":        []string{"save", "list", "get", "restore"},
+						"description": "The checkpoint operation to perform.",
+					},
+					"label": map[string]interface{}{
+						"type":        "string",
+						"description": "Descriptive label for the snapshot (used when action='save').",
+					},
+					"snapshot_id": map[string]interface{}{
+						"type":        "string",
+						"description": "The unique snapshot ID (required when action='get' or action='restore').",
+					},
+				},
+				"required": []string{"action"},
+			},
+		},
 	}
 }
 
@@ -117,11 +159,17 @@ func (m *Module) Execute(ctx context.Context, toolName string, args map[string]i
 			return &domain.ToolResult{Success: false, Error: fmt.Sprintf("failed to read payload: %v", err)}, nil
 		}
 
+		dataStr := string(payload)
+		var unquoted string
+		if json.Unmarshal(payload, &unquoted) == nil {
+			dataStr = unquoted
+		}
+
 		resMap := map[string]interface{}{
 			"key":         entry.Key,
 			"is_spilled":  entry.IsSpilled,
 			"producer_id": entry.ProducerID,
-			"data":        string(payload),
+			"data":        dataStr,
 		}
 		if entry.IsSpilled {
 			resMap["spill_path"] = entry.SpillPath
@@ -176,6 +224,76 @@ func (m *Module) Execute(ctx context.Context, toolName string, args map[string]i
 			Success: true,
 			Output:  string(keysJSON),
 		}, nil
+
+	case "blackboard_snapshot":
+		if m.store == nil {
+			return &domain.ToolResult{Success: false, Error: "blackboard snapshot store is not configured"}, nil
+		}
+		action, _ := args["action"].(string)
+		switch action {
+		case "save":
+			label, _ := args["label"].(string)
+			if label == "" {
+				label = "agent-checkpoint"
+			}
+			snap := m.bb.Snapshot()
+			id, err := m.store.SaveBlackboardSnapshot(ctx, m.sessID, m.profile, label, snap)
+			if err != nil {
+				return &domain.ToolResult{Success: false, Error: fmt.Sprintf("failed to save snapshot: %v", err)}, nil
+			}
+			return &domain.ToolResult{
+				Success: true,
+				Output:  fmt.Sprintf("Snapshot %q saved successfully with %d entries (label: %q)", id, len(snap), label),
+			}, nil
+
+		case "list":
+			list, err := m.store.ListBlackboardSnapshots(ctx, m.sessID, m.profile)
+			if err != nil {
+				return &domain.ToolResult{Success: false, Error: fmt.Sprintf("failed to list snapshots: %v", err)}, nil
+			}
+			outJSON, _ := json.Marshal(list)
+			return &domain.ToolResult{
+				Success: true,
+				Output:  string(outJSON),
+			}, nil
+
+		case "get":
+			id, _ := args["snapshot_id"].(string)
+			if id == "" {
+				return &domain.ToolResult{Success: false, Error: "missing required argument 'snapshot_id'"}, nil
+			}
+			entries, meta, err := m.store.GetBlackboardSnapshot(ctx, id)
+			if err != nil {
+				return &domain.ToolResult{Success: false, Error: fmt.Sprintf("failed to get snapshot %q: %v", id, err)}, nil
+			}
+			resMap := map[string]interface{}{
+				"meta":    meta,
+				"entries": entries,
+			}
+			outJSON, _ := json.Marshal(resMap)
+			return &domain.ToolResult{
+				Success: true,
+				Output:  string(outJSON),
+			}, nil
+
+		case "restore":
+			id, _ := args["snapshot_id"].(string)
+			if id == "" {
+				return &domain.ToolResult{Success: false, Error: "missing required argument 'snapshot_id'"}, nil
+			}
+			entries, meta, err := m.store.GetBlackboardSnapshot(ctx, id)
+			if err != nil {
+				return &domain.ToolResult{Success: false, Error: fmt.Sprintf("security check or restore failed: %v", err)}, nil
+			}
+			m.bb.Restore(entries)
+			return &domain.ToolResult{
+				Success: true,
+				Output:  fmt.Sprintf("Successfully restored %d entries from snapshot %q (SHA-256 verified: %s, label: %q)", meta.EntryCount, meta.ID, meta.SHA256, meta.Label),
+			}, nil
+
+		default:
+			return &domain.ToolResult{Success: false, Error: fmt.Sprintf("unknown snapshot action: %s (must be save, list, get, or restore)", action)}, nil
+		}
 
 	default:
 		return &domain.ToolResult{

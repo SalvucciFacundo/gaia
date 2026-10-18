@@ -172,7 +172,9 @@ func handleExec(args []string) {
 	brain.RegisterModule(fileops.NewModule(projectRoot))
 	brain.RegisterModule(gitops.NewModule(projectRoot))
 	brain.RegisterModule(codemode.NewModule(projectRoot, brain.Registry()))
-	brain.RegisterModule(blackboardmod.NewModule(bb))
+	bbMod := blackboardmod.NewModule(bb)
+	bbMod.SetStore(repo, "exec", activeProfile)
+	brain.RegisterModule(bbMod)
 
 	// Wire Subagent Spawner for ODD dynamic delegations
 	subagentRegistry := agent.NewRegistry()

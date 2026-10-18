@@ -104,6 +104,9 @@ func main() {
 		case "update":
 			handleUpdateCLI(os.Args[2:])
 			return
+		case "blackboard":
+			handleBlackboardCLI(os.Args[2:])
+			return
 		}
 	}
 
@@ -364,7 +367,9 @@ func main() {
 	brain.RegisterModule(gitops.NewModule(projectRoot))
 	brain.RegisterModule(multimodal.NewModule(cfg.Multimodal, router))
 	brain.RegisterModule(codemode.NewModule(projectRoot, brain.Registry()))
-	brain.RegisterModule(blackboardmod.NewModule(bb))
+	bbMod := blackboardmod.NewModule(bb)
+	bbMod.SetStore(repo, sessionID, activeProfile)
+	brain.RegisterModule(bbMod)
 
 	// Register CodeGraph AST indexer & semantic query module
 	codegraphDB := filepath.Join(projectRoot, ".gaia", "codegraph.db")
