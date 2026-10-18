@@ -16,8 +16,9 @@ type ChatOpt func(*ChatOptions)
 
 // ChatOptions holds parameters for a Chat or Stream call.
 type ChatOptions struct {
-	Temperature float64
-	MaxTokens   int
+	Temperature     float64
+	MaxTokens       int
+	ReasoningEffort string
 }
 
 // WithTemperature sets the sampling temperature.
@@ -28,6 +29,11 @@ func WithTemperature(t float64) ChatOpt {
 // WithMaxTokens sets the max output tokens.
 func WithMaxTokens(n int) ChatOpt {
 	return func(o *ChatOptions) { o.MaxTokens = n }
+}
+
+// WithReasoningEffort sets the reasoning effort for reasoning models ("low", "medium", "high").
+func WithReasoningEffort(effort string) ChatOpt {
+	return func(o *ChatOptions) { o.ReasoningEffort = effort }
 }
 
 // LLMProvider is the interface for AI model interactions.

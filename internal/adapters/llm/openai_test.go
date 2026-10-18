@@ -192,6 +192,7 @@ func TestOpenAI_BuildRequest_OptionsApplied(t *testing.T) {
 	req := adapter.buildRequest(messages, []ports.ChatOpt{
 		ports.WithTemperature(0.7),
 		ports.WithMaxTokens(100),
+		ports.WithReasoningEffort("high"),
 	}, false)
 
 	if req.Temperature != 0.7 {
@@ -199,5 +200,8 @@ func TestOpenAI_BuildRequest_OptionsApplied(t *testing.T) {
 	}
 	if req.MaxTokens != 100 {
 		t.Errorf("expected max_tokens 100, got %d", req.MaxTokens)
+	}
+	if req.ReasoningEffort != "high" {
+		t.Errorf("expected reasoning_effort 'high', got %q", req.ReasoningEffort)
 	}
 }

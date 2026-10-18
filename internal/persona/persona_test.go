@@ -103,7 +103,7 @@ func TestDefaultIdentity_IsScannedAndNonEmpty(t *testing.T) {
 
 func TestOverlays_ResolveBuiltins(t *testing.T) {
 	o := NewOverlays(nil)
-	for _, name := range []string{"concise", "teacher", "technical", "creative"} {
+	for _, name := range []string{"concise", "teacher", "technical", "creative", "professional", "strict", "friendly"} {
 		text, err := o.Resolve(name)
 		if err != nil || text == "" {
 			t.Errorf("Resolve(%q) = %q, %v; want builtin text", name, text, err)
@@ -140,7 +140,7 @@ func TestOverlays_UnknownErrors(t *testing.T) {
 func TestOverlays_NamesSortedBuiltinsFirst(t *testing.T) {
 	o := NewOverlays(map[string]string{"mentor": "x", "concise-custom": "y"})
 	names := o.Names()
-	want := []string{"concise", "concise-custom", "creative", "mentor", "teacher", "technical"}
+	want := []string{"concise", "concise-custom", "creative", "friendly", "mentor", "professional", "strict", "teacher", "technical"}
 	if len(names) != len(want) {
 		t.Fatalf("names = %v, want %v", names, want)
 	}

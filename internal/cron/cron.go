@@ -167,12 +167,12 @@ func (s *Scheduler) runJob(ctx context.Context, job domain.CronJob) {
 		case <-ctx.Done():
 			return
 		case <-time.After(waitDuration):
-			s.executeJob(context.Background(), job)
+			s.executeJob(ctx, job)
 		}
 
 		// Update next_run in store
 		nextNext := schedule.Next(time.Now())
-		s.repo.MarkRun(context.Background(), job.ID, time.Now(), nextNext)
+		s.repo.MarkRun(ctx, job.ID, time.Now(), nextNext)
 	}
 }
 

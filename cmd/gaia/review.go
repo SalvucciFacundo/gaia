@@ -6,17 +6,27 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"os/signal"
 	"strings"
+	"syscall"
+	"time"
 
 	"gaia/internal/adapters/db"
 	"gaia/internal/adapters/llm"
 	"gaia/internal/adapters/tui"
+	"gaia/internal/agent"
+	"gaia/internal/agent/ops"
+	"gaia/internal/agent/sdd"
 	"gaia/internal/config"
 	"gaia/internal/core"
 	"gaia/internal/core/domain"
 	"gaia/internal/core/ports"
+	"gaia/internal/modules/fileops"
+	"gaia/internal/modules/gitops"
+	"gaia/internal/modules/shell"
 	"gaia/internal/review"
 	"gaia/internal/review/gates"
+	"gaia/internal/review/judgment"
 )
 
 // handleReviewCLI implements the "gaia review" subcommand family.
@@ -180,8 +190,99 @@ func handleReviewStart(args []string) {
 		os.Exit(1)
 	}
 
-	// Use agent-based review via the reviewer subagent.
-	_ = judgmentDay // TODO: PR 3 wires Judgment Day
+	// If --judgment-day flag is set, run Judgment Day dual-judge adversarial review.
+	if *judgmentDay {
+		fmt.Println("\n⚖️ Running Judgment Day Adversarial Review (Blind Dual-Judge)...")
+
+		repo, err := db.NewSQLiteRepo()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error initializing repo: %v\n", err)
+			os.Exit(1)
+		}
+
+		nullUI := tui.NewNullUI(true)
+		trustMode := domain.TrustMode(cfg.LLM.TrustMode)
+		if trustMode == "" {
+			trustMode = domain.TrustAlways
+		}
+		guard := core.NewConfirmGuard(trustMode, false)
+		policyTier := core.PolicyTier(cfg.Policy.Tier)
+		if policyTier == "" {
+			policyTier = core.TierFull
+		}
+		policyGuard := core.NewPolicyGuard(policyTier, nil, nil)
+
+		brain := core.NewBrain(provider, repo, nullUI, guard, cfg.Budget)
+		brain.SetPolicyGuard(policyGuard)
+		brain.RegisterModule(shell.NewModule(projectRoot))
+		brain.RegisterModule(fileops.NewModule(projectRoot))
+		brain.RegisterModule(gitops.NewModule(projectRoot))
+
+		subagentRegistry := agent.NewRegistry()
+		_ = subagentRegistry.Register("explorer", sdd.NewExplorer)
+		_ = subagentRegistry.Register("implementer", sdd.NewImplementer)
+		_ = subagentRegistry.Register("verifier", sdd.NewVerifier)
+		_ = subagentRegistry.Register("reviewer", ops.NewReviewer)
+
+		spawner := agent.NewSpawner(agent.SpawnerConfig{
+			Provider: provider,
+			Tools:    brain.Registry(),
+			Budget:   cfg.Budget,
+			Policy:   policyGuard,
+		}, subagentRegistry)
+
+		jd := judgment.NewJudgmentDay(spawner)
+		engine := review.NewEngine(projectRoot, nil)
+		tx, err := engine.Start(files)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error starting review transaction: %v\n", err)
+			os.Exit(1)
+		}
+
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer stop()
+		result, err := jd.Run(ctx, tx)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Judgment Day failed: %v\n", err)
+			os.Exit(1)
+		}
+
+		fmt.Printf("\nJudgment Day completed in %d round(s) (%s):\n", result.Rounds, result.CompletedAt.Sub(result.StartedAt).Round(10*time.Millisecond))
+		fmt.Printf("  Status:   %s\n", tx.State)
+		fmt.Printf("  Approved: %v\n", result.Approved)
+		fmt.Printf("  Judge A findings: %d\n", len(result.JudgeAFindings))
+		fmt.Printf("  Judge B findings: %d\n", len(result.JudgeBFindings))
+		fmt.Printf("  Merged findings:  %d\n", len(result.MergedFindings))
+
+		if len(result.MergedFindings) > 0 {
+			fmt.Println("\nMerged Findings:")
+			for _, f := range result.MergedFindings {
+				fmt.Printf("  [%s] %s:%d - %s\n", f.Severity, f.File, f.Line, f.Message)
+				if f.Suggestion != "" {
+					fmt.Printf("      Suggestion: %s\n", f.Suggestion)
+				}
+			}
+		}
+
+		// Persist CAS Receipt if approved
+		if result.Approved {
+			receiptStore := gates.NewCASReceiptStore(projectRoot)
+			receipt := &domain.ReviewReceipt{
+				Schema:       "gaia.review-receipt/v1",
+				LineageID:    tx.ID,
+				SnapshotHash: tx.SnapshotHash,
+				State:        domain.ReviewStateApproved,
+				RiskLevel:    "low",
+				CreatedAt:    time.Now().UTC(),
+			}
+			_ = receiptStore.SaveReceipt(receipt, tx.ChangeName)
+			fmt.Println("\n✓ CAS Review receipt generated and approved.")
+		} else {
+			fmt.Println("\n⚠️ Review escalated. Resolve blockers and re-run.")
+		}
+		return
+	}
+
 	_ = lensFlag
 	_ = provider
 	_ = projectRoot

@@ -186,6 +186,9 @@ func (a *OpenAIAdapter) buildRequest(messages []domain.Message, opts []ports.Cha
 	if o.MaxTokens != 0 {
 		req.MaxTokens = o.MaxTokens
 	}
+	if o.ReasoningEffort != "" {
+		req.ReasoningEffort = o.ReasoningEffort
+	}
 
 	return req
 }

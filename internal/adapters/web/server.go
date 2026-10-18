@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -130,7 +131,10 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	s.mu.RUnlock()
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = views.RenderLayout(data).Render(r.Context(), w)
+	if err := views.RenderLayout(data).Render(r.Context(), w); err != nil {
+		slog.Error("Failed to render dashboard layout", "error", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+	}
 }
 
 func (s *Server) handleSendMessage(w http.ResponseWriter, r *http.Request) {
@@ -171,7 +175,10 @@ func (s *Server) handleSendMessage(w http.ResponseWriter, r *http.Request) {
 	s.mu.RUnlock()
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = views.RenderLayout(data).Render(r.Context(), w)
+	if err := views.RenderLayout(data).Render(r.Context(), w); err != nil {
+		slog.Error("Failed to render dashboard layout after message", "error", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+	}
 }
 
 func (s *Server) handleSelectProject(w http.ResponseWriter, r *http.Request) {

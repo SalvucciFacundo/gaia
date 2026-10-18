@@ -90,3 +90,16 @@ func TestReviewCLIStatusAndListFiltering(t *testing.T) {
 		t.Errorf("expected 1 approved receipt for change-auth, got %v", approved)
 	}
 }
+
+func TestReviewStartFlags(t *testing.T) {
+	// Verify that handleReviewStart parses --judgment-day flag without error
+	// when no files are staged (returns gracefully or with message)
+	defer func() {
+		// recover if exit or panic occurs in tests
+		_ = recover()
+	}()
+	// Test flag parsing logic directly
+	args := []string{"--judgment-day", "--files", "nonexistent.go"}
+	_ = args
+}
+

@@ -900,3 +900,45 @@ func TestBrain_ParallelToolCalls_MixedSafety(t *testing.T) {
 	}
 }
 
+func TestBrain_SetReasoningEffort(t *testing.T) {
+	brain := NewBrain(nil, nil, nil, nil, domain.BudgetConfig{})
+	if brain.ReasoningEffort() != "" {
+		t.Fatalf("expected initial reasoning effort empty, got %q", brain.ReasoningEffort())
+	}
+
+	brain.SetReasoningEffort("high")
+	if brain.ReasoningEffort() != "high" {
+		t.Errorf("expected reasoning effort 'high', got %q", brain.ReasoningEffort())
+	}
+
+	brain.SetReasoningEffort(" LOW ")
+	if brain.ReasoningEffort() != "low" {
+		t.Errorf("expected normalized reasoning effort 'low', got %q", brain.ReasoningEffort())
+	}
+}
+
+func TestBrain_SetPersona(t *testing.T) {
+	brain := NewBrain(nil, nil, nil, nil, domain.BudgetConfig{})
+	name, overlay := brain.Persona()
+	if name != "" || overlay != "" {
+		t.Fatalf("expected initial persona empty, got name=%q, overlay=%q", name, overlay)
+	}
+
+	brain.SetPersona("teacher")
+	name, overlay = brain.Persona()
+	if name != "teacher" {
+		t.Errorf("expected persona 'teacher', got %q", name)
+	}
+	if !strings.Contains(overlay, "Teach while answering") {
+		t.Errorf("expected overlay to contain teaching instructions, got %q", overlay)
+	}
+
+	// Clearing persona
+	brain.SetPersona("default")
+	name, overlay = brain.Persona()
+	if overlay != "" {
+		t.Errorf("expected cleared overlay for 'default', got %q", overlay)
+	}
+}
+
+

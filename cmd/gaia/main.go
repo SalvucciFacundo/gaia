@@ -11,7 +11,9 @@ import (
 
 	"context"
 	"log/slog"
+	"os/signal"
 	"strconv"
+	"syscall"
 	"time"
 
 	"gaia/internal/adapters/db"
@@ -113,13 +115,17 @@ func main() {
 		}
 	}
 
-	// 1. Load Configuration
+	// 1. Root lifecycle context with SIGINT / SIGTERM handling
+	rootCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	// 1.1 Load Configuration
 	cfg, err := config.Load()
 	if err != nil {
 		log.Fatalf("Error loading config: %v", err)
 	}
 
-	// 1.1 Support -p / --profile runtime override
+	// 1.2 Support -p / --profile runtime override
 	for i := 1; i < len(os.Args); i++ {
 		if (os.Args[i] == "-p" || os.Args[i] == "--profile") && i+1 < len(os.Args) {
 			cfg.CurrentProfile = os.Args[i+1]
@@ -150,6 +156,7 @@ func main() {
 		fmt.Println("No AI configuration detected. Starting Setup Wizard...")
 		wizard := tui.NewWizard(projectRoot)
 		wizard.SetHub(skillsHub)
+		wizard.SetContext(rootCtx)
 		p := tea.NewProgram(wizard)
 		if _, err := p.Run(); err != nil {
 			log.Fatalf("Wizard error: %v", err)
@@ -240,6 +247,7 @@ func main() {
 
 	// 5. Initialize TUI
 	ui := tui.NewTUI()
+	ui.SetContext(rootCtx)
 
 	// 6. Build ConfirmGuard
 	trustMode := domain.TrustMode(cfg.LLM.TrustMode)
@@ -260,7 +268,7 @@ func main() {
 	// 7b. Initialize Engram namespace manager for per-subagent memory isolation
 	namespaceMgr := memory.NewNamespaceManager(projectName)
 	sessionName := fmt.Sprintf("session-%s", time.Now().Format("2006-01-02-15-04"))
-	sessionID, err := repo.CreateSession(context.Background(), sessionName)
+	sessionID, err := repo.CreateSession(rootCtx, sessionName)
 	if err == nil && sessionID != "" {
 		repo.SetSessionID(sessionID)
 		namespaceMgr.SetSessionID(sessionID)
@@ -291,7 +299,7 @@ func main() {
 
 	// 7c. Initialize async TaskManager with SQLite persistence.
 	taskRepo := db.NewTaskRepo(repo.DB())
-	taskManager, err := agent.NewTaskManagerWithRepo(context.Background(), taskRepo)
+	taskManager, err := agent.NewTaskManagerWithRepo(rootCtx, taskRepo)
 	if err != nil {
 		log.Fatalf("Error initializing task manager: %v", err)
 	}
@@ -321,6 +329,7 @@ func main() {
 		Policy:       policyGuard,
 		Blackboard:   bb,
 	}, subagentRegistry)
+	subagentSpawner.SetOnLearningThreshold(autoCreateSkill)
 
 	// Register SDD subagents (M2: 5 phases; M3: +3 new phases)
 	register := func(name string, factory agent.SubagentFactory) {
@@ -386,15 +395,6 @@ func main() {
 			brain.RegisterModule(browserMod)
 			fmt.Println("Browser automation registered")
 		}
-	} else if cfg.Browser.Enabled && cfg.Browser.ExecutablePath != "" {
-		browserMod, berr := browser.NewModule(domain.BrowserToolsConfig{
-			Enabled: cfg.Browser.Enabled,
-			Command: cfg.Browser.ExecutablePath,
-		})
-		if berr == nil {
-			brain.RegisterModule(browserMod)
-			fmt.Println("Browser automation registered")
-		}
 	}
 
 	// Wire brain into the TUI so Enter key dispatches ProcessMessage.
@@ -409,16 +409,13 @@ func main() {
 
 	// Configure tool validation against the brain's tool registry.
 	availableTools := brain.Registry().Tools()
+	availableToolSet := make(map[string]struct{}, len(availableTools))
+	for _, a := range availableTools {
+		availableToolSet[a] = struct{}{}
+	}
 	dynamicLoader.SetValidator(func(allowed []string) error {
 		for _, t := range allowed {
-			found := false
-			for _, a := range availableTools {
-				if a == t {
-					found = true
-					break
-				}
-			}
-			if !found {
+			if _, ok := availableToolSet[t]; !ok {
 				return fmt.Errorf("unknown tool: %q (available: %v)", t, availableTools)
 			}
 		}
@@ -426,21 +423,20 @@ func main() {
 	})
 
 	// Load persisted dynamic subagents on startup.
-	ctx := context.Background()
-	if err := dynamicLoader.LoadAll(ctx); err != nil {
+	if err := dynamicLoader.LoadAll(rootCtx); err != nil {
 		log.Printf("Warning: could not load dynamic subagents: %v", err)
 	}
 
 	// Wire the TUI for /create-agent interview and dynamic creation.
 	ui.SetDynamicCreator(func(def agent.SubagentDef) error {
-		return dynamicLoader.CreateFromDef(ctx, def)
+		return dynamicLoader.CreateFromDef(rootCtx, def)
 	})
 	ui.SetToolNames(availableTools)
 
 	// 9. Start gateway adapters if configured (unified mode).
 	// Gateway adapters run in the same process as the TUI, sharing the same Brain.
 	// Enable with --unify flag or when gateway tokens are configured in config.yaml.
-	gatewayCtx, gatewayCancel := context.WithCancel(ctx)
+	gatewayCtx, gatewayCancel := context.WithCancel(rootCtx)
 	if hasGatewayConfig(cfg) {
 		if gw := startUnifiedGateway(gatewayCtx, cfg, repo, projectRoot, brain, ui); gw != nil {
 			defer func() {
@@ -457,10 +453,9 @@ func main() {
 		log.Fatalf("TUI error: %v", err)
 	}
 
-	// 11. Graceful Shutdown & Engram Session Close Protocol
+	// 11. Graceful Shutdown & Session Close
 	// Persist a clean session close summary so the next session starts with full context.
 	if sessionID != "" {
-		engramHelper := memory.NewEngramProtocolHelper(projectName, sessionID)
 		summaryText := memory.BuildSessionSummaryText(memory.SessionSummaryInput{
 			Goal: fmt.Sprintf("GAIA interactive session (%s)", sessionName),
 			Accomplished: []string{
@@ -469,10 +464,11 @@ func main() {
 		})
 		summaryMsg := domain.Message{
 			Role:    domain.RoleSystem,
-			Content: fmt.Sprintf("ENGRAM_SESSION_CLOSE_SUMMARY:\n%s", summaryText),
+			Content: fmt.Sprintf("SESSION_CLOSE_SUMMARY:\n%s", summaryText),
 		}
-		_ = repo.SaveMessage(context.Background(), summaryMsg)
-		_ = engramHelper // Preserves helper for MCP or sidecar bridge integration
+		closeCtx, closeCancel := context.WithTimeout(context.Background(), 3*time.Second)
+		_ = repo.SaveMessage(closeCtx, summaryMsg)
+		closeCancel()
 	}
 }
 

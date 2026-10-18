@@ -70,8 +70,14 @@ func (s *GaiaSDK) Find(pattern string) []string {
 	var matches []string
 	cleanPattern := filepath.Clean(pattern)
 
-	_ = filepath.Walk(s.projectRoot, func(p string, info os.FileInfo, err error) error {
-		if err != nil || info == nil {
+	err := filepath.Walk(s.projectRoot, func(p string, info os.FileInfo, err error) error {
+		if err != nil {
+			if p == s.projectRoot {
+				return err
+			}
+			return nil
+		}
+		if info == nil {
 			return nil
 		}
 		rel, err := filepath.Rel(s.projectRoot, p)
@@ -86,12 +92,16 @@ func (s *GaiaSDK) Find(pattern string) []string {
 			return nil
 		}
 
-		matched, _ := filepath.Match(cleanPattern, info.Name())
-		if matched || strings.Contains(rel, cleanPattern) {
+		matchedName, _ := filepath.Match(cleanPattern, info.Name())
+		matchedRel, _ := filepath.Match(cleanPattern, rel)
+		if matchedName || matchedRel || strings.Contains(rel, cleanPattern) {
 			matches = append(matches, rel)
 		}
 		return nil
 	})
+	if err != nil {
+		panic(fmt.Sprintf("Find failed for pattern %q: %v", pattern, err))
+	}
 	return matches
 }
 

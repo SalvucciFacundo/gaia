@@ -207,6 +207,7 @@ type Model struct {
 	verboseLevel   int    // /verbose: 0=off, 1=results, 2=tool calls, 3=all
 	spinnerIdx     int    // /indicator: which spinner style
 	themeName      string // /skin: theme name
+	ctx            context.Context // runtime context passed from caller (e.g. main/run)
 }
 
 func NewTUI() *Model {
@@ -217,10 +218,29 @@ func NewTUI() *Model {
 	ti.Width = 60
 
 	return &Model{
+		ctx:       context.Background(),
 		textInput: ti,
 		history:   []domain.Message{},
 		tasks:     make(map[string]agent.TaskState),
 	}
+}
+
+// SetContext assigns the parent lifecycle context for cancellation propagation.
+func (m *Model) SetContext(ctx context.Context) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if ctx != nil {
+		m.ctx = ctx
+	}
+}
+
+func (m *Model) getContext() context.Context {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.ctx != nil {
+		return m.ctx
+	}
+	return context.Background()
 }
 
 // SetBrain wires the Brain into the TUI so user messages get processed.
@@ -306,9 +326,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.viewport.GotoBottom()
 			if m.brain != nil {
 				return m, func() tea.Msg {
-					ctx := context.Background()
-					_ = m.brain.ProcessMessage(ctx, guidance)
-					return nil
+					ctx := m.getContext()
+					err := m.brain.ProcessMessage(ctx, guidance)
+					return processDoneMsg{err: err}
 				}
 			}
 			return m, nil
@@ -518,7 +538,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if brain, ok := m.brain.(interface {
 					Steer(ctx context.Context, msg string) error
 				}); ok {
-					brain.Steer(context.Background(), guidance)
+					brain.Steer(m.getContext(), guidance)
 					m.mu.Lock()
 					m.history = append(m.history, domain.Message{
 						Role:    domain.RoleSystem,
@@ -961,7 +981,7 @@ For details: gaia help or check the README.`
 			// Return a command that runs ProcessMessage asynchronously.
 			if brainCopy != nil {
 				return m, tea.Batch(tiCmd, vpCmd, func() tea.Msg {
-					ctx := context.Background()
+					ctx := m.getContext()
 					// Use SessionManager if available (unified mode)
 					if sessionMgr != nil {
 						err := sessionMgr.Route(ctx, "tui", input, "")
@@ -990,6 +1010,10 @@ For details: gaia help or check the README.`
 		m.mu.Lock()
 		if msg.err != nil {
 			m.err = msg.err
+			m.history = append(m.history, domain.Message{
+				Role:    domain.RoleAssistant,
+				Content: fmt.Sprintf("❌ Error: %s", msg.err.Error()),
+			})
 		}
 		m.viewport.SetContent(m.renderHistory())
 		m.viewport.GotoBottom()

@@ -108,6 +108,11 @@ func Restore(r io.Reader, targetProfile string, opts RestoreOptions) (*RestoreRe
 		}
 	}
 
+	// Drain remaining bytes from gzip reader to ensure full stream validation (e.g. gzip CRC32/checksum verification)
+	if _, err := io.Copy(io.Discard, gr); err != nil {
+		return nil, fmt.Errorf("corrupt archive: %w", err)
+	}
+
 	// 3. Read and validate manifest
 	manifestPath := filepath.Join(stagingDir, ManifestFileName)
 	manifestData, err := os.ReadFile(manifestPath)

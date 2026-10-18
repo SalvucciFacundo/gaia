@@ -50,6 +50,20 @@ func (c *CopilotClient) Chat(ctx context.Context, history []domain.Message, opts
 		"stream":   false,
 	}
 
+	o := &ports.ChatOptions{}
+	for _, opt := range opts {
+		opt(o)
+	}
+	if o.Temperature != 0 {
+		payload["temperature"] = o.Temperature
+	}
+	if o.MaxTokens != 0 {
+		payload["max_tokens"] = o.MaxTokens
+	}
+	if o.ReasoningEffort != "" {
+		payload["reasoning_effort"] = o.ReasoningEffort
+	}
+
 	body, _ := json.Marshal(payload)
 	req, err := http.NewRequestWithContext(ctx, "POST", "https://api.githubcopilot.com/chat/completions", bytes.NewBuffer(body))
 	if err != nil {
@@ -95,6 +109,20 @@ func (c *CopilotClient) Stream(ctx context.Context, history []domain.Message, op
 		"messages": history,
 		"model":    c.model,
 		"stream":   true,
+	}
+
+	o := &ports.ChatOptions{}
+	for _, opt := range opts {
+		opt(o)
+	}
+	if o.Temperature != 0 {
+		payload["temperature"] = o.Temperature
+	}
+	if o.MaxTokens != 0 {
+		payload["max_tokens"] = o.MaxTokens
+	}
+	if o.ReasoningEffort != "" {
+		payload["reasoning_effort"] = o.ReasoningEffort
 	}
 
 	body, _ := json.Marshal(payload)

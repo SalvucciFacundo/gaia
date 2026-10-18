@@ -60,6 +60,7 @@ type WizardModel struct {
 	code          string
 	url           string
 	codeResp      *device.CodeResponse
+	ctx           context.Context
 	err           error
 	width         int
 	height        int
@@ -162,6 +163,20 @@ func NewWizard(projectRoot string) *WizardModel {
 // SetHub injects a Skills Hub for the recommendation step.
 func (m *WizardModel) SetHub(hub *skills.Hub) {
 	m.hub = hub
+}
+
+// SetContext sets the parent cancellation context.
+func (m *WizardModel) SetContext(ctx context.Context) {
+	if ctx != nil {
+		m.ctx = ctx
+	}
+}
+
+func (m *WizardModel) getContext() context.Context {
+	if m.ctx != nil {
+		return m.ctx
+	}
+	return context.Background()
 }
 
 type authCodeMsg struct {
@@ -543,7 +558,7 @@ func (m *WizardModel) loadSkillsForSelectedStacks() {
 
 func (m *WizardModel) startAuth() tea.Cmd {
 	return func() tea.Msg {
-		resp, err := m.auth.RequestDeviceCode(context.Background())
+		resp, err := m.auth.RequestDeviceCode(m.getContext())
 		if err != nil {
 			return errorMsg(err)
 		}
@@ -554,7 +569,7 @@ func (m *WizardModel) startAuth() tea.Cmd {
 
 func (m *WizardModel) waitForToken(code string) tea.Cmd {
 	return func() tea.Msg {
-		token, err := m.auth.WaitToken(context.Background(), m.codeResp)
+		token, err := m.auth.WaitToken(m.getContext(), m.codeResp)
 		if err != nil {
 			return errorMsg(err)
 		}
@@ -564,13 +579,13 @@ func (m *WizardModel) waitForToken(code string) tea.Cmd {
 
 func (m *WizardModel) exchangeToken() tea.Cmd {
 	return func() tea.Msg {
-		token, err := m.auth.ExchangeCopilotToken(context.Background(), m.ghToken)
+		token, err := m.auth.ExchangeCopilotToken(m.getContext(), m.ghToken)
 		if err != nil {
 			return errorMsg(err)
 		}
 		m.cpToken = token
 		client := llm.NewCopilotClient(token, "")
-		models, err := client.FetchModels(context.Background())
+		models, err := client.FetchModels(m.getContext())
 		if err != nil {
 			return errorMsg(err)
 		}

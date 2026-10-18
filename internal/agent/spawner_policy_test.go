@@ -342,3 +342,50 @@ func TestSpawnerRunLoop_EditAuthorityRejectsParentTraversalEvenWhenRootIsDot(t *
 		t.Errorf("unexpected response content: %q", resp.Content)
 	}
 }
+
+type testLearningSubagent struct{}
+
+func (s *testLearningSubagent) Name() string        { return "test-sub" }
+func (s *testLearningSubagent) Description() string { return "test subagent for learning" }
+func (s *testLearningSubagent) Execute(ctx context.Context, task domain.SubagentTask) *domain.SubagentResult {
+	return &domain.SubagentResult{Status: domain.SubagentSuccess, Summary: "ok"}
+}
+
+func TestSpawner_OnLearningThreshold(t *testing.T) {
+	prov := &stubProvider{
+		resp: &domain.Message{Role: domain.RoleAssistant, Content: "All done"},
+	}
+	spawner := newTestSpawner(prov)
+
+	// Register a stub subagent
+	spawner.registry.Register("test-sub", func(s *Spawner) Subagent {
+		return &testLearningSubagent{}
+	})
+
+	var triggeredSubagent string
+	spawner.SetOnLearningThreshold(func(name string) {
+		triggeredSubagent = name
+	})
+
+	// Threshold is 5 by default
+	task := newTask()
+	for i := 0; i < 4; i++ {
+		_, err := spawner.Spawn(context.Background(), "test-sub", task)
+		if err != nil {
+			t.Fatalf("spawn %d failed: %v", i, err)
+		}
+		if triggeredSubagent != "" {
+			t.Fatalf("threshold callback triggered prematurely on iteration %d", i)
+		}
+	}
+
+	// 5th iteration hits threshold
+	_, err := spawner.Spawn(context.Background(), "test-sub", task)
+	if err != nil {
+		t.Fatalf("spawn 5 failed: %v", err)
+	}
+	if triggeredSubagent != "test-sub" {
+		t.Errorf("expected triggeredSubagent 'test-sub', got %q", triggeredSubagent)
+	}
+}
+

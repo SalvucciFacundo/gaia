@@ -38,7 +38,8 @@ type SpawnerConfig struct {
 type Spawner struct {
 	cfg       SpawnerConfig
 	registry  *Registry
-	learnLoop *learn.LearningLoop // Tracks per-subagent execution counts
+	learnLoop           *learn.LearningLoop // Tracks per-subagent execution counts
+	onLearningThreshold func(string)        // Called when a subagent reaches the learning threshold
 }
 
 // NewSpawner creates a Spawner with the given configuration and subagent registry.
@@ -54,6 +55,11 @@ func NewSpawner(cfg SpawnerConfig, registry *Registry) *Spawner {
 		registry:  registry,
 		learnLoop: learn.NewLearningLoop(5),
 	}
+}
+
+// SetOnLearningThreshold sets the callback invoked when a subagent hits the learning threshold.
+func (s *Spawner) SetOnLearningThreshold(fn func(string)) {
+	s.onLearningThreshold = fn
 }
 
 // SetLearningLoop replaces the default learning loop with a custom one.
@@ -167,7 +173,9 @@ func (s *Spawner) Spawn(ctx context.Context, name string, task domain.SubagentTa
 
 	// Record execution for learning loop
 	if s.learnLoop != nil {
-		s.learnLoop.RecordExecution(name)
+		if thresholdReached := s.learnLoop.RecordExecution(name); thresholdReached && s.onLearningThreshold != nil {
+			s.onLearningThreshold(name)
+		}
 	}
 
 	return result, nil

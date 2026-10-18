@@ -62,14 +62,11 @@ func (jd *JudgmentDay) Run(ctx context.Context, tx *review.Transaction) (*Judgme
 	}
 	tx.State = review.StateJudgesConfirmed
 
-	// Re-snapshot files for judges to analyze.
-	snapshots, err := review.SnapshotFiles("", tx.Files) // projectRoot via current dir
+	// Re-snapshot files for judges to analyze at current working directory.
+	snapshots, err := review.SnapshotFiles(".", tx.Files)
 	if err != nil {
 		return nil, fmt.Errorf("judgment day snapshot: %w", err)
 	}
-
-	// Re-snapshot at current working directory (archiver/reviewer provide ".").
-	snapshots, _ = review.SnapshotFiles(".", tx.Files)
 	if snapshots == nil {
 		snapshots = make([]review.FileSnapshot, 0)
 	}

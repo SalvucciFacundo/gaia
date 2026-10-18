@@ -110,3 +110,22 @@ func TestModule_Execute(t *testing.T) {
 		t.Errorf("got %q, want 'module executed'", res.Output)
 	}
 }
+
+func TestGaiaSDK_FindError(t *testing.T) {
+	// Pointing to a nonexistent directory should cause Find to panic, safely caught by engine
+	eng := NewEngine("/nonexistent_path_for_testing_gaia_find_error", nil)
+
+	code := `
+		files := gaia.Find("*.go")
+		gaia.Print(len(files))
+	`
+
+	_, err := eng.Execute(context.Background(), code)
+	if err == nil {
+		t.Fatal("expected error when walking nonexistent directory, got nil")
+	}
+	if !strings.Contains(err.Error(), "Find failed for pattern") {
+		t.Errorf("expected error to contain 'Find failed for pattern', got %v", err)
+	}
+}
+

@@ -3,6 +3,7 @@ package ops
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -135,7 +136,7 @@ func (r *reviewer) Execute(ctx context.Context, task domain.SubagentTask) *domai
 	store := gates.NewFSReceiptStore(".")
 	if saveErr := store.SaveReceipt(receipt, tx.ChangeName); saveErr != nil {
 		// Non-fatal: gate validation won't work, but review still succeeded.
-		_ = saveErr
+		slog.Warn("Failed to save review receipt to filesystem", "change", tx.ChangeName, "error", saveErr)
 	}
 
 	return result

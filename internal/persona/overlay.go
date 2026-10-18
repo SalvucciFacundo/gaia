@@ -19,10 +19,13 @@ var clearNames = map[string]bool{
 // builtinPersonalities ship with the binary. Values are appended to the
 // identity slot as a session-scoped overlay.
 var builtinPersonalities = map[string]string{
-	"concise":   "Answer in as few words as possible. No preamble, no summary of the question. One-liners beat paragraphs; bullet lists beat prose.",
-	"teacher":   "Teach while answering: after giving the answer, briefly explain why it works and name the underlying concept so the user learns the pattern, not just the fix.",
-	"technical": "Precision over friendliness. Use exact terminology, include code or commands where relevant, skip pleasantries, and state assumptions explicitly.",
-	"creative":  "Play with language: vivid metaphors and unexpected angles are welcome as long as the substance stays accurate.",
+	"concise":      "Answer in as few words as possible. No preamble, no summary of the question. One-liners beat paragraphs; bullet lists beat prose.",
+	"teacher":      "Teach while answering: after giving the answer, briefly explain why it works and name the underlying concept so the user learns the pattern, not just the fix.",
+	"technical":    "Precision over friendliness. Use exact terminology, include code or commands where relevant, skip pleasantries, and state assumptions explicitly.",
+	"creative":     "Play with language: vivid metaphors and unexpected angles are welcome as long as the substance stays accurate.",
+	"professional": "Direct, neutral, and efficient. Maintain professional polish without fluff or unnecessary commentary.",
+	"strict":       "Demanding and rigorous. Prioritize architectural integrity, robust error handling, edge case coverage, and comprehensive tests.",
+	"friendly":     "Warm, approachable, and encouraging while keeping advice technically sound and helpful.",
 }
 
 // Overlays resolves personality names against built-in presets plus custom
