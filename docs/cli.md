@@ -129,13 +129,34 @@ All archives feature SHA256 file validation, permission checks, and path-travers
 | `gaia desktop` | Launch Wails desktop UI app |
 
 
-## Policy Guard
+## Policy Guard & Permissions Control
 
 | Command | Description |
 |---|---|
+| `gaia policy status` | Display effective permissions across 4 functional categories and blast radiuses |
+| `gaia policy status -v` | Granular tool-by-tool policy evaluation breakdown |
+| `gaia policy panel` | Launch interactive Cyberpunk TUI permissions control panel in standalone mode |
 | `gaia policy init` | Initialize security policy (`.gaia/policy.yaml`) |
 | `gaia policy init --tier=full` | Set default execution tier (`read`, `sandbox`, `full`) |
 | `gaia policy init --global` | Initialize global user policy (`~/.config/gaia/policy.yaml`) |
+
+## Reminis Blackboard Working Memory
+
+| Command | Description |
+|---|---|
+| `gaia blackboard snapshot list` | List stored working memory snapshots with entry counts and SHA-256 prefixes |
+| `gaia blackboard snapshot inspect <id>` | Verify SHA-256 cryptographic checksum and inspect snapshot entries |
+| `gaia blackboard snapshot restore <id>` | Restore verified snapshot state into active Blackboard memory |
+
+## Overnight Autonomous Execution
+
+| Command | Description |
+|---|---|
+| `gaia overnight start "<prompt>"` | Start unattended task with interactive pre-flight alignment questionnaire |
+| `gaia overnight list` | List all overnight plans with execution status |
+| `gaia overnight review <plan_id>` | Inspect morning review pack (diffs, test execution logs, deferred actions) |
+| `gaia overnight merge <plan_id>` | Merge/apply sandboxed worktree changes into main branch |
+| `gaia overnight discard <plan_id>` | Discard sandboxed worktree without applying |
 
 ## TUI Commands (in-session)
 

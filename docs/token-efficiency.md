@@ -70,6 +70,25 @@ When conversation length crosses the compaction threshold (default: 50 messages)
 - **Level 1** (on demand): Full `SKILL.md` content loaded only when triggered.
 - **Level 2** (on demand): Specific reference files.
 
+### 5. Reminis Blackboard Working Memory & Context Destruction
+- **Cost**: `0 Prompt Tokens` (Direct L1 RAM pass-by-reference)
+- **Saving**: Eliminates $O(N^2)$ context explosion across subagents.
+
+Inspired by [**Reminis**](https://github.com/SalvucciFacundo/Reminis), GAIA avoids passing parent conversational history to subagent workers:
+1. Subagents receive only declared `InputKeys` from the in-memory **Blackboard**.
+2. Large outputs $> 4\text{ KB}$ automatically spill over to local `.bin` files, passing only lightweight path references.
+3. Subagents run with a hard 3-turn bound, push results to `OutputKeys`, and their message history is instantly garbage-collected upon completion (`defer func() { messages = nil }()`).
+
+### 6. Go-Native Code Mode (CodeAct) with Yaegi
+- **Saving**: Cuts multi-turn roundtrips by 80%.
+
+Instead of executing 10 separate tool calls across 10 sequential LLM turns (e.g., read file, parse regex, filter lines, write result), GAIA uses **Yaegi** (`execute_code`) to execute a concise Go script that runs all operations programmatically in a single turn.
+
+### 7. Read-Safe Parallel Tool Calling Batches
+- **Saving**: Eliminates serial latency on multi-tool turns.
+
+When the LLM requests multiple read-only tools (e.g., `file_read`, `file_tree`, `web_search`), GAIA partitions the batch and executes independent reads concurrently via Go routines while keeping state-mutating actions strictly sequential.
+
 ---
 
 ## Knowledge Graph Structure

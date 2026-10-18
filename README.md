@@ -126,6 +126,22 @@ Embedded headless browser driver powered by `chromedp` with zero-config auto-det
 Hybrid memory engine combining SQLite FTS5 Full-Text Search with Vector Cosine Similarity via Reciprocal Rank Fusion (RRF). Observations and durable facts are partitioned by project workspace and lifecycle states (`active` vs `needs_review`) with automatic background compaction.  
 👉 **[Learn about Memory & Storage →](docs/architecture.md)**
 
+### 💾 [Reminis Blackboard & Ephemeral Workers](docs/reminis-blackboard.md)
+Port of the OS-LLM architecture from [**Reminis**](https://github.com/SalvucciFacundo/Reminis): replaces quadratic context explosion ($O(N^2)$) with an in-memory L1 key-value ledger (`sync.RWMutex`), automatic 4KB disk spillover pass-by-reference, and bounded ephemeral subagents whose conversational message history is strictly garbage-collected upon completion. Includes SHA-256 verified SQLite snapshots.  
+👉 **[Explore Reminis Blackboard Architecture →](docs/reminis-blackboard.md)**
+
+### 🌙 [Overnight Autonomous Execution](docs/overnight.md)
+Run multi-stage engineering and content creation tasks unattended across all profiles without interactive blocking. Features an interactive pre-flight alignment interview, Git Worktree / staging sandboxes, a non-blocking deferred review queue, and consolidated morning review packs (`gaia overnight review/merge`).  
+👉 **[Read Overnight Execution Guide →](docs/overnight.md)**
+
+### 🛡️ [Simplified 4x3 Permissions & Blast Radius Control](docs/security.md#layer-4-policyguard-4x3-permissions--blast-radius-matrix-internalcore)
+Intuitive security matrix mapping tools into 4 functional categories (`Filesystem`, `Terminal`, `Network`, `Memory`) with a 3-state traffic light (`🟢 Allow`, `🟡 Ask`, `🔴 Block`) and clear Blast Radius indicators (`Project Workspace`, `Local Machine`, `External Internet`, `GAIA Storage`). Controlled via Cyberpunk TUI (`gaia policy panel`, `/permisos`), Web UI modal (`🛡️ Permissions`), and CLI (`gaia policy status -v`).  
+👉 **[Review Security & Permissions Matrix →](docs/security.md)**
+
+### ⚡ [Go-Native Code Mode (CodeAct) with Yaegi](docs/token-efficiency.md#6-go-native-code-mode-codeact-with-yaegi)
+Pure Go dynamic script interpretation via embedded Yaegi interpreter (`github.com/traefik/yaegi`) with ergonomic `GaiaSDK`. Allows models to bundle complex multi-step tool workflows into a single Go script, cutting latency and multi-turn token costs by 80%.  
+👉 **[Read Token Efficiency & Code Mode →](docs/token-efficiency.md)**
+
 ---
 
 ## 📋 Complete CLI Command Summary
@@ -136,6 +152,9 @@ Hybrid memory engine combining SQLite FTS5 Full-Text Search with Vector Cosine S
 | `gaia exec "<prompt>"` | Core | Executes prompt in headless batch mode |
 | `gaia serve [--port N]` | Server | Starts the OpenAI-compatible REST/SSE API server |
 | `gaia gateway [run]` | Gateway | Starts the Telegram, WhatsApp, Discord, Slack daemon |
+| `gaia policy [status\|panel\|init]` | Security | 4x3 permissions control, blast radius audit, Cyberpunk TUI |
+| `gaia blackboard snapshot [list\|inspect\|restore]` | Memory | Reminis L1 Blackboard checkpoints with SHA-256 tamper verification |
+| `gaia overnight [start\|list\|review\|merge\|discard]` | Autonomous | Unattended execution with pre-flight interview and morning review pack |
 | `gaia profile [subcommand]` | Profiles | Manage profiles (`list`, `switch`, `enable`, `disable`, `tools`) |
 | `gaia profile tools [enable\|disable\|list\|reset]` | Tools | Configure tools enabled for any profile |
 | `gaia skill [list\|create\|show\|delete]` | Skills | Manage agent skills |
@@ -155,6 +174,10 @@ Explore the complete guides in the [docs/](docs) directory:
 | Topic | Guide |
 |---|---|
 | **CLI Commands** | [docs/cli.md](docs/cli.md) |
+| **Reminis Blackboard & Memory Port** | [docs/reminis-blackboard.md](docs/reminis-blackboard.md) |
+| **Overnight Autonomous Execution** | [docs/overnight.md](docs/overnight.md) |
+| **Security & 4x3 Permissions Matrix** | [docs/security.md](docs/security.md) |
+| **Token Efficiency & Code Mode** | [docs/token-efficiency.md](docs/token-efficiency.md) |
 | **TUI & In-Session Commands** | [docs/tui-commands.md](docs/tui-commands.md) |
 | **Configuration Reference** | [docs/configuration.md](docs/configuration.md) |
 | **Architecture Overview** | [docs/architecture.md](docs/architecture.md) |
@@ -164,9 +187,7 @@ Explore the complete guides in the [docs/](docs) directory:
 | **Gateways & Voice Engine** | [docs/gateway.md](docs/gateway.md) |
 | **Skills Hub** | [docs/skills.md](docs/skills.md) |
 | **Subagents System** | [docs/subagents.md](docs/subagents.md) |
-| **Security Architecture** | [docs/security.md](docs/security.md) |
 | **Context Management Layers** | [docs/context-layers.md](docs/context-layers.md) |
-| **Token Efficiency & Memory** | [docs/token-efficiency.md](docs/token-efficiency.md) |
 | **Design System** | [docs/design-system.md](docs/design-system.md) |
 | **Full Specification** | [SPEC.md](SPEC.md) |
 
@@ -204,7 +225,8 @@ go build ./cmd/gaia
 
 ## 🙏 Acknowledgments
 
-GAIA stands on the shoulders of several open-source projects:
+GAIA stands on the shoulders of several innovative open-source projects:
+- **[Reminis](https://github.com/SalvucciFacundo/Reminis)** by Facundo Salvucci — Core inspiration for the OS-LLM architecture, working memory Blackboard (L1 RAM ledger with automatic 4KB disk spillover), and ephemeral subagent workers with complete conversational context destruction.
 - **[Gentle AI / Gentle Shell](https://github.com/Gentleman-Programming/gentle-ai)** — Core workflow inspiration, Organic Driven Development (ODD), BR review, and Engram memory model.
 - **[Hermes Agent](https://github.com/NousResearch/hermes-agent)** — Learning loop, skill creation/improvement, and tool approval system.
 - **[ogcode](https://github.com/...)** — Token efficiency and Knowledge Graph recall.

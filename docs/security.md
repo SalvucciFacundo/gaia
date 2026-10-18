@@ -33,19 +33,33 @@ Attachments received over Telegram, WhatsApp, Discord, or Slack are not trusted 
 - **File Signature Inspection**: Ingested files are validated against their initial magic bytes to verify genuine audio (`audio/ogg`, `audio/mpeg`, `audio/mp4`), images (`image/png`, `image/jpeg`, `image/webp`), and documents.
 - **Spoofing Prevention**: Prevents executable binaries or polyglot scripts disguised with image or audio extensions from reaching downstream transcription or vision pipelines.
 
-### Layer 4: PolicyGuard Security Tiers (`internal/core/policyguard/`)
-PolicyGuard enforces workspace-level boundaries:
+### Layer 4: PolicyGuard, 4x3 Permissions & Blast Radius Matrix (`internal/core/`)
+PolicyGuard enforces workspace-level boundaries and presents a transparent **4x3 functional permissions matrix** with explicit **Blast Radius Indicators**:
 
-| Tier | Filesystem Scope | Allowed Tool Operations | Target Environment |
-|---|---|---|---|
-| **`read`** | Read-only | File reading, AST search, code review | Security auditing, unfamiliar codebases |
-| **`sandbox`** | Current workspace only | Gated tools and shell allowlist; paths locked to repo | Standard engineering, feature dev |
-| **`full`** | System-wide | Unrestricted shell and file modification | Trusted local workstation |
+#### 1. The 4 Functional Categories & Blast Radiuses
+| Category | Icon | Blast Radius | Scope & Description | Default Tools |
+|---|---|---|---|---|
+| **Filesystem & Disk** | 📁 | **Project Workspace** | Read, create, edit, and delete files on local disk | `file_read`, `file_write`, `file_edit`, `file_delete`, etc. |
+| **Terminal & Commands** | ⚡ | **Local Machine (OS)** | Execute shell commands, subprocesses, and dynamic Go scripts | `shell_exec`, `bash`, `execute_code`, `git` |
+| **Network & Internet** | 🌐 | **External Internet** | Search web, fetch remote URLs, headless browser automation | `web_search`, `web_fetch`, `browser_open`, `browser_click` |
+| **Memory & State** | 💾 | **GAIA Storage** | Mutate database records, persistent memories, snapshots | `mem_save`, `mem_update`, `blackboard_set`, `blackboard_snapshot` |
 
-Initialize workspace tier:
-```bash
-gaia policy init --tier=sandbox
-```
+#### 2. The 3-State Traffic Light Control
+Each category supports three operational states:
+- **`🟢 Always Allow`**: Operations run without interruption.
+- **`🟡 Ask User`**: Operations halt execution and prompt for explicit user confirmation before proceeding.
+- **`🔴 Block`**: Operations are immediately denied and rejected.
+
+#### 3. Profile Memory Isolation & RBAC
+- **Dedicated Namespaces**: Each profile (`dev`, `assistant`, `art`, custom) writes exclusively to `gaia/profile/{profile_id}/{project}/{topic}`.
+- **Unrestricted Cross-Reading**: All profiles can inspect observations and memories from other profiles.
+- **Guarded Cross-Mutation (RBAC)**: Any attempt by profile $A$ to update or delete records belonging to profile $B$ automatically triggers a PolicyGuard confirmation gate.
+
+#### 4. Interactive Control Panels
+- **Cyberpunk TUI**: Run `gaia policy panel` or type `/permisos` in session. Use `↑/↓` to navigate categories, `Spacebar` to cycle Allow/Ask/Block, and `Enter` to expand tool details.
+- **Web UI Dashboard**: Click `🛡️ Permissions` in the header or access `GET /web/policy` and `POST /web/policy/update`.
+- **CLI Auditor**: `gaia policy status` or `gaia policy status -v` for granular inspection.
+- **Config Init**: `gaia policy init --tier=sandbox`.
 
 ### Layer 5: SSRF Guard & DNS Rebind Mitigation (`internal/tools/web/fetch/`)
 The web fetch tool implements rigorous Server-Side Request Forgery defenses:
