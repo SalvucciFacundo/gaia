@@ -27,6 +27,7 @@ func (i *implementer) Execute(ctx context.Context, task domain.SubagentTask) *do
 	task.AllowedTools = []string{
 		"file_read",
 		"file_write",
+		"file_patch",
 		"file_list",
 		"shell_exec",
 		"git_status",
@@ -63,6 +64,7 @@ You produce working, tested implementations that follow project conventions and 
 AVAILABLE TOOLS:
 - file_read: read a file's contents
 - file_write: write content to a file (creates parent directories)
+- file_patch: surgically replace a block of code using exact or fuzzy matching (preferred over file_write for modifying existing files)
 - file_list: list directory contents
 - shell_exec: execute an allowlisted shell command (go test, go build, etc.)
 - git_status: show working tree status

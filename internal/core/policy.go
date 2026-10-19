@@ -258,8 +258,10 @@ var toolTiers = map[string]PolicyTier{
 	"mem_get":           TierRead,
 	"codegraph_explore": TierRead,
 	// Write tools — TierSandbox
-	"file_write": TierSandbox,
-	"shell_exec": TierSandbox,
+	"file_write":  TierSandbox,
+	"file_patch":  TierSandbox,
+	"apply_patch": TierSandbox,
+	"shell_exec":  TierSandbox,
 	// Mutating git tools — TierSandbox
 	"git_commit":   TierSandbox,
 	"git_branch":   TierSandbox,

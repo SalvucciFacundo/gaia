@@ -50,6 +50,14 @@ func (m *Module) GetTools() []domain.ToolCall {
 			},
 		},
 		{
+			Name: "file_patch",
+			Arguments: map[string]interface{}{
+				"path":    "string — relative or absolute path to the file to patch",
+				"search":  "string — exact or fuzzy block of lines to find",
+				"replace": "string — replacement block of lines to substitute",
+			},
+		},
+		{
 			Name: "file_list",
 			Arguments: map[string]interface{}{
 				"path": "string — directory path to list (defaults to project root)",
@@ -65,6 +73,8 @@ func (m *Module) Execute(ctx context.Context, toolName string, args map[string]i
 		return m.readFile(args)
 	case "file_write":
 		return m.writeFile(args)
+	case "file_patch", "apply_patch":
+		return m.patchFile(args)
 	case "file_list":
 		return m.listFiles(args)
 	default:
@@ -124,6 +134,49 @@ func (m *Module) writeFile(args map[string]interface{}) (*domain.ToolResult, err
 	return &domain.ToolResult{
 		Success: true,
 		Output:  fmt.Sprintf("wrote %d bytes to %s", len(content), path),
+	}, nil
+}
+
+// patchFile performs a surgical fuzzy search-and-replace on a targeted file.
+func (m *Module) patchFile(args map[string]interface{}) (*domain.ToolResult, error) {
+	path, err := m.resolveArg(args, "path")
+	if err != nil {
+		return &domain.ToolResult{Success: false, Error: err.Error()}, nil
+	}
+	search, err := m.resolveArg(args, "search")
+	if err != nil {
+		return &domain.ToolResult{Success: false, Error: err.Error()}, nil
+	}
+	replace, ok := args["replace"].(string)
+	if !ok {
+		// Allow empty string to delete code
+		if _, exists := args["replace"]; !exists {
+			return &domain.ToolResult{Success: false, Error: "missing required argument: replace"}, nil
+		}
+	}
+
+	safePath, err := security.ValidatePath(m.projectRoot, path)
+	if err != nil {
+		return &domain.ToolResult{Success: false, Error: err.Error()}, nil
+	}
+
+	data, err := os.ReadFile(safePath)
+	if err != nil {
+		return &domain.ToolResult{Success: false, Error: fmt.Sprintf("read failed: %v", err)}, nil
+	}
+
+	patched, err := ApplyPatch(string(data), search, replace)
+	if err != nil {
+		return &domain.ToolResult{Success: false, Error: fmt.Sprintf("patch failed: %v", err)}, nil
+	}
+
+	if err := os.WriteFile(safePath, []byte(patched), 0644); err != nil {
+		return &domain.ToolResult{Success: false, Error: fmt.Sprintf("write failed: %v", err)}, nil
+	}
+
+	return &domain.ToolResult{
+		Success: true,
+		Output:  fmt.Sprintf("successfully patched %s", path),
 	}, nil
 }
 

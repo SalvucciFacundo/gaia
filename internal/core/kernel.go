@@ -520,7 +520,7 @@ func (b *Brain) saveDirectActionFact(ctx context.Context, toolName string, args 
 
 	now := time.Now()
 	switch toolName {
-	case "file_write", "file_edit", "write_file", "edit_file":
+	case "file_write", "file_edit", "write_file", "edit_file", "file_patch", "apply_patch":
 		filePath := ""
 		if p, ok := args["path"].(string); ok {
 			filePath = p

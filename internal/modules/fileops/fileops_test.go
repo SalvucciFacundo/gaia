@@ -198,3 +198,103 @@ func TestFileWrite_EmptyContent(t *testing.T) {
 		t.Fatal("expected empty content to fail")
 	}
 }
+
+func TestFilePatch_ExactMatch(t *testing.T) {
+	root := t.TempDir()
+	filePath := filepath.Join(root, "service.go")
+	initial := `package main
+
+func Start() {
+	port := 8080
+	println(port)
+}
+`
+	os.WriteFile(filePath, []byte(initial), 0644)
+
+	mod := NewModule(root)
+	result, err := mod.Execute(context.Background(), "file_patch", map[string]interface{}{
+		"path":    "service.go",
+		"search":  "\tport := 8080\n",
+		"replace": "\tport := 9090\n",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !result.Success {
+		t.Fatalf("expected patch success, got error: %s", result.Error)
+	}
+
+	data, _ := os.ReadFile(filePath)
+	if !strings.Contains(string(data), "port := 9090") || strings.Contains(string(data), "port := 8080") {
+		t.Errorf("patch did not apply correctly, got:\n%s", string(data))
+	}
+}
+
+func TestFilePatch_FuzzyWhitespaceAndIndentMatch(t *testing.T) {
+	root := t.TempDir()
+	filePath := filepath.Join(root, "handler.go")
+	initial := `package main
+
+func Handler() {
+    // Some logic
+    x := 10
+    y := 20
+    return
+}
+`
+	os.WriteFile(filePath, []byte(initial), 0644)
+
+	mod := NewModule(root)
+	// Prompt search block has tabs or trimmed indentation
+	result, err := mod.Execute(context.Background(), "apply_patch", map[string]interface{}{
+		"path": "handler.go",
+		"search": `// Some logic
+x := 10
+y := 20`,
+		"replace": `// Updated logic
+x := 100
+y := 200`,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !result.Success {
+		t.Fatalf("expected fuzzy patch success, got error: %s", result.Error)
+	}
+
+	data, _ := os.ReadFile(filePath)
+	expectedSnippet := `    // Updated logic
+    x := 100
+    y := 200`
+	if !strings.Contains(string(data), expectedSnippet) {
+		t.Errorf("expected fuzzy matched and aligned content:\n%s\ngot:\n%s", expectedSnippet, string(data))
+	}
+}
+
+func TestFilePatch_NotFoundOrAmbiguous(t *testing.T) {
+	root := t.TempDir()
+	filePath := filepath.Join(root, "dup.go")
+	initial := `func Foo() {
+    val := 1
+}
+func Bar() {
+    val := 1
+}
+`
+	os.WriteFile(filePath, []byte(initial), 0644)
+
+	mod := NewModule(root)
+	// Ambiguous search block
+	res, _ := mod.Execute(context.Background(), "file_patch", map[string]interface{}{
+		"path":    "dup.go",
+		"search":  "val := 1",
+		"replace": "val := 2",
+	})
+	if res.Success {
+		t.Fatal("expected ambiguous search block to fail, but succeeded")
+	}
+	if !strings.Contains(res.Error, "not unique") && !strings.Contains(res.Error, "ambiguous") {
+		t.Errorf("expected error to mention ambiguity, got: %s", res.Error)
+	}
+}
+
