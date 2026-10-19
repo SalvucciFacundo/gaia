@@ -34,12 +34,9 @@ Este documento recopila las 4 mejoras arquitectónicas y de experiencia de usuar
 
 ---
 
-### 3. Micro-Compaction de Contexto y Resumen Ejecutivo
-- **Problema actual**: En sesiones largas, el contexto crece rápidamente con outputs extensos de herramientas, llenando la ventana de contexto y diluyendo las instrucciones iniciales.
-- **Solución propuesta**:
-  - Potenciar `brain_compaction.go` con un algoritmo de **micro-compactación incremental**:
-    - Compacta turnos antiguos en un resumen estructurado (objetivo original, decisiones clave tomadas, archivos editados, estado actual).
-    - Preserva intactas las instrucciones del sistema (`SOUL.md`), las restricciones del usuario y los snapshots de archivos más recientes.
+### 3. Micro-Compaction de Contexto y Resumen Ejecutivo (✅ Implementado)
+- **Estado**: ✅ Implementado y validado en `internal/core/brain_compaction.go`.
+- **Problema resuelto**: Potenciado el motor de compactación con resumen ejecutivo estructurado: extrae automáticamente el objetivo activo, restricciones e instrucciones del usuario, decisiones arquitectónicas clave, archivos modificados/referenciados y resúmenes concisos de ejecuciones de herramientas (`[TOOL CALLS]`, `[TOOL RESULT]`). Evita la amnesia y la degradación de contexto en sesiones de trabajo extensas.
 - **Beneficio**: Sesiones de refactorización complejas sin pérdida de memoria ni alucinaciones por contexto saturado.
 
 ---

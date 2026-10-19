@@ -66,12 +66,21 @@ func (r *stubRepo) CreateSession(ctx context.Context, name string) (string, erro
 func (r *stubRepo) GetMessages(ctx context.Context, sessionID string, limit int) ([]domain.Message, error) {
 	return []domain.Message{}, nil
 }
-func (r *stubRepo) GetMessageCount(ctx context.Context) (int, error) { return 0, nil }
+func (r *stubRepo) GetMessageCount(ctx context.Context) (int, error) {
+	return len(r.messages), nil
+}
 func (r *stubRepo) ListSessions(ctx context.Context) ([]domain.SessionInfo, error) {
 	return nil, nil
 }
 func (r *stubRepo) GetHistoryFrom(ctx context.Context, limit, offset int) ([]domain.Message, error) {
-	return []domain.Message{}, nil
+	if offset >= len(r.messages) {
+		return []domain.Message{}, nil
+	}
+	end := offset + limit
+	if end > len(r.messages) {
+		end = len(r.messages)
+	}
+	return r.messages[offset:end], nil
 }
 func (r *stubRepo) GetLastMessages(ctx context.Context, n int) ([]domain.Message, error) {
 	return []domain.Message{}, nil
