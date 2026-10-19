@@ -150,17 +150,27 @@ Pure Go dynamic script interpretation via embedded Yaegi interpreter (`github.co
 |---|---|---|
 | `gaia` | Core | Launches the interactive Cyberpunk TUI |
 | `gaia exec "<prompt>"` | Core | Executes prompt in headless batch mode |
-| `gaia serve [--port N]` | Server | Starts the OpenAI-compatible REST/SSE API server |
-| `gaia gateway [run]` | Gateway | Starts the Telegram, WhatsApp, Discord, Slack daemon |
+| `gaia serve [--port N]` | Server | Starts the OpenAI-compatible REST/SSE API & Web Dashboard |
+| `gaia gateway [start\|stop\|status]` | Gateway | Starts/manages the Telegram, WhatsApp, Discord, Slack daemon |
+| `gaia review [start\|status\|list\|validate]` | Review & Gates | 4R review and Judgment Day adversarial dual-review protocol |
+| `gaia delivery [list\|status\|release\|diff]` | Delivery | Stacked branch release queue with CAS receipt validation |
 | `gaia policy [status\|panel\|init]` | Security | 4x3 permissions control, blast radius audit, Cyberpunk TUI |
 | `gaia blackboard snapshot [list\|inspect\|restore]` | Memory | Reminis L1 Blackboard checkpoints with SHA-256 tamper verification |
 | `gaia overnight [start\|list\|review\|merge\|discard]` | Autonomous | Unattended execution with pre-flight interview and morning review pack |
 | `gaia profile [subcommand]` | Profiles | Manage profiles (`list`, `switch`, `enable`, `disable`, `tools`) |
 | `gaia profile tools [enable\|disable\|list\|reset]` | Tools | Configure tools enabled for any profile |
 | `gaia skill [list\|create\|show\|delete]` | Skills | Manage agent skills |
+| `gaia cron [create\|list\|pause\|resume\|remove\|start]` | Scheduled | Manage and execute automated scheduled cron jobs |
+| `gaia plugin [list\|enable\|disable\|install\|remove]` | Ecosystem | Manage native GAIA plugins |
+| `gaia webhook [start\|list-subs]` | Automation | GitHub webhook listener daemon and event triggers |
+| `gaia lsp [list\|diagnostics]` | Code Intel | Language Server Protocol (LSP) diagnostics and client |
+| `gaia tracker [check\|report\|port]` | Sync | Upstream release monitoring and parity tracking |
+| `gaia onboard` | Onboarding | Interactive walkthrough of Spec-Driven Development (SDD) |
 | `gaia backup [create\|restore\|list]` | Ops | Create or inspect profile backup archives |
 | `gaia restore <archive>` | Ops | Restore configuration and databases from archive |
 | `gaia update [--check\|--backup]` | Ops | Check for updates and upgrade GAIA binary |
+| `gaia session [list\|restore]` | Session | Manage and inspect past multi-turn session contexts |
+| `gaia desktop` | Desktop | Launch native Wails desktop application |
 | `gaia doctor` | Diagnostics | Run environment health checks and diagnostics |
 
 ---

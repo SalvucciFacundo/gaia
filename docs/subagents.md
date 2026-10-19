@@ -15,7 +15,7 @@ Every subagent follows the same pattern:
 ```
 Orchestrator delegates → Spawner creates isolated Brain
                          → Filters tools by domain
-                         → Injects Engram namespace
+                         → Injects Mnemosyne memory namespace
                          → Runs subagent with system prompt
                          → Subagent returns structured summary
                          → Orchestrator synthesizes into response
@@ -24,7 +24,7 @@ Orchestrator delegates → Spawner creates isolated Brain
 Each subagent:
 - Has its **own LLM calls** (doesn't share context with other subagents)
 - Has its **own tool set** (filtered by domain)
-- Has its **own Engram namespace** (`gaia/{subagent}/{project}`)
+- Has its **own Mnemosyne memory namespace** (`gaia/{subagent}/{project}`)
 - Has its **own learning loop** (nudge, session summary, skill creation)
 - Can have its **own LLM model config** (provider, model, reasoning_effort)
 - Returns only a **summary** to the orchestrator (intermediate work never enters main context)
@@ -216,7 +216,7 @@ After every task:
   4. Cross-pollinate → share cross-domain facts to knowledge graph
 
 During tasks:
-  1. Memory recall → pull relevant context from own Engram namespace
+  1. Memory recall → pull relevant context from own Mnemosyne namespace
   2. Skill load → load domain skills on demand
   3. Knowledge graph query → pull cross-domain concepts
 ```
@@ -229,6 +229,6 @@ In addition to static compile-time subagents, GAIA supports creating and persist
 
 - **Interactive Interview Wizard (`/create-agent`)**: Guides you through name, purpose, system prompt, model override, and tool selection.
 - **SQLite Persistence (`dynamic_loader.go`)**: Automatically persists custom subagents to `.gaia/` SQLite storage and re-loads them across sessions.
-- **Strict Isolation**: Dynamic subagents execute under dedicated Engram namespaces (`gaia/subagent/{name}/{project}`) with mechanical Edit Authority bounds (`AllowedEditRoots`).
+- **Strict Isolation**: Dynamic subagents execute under dedicated Mnemosyne memory namespaces (`gaia/subagent/{name}/{project}`) with mechanical Edit Authority bounds (`AllowedEditRoots`).
 - **ODD Mid-Turn Dynamic Delegation**: When inline turns cross evidence boundaries (>5 reads, >3 calls, >10k tokens, or >=2 file edits), the orchestrator dynamically delegates task continuation to bounded workers (`@explorer`, `@implementer`, `@verifier`).
 

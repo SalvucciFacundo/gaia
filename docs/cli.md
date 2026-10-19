@@ -29,7 +29,10 @@
 | `gaia serve` | Start API server on default port `8080` (alias: `gaia api`) |
 | `gaia serve --port 9090` | Start server on custom port |
 | `gaia serve --host 0.0.0.0` | Bind server to specific network interface |
-| `gaia serve --key <token>` | Require Bearer token authentication (constant-time verification) |
+| `gaia serve --api-key <token>` | Require Bearer token authentication (constant-time verification) |
+| `gaia serve --config <path>` | Load explicit configuration file |
+| `gaia serve --profile <name>` | Specify active profile name |
+| `gaia serve --cors <origins>` | Comma-separated list of allowed CORS origins |
 
 The server provides:
 ```
@@ -44,8 +47,10 @@ GET  /                    → Built-in Web UI Dashboard (templ + TailwindCSS + h
 
 | Command | Description |
 |---|---|
-| `gaia gateway` or `gaia gateway run` | Start messaging gateway daemon for enabled platforms |
-| `gaia gateway run --config <path>` | Run gateway with explicit configuration file |
+| `gaia gateway start` or `gaia gateway run` | Start messaging gateway daemon for enabled platforms |
+| `gaia gateway start --config <path>` | Run gateway with explicit configuration file |
+| `gaia gateway status` | Inspect current gateway background process status and adapters |
+| `gaia gateway stop` | Stop running gateway daemon |
 
 Gateways run as a background service:
 - **Platforms**: Telegram (polling/webhooks), WhatsApp (Meta Cloud API), Discord, Slack.
@@ -93,19 +98,22 @@ All archives feature SHA256 file validation, permission checks, and path-travers
 | `gaia review mode enable` | Enable opt-in Receipt-Driven Development (RDD) review (`--scope clone` or `--scope global`) |
 | `gaia review mode disable` | Disable review mode (delivery uses ordinary repo policy) |
 | `gaia review mode status` | Show active review mode and deciding source (clone vs global) |
-| `gaia review start` | Start bounded 4R review (`--files <list>`, `--lens <name>`, `--judgment-day`) |
+| `gaia review start` | Start bounded 4R review (`--files <list>`, `--lens <name>`, `--judgment-day`). Automatically parses `AGENTS.md` standards from project root and parents. Judgment Day runs 2 blind adversarial rounds. |
 | `gaia review status` | Show review receipts status (`--change <name>` for specific change details) |
 | `gaia review list` | List all review receipts (`--state <approved\|escalated\|invalidated>`) |
 | `gaia review validate --gate <gate>` | Validate receipt at gate (`pre-commit`, `pre-push`, `pre-pr`) |
 | `gaia review install-hooks` | Install git hook scripts (`.git/hooks/pre-commit`, `.git/hooks/pre-push`) |
 
-## Policy & Permissions
+## Policy Guard & Permissions Control
 
 | Command | Description |
 |---|---|
-| `gaia policy init` | Initialize a policy configuration (`.gaia/policy.yaml`) with default `sandbox` tier |
-| `gaia policy init --tier=<tier>` | Initialize policy with specified tier (`read`, `sandbox`, `full`) |
-| `gaia policy init --global` | Initialize global policy at `~/.config/gaia/policy.yaml` |
+| `gaia policy status` | Display effective permissions across 4 functional categories and blast radiuses |
+| `gaia policy status -v` | Granular tool-by-tool policy evaluation breakdown |
+| `gaia policy panel` | Launch interactive Cyberpunk TUI permissions control panel in standalone mode |
+| `gaia policy init` | Initialize security policy (`.gaia/policy.yaml`) with default `sandbox` tier |
+| `gaia policy init --tier=<tier>` | Set default execution tier (`read`, `sandbox`, `full`) |
+| `gaia policy init --global` | Initialize global user policy (`~/.config/gaia/policy.yaml`) |
 
 ## Delivery
 
@@ -119,6 +127,40 @@ All archives feature SHA256 file validation, permission checks, and path-travers
 | `gaia delivery discard <id>` | Mark a queued item as discarded |
 | `gaia delivery diff <id>` | Inspect PR title, body, and git diff stat for a queued item |
 
+## Scheduled Tasks (Cron)
+
+| Command | Description |
+|---|---|
+| `gaia cron list` | List all registered cron jobs with schedule and state |
+| `gaia cron create` | Interactive prompt or flags to register a new automated cron job |
+| `gaia cron pause <id>` | Pause an active cron job |
+| `gaia cron resume <id>` | Resume a paused cron job |
+| `gaia cron remove <id>` | Remove a scheduled cron job |
+| `gaia cron start` | Start the persistent in-process cron scheduler loop |
+
+## Plugins
+
+| Command | Description |
+|---|---|
+| `gaia plugin list` | List all installed plugins, version, status, and exposed tools |
+| `gaia plugin enable <name>` | Enable an installed plugin |
+| `gaia plugin disable <name>` | Disable a plugin |
+| `gaia plugin install <path>` | Install a plugin from a local directory into `~/.gaia/plugins/` |
+| `gaia plugin remove <name>` | Remove an installed plugin |
+
+## Automation & Ecosystem (Webhooks, LSP, Tracker, Onboard)
+
+| Command | Description |
+|---|---|
+| `gaia webhook start` | Start GitHub webhook listener daemon (`GAIA_WEBHOOK_ADDR`, default `:8080`) |
+| `gaia webhook list-subs` | List configured GitHub webhook subscriptions |
+| `gaia lsp list` | List configured Language Server Protocol (LSP) servers from `config.yaml` |
+| `gaia lsp diagnostics <name>` | Query diagnostics for a workspace from a running LSP server |
+| `gaia tracker check` | Check upstream releases and inspect delta |
+| `gaia tracker report` | View detailed parity and tracking report |
+| `gaia tracker port <feature>` | Port upstream feature into current GAIA codebase |
+| `gaia onboard` | Interactive guided walkthrough of Spec-Driven Development (SDD) |
+
 ## Session & Diagnostics
 
 | Command | Description |
@@ -127,18 +169,6 @@ All archives feature SHA256 file validation, permission checks, and path-travers
 | `gaia session restore <id>` | Restore and inspect previous session context |
 | `gaia doctor` | Comprehensive environment, tool, and database diagnostics |
 | `gaia desktop` | Launch Wails desktop UI app |
-
-
-## Policy Guard & Permissions Control
-
-| Command | Description |
-|---|---|
-| `gaia policy status` | Display effective permissions across 4 functional categories and blast radiuses |
-| `gaia policy status -v` | Granular tool-by-tool policy evaluation breakdown |
-| `gaia policy panel` | Launch interactive Cyberpunk TUI permissions control panel in standalone mode |
-| `gaia policy init` | Initialize security policy (`.gaia/policy.yaml`) |
-| `gaia policy init --tier=full` | Set default execution tier (`read`, `sandbox`, `full`) |
-| `gaia policy init --global` | Initialize global user policy (`~/.config/gaia/policy.yaml`) |
 
 ## Reminis Blackboard Working Memory
 

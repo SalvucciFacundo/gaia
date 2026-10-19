@@ -45,7 +45,7 @@ graph TD
 Bootstraps SDD in the current project:
 - Detects stack, conventions, and architecture
 - Identifies testing tools and test runner
-- Sets up persistence (Engram, OpenSpec, or hybrid)
+- Sets up persistence (Mnemosyne SQLite, OpenSpec, or hybrid)
 - Builds the skill registry
 
 Run once per project:
@@ -127,7 +127,7 @@ Closes the change:
 - Syncs delta specs into main specs
 - Moves change folder to archive with date prefix
 - **Deferred Delivery Outbox Hook**: In `deferred` delivery mode (autonomous / overnight runs), generates PR title/body and enqueues the `DeliveryItem` into `.gaia/delivery/queue.json` in `standby` status without remote network transport.
-- Records audit trail (observation IDs in Engram for traceability)
+- Records audit trail (observation and memory records in Mnemosyne SQLite for traceability)
 
 ### 10. Onboard (`sdd-onboard`)
 Guided walkthrough for new users:
@@ -176,15 +176,15 @@ SDD supports three storage modes:
 
 | Mode | Storage | Best for |
 |---|---|---|
-| **Engram** | Persistent memory only | Solo developers, fast iteration |
+| **Mnemosyne** | Persistent SQLite memory only | Solo developers, fast iteration |
 | **OpenSpec** | Files in `openspec/` directory | Team sharing, version control |
-| **Hybrid** | Both Engram + OpenSpec | Cross-session recovery + team sharing |
+| **Hybrid** | Both Mnemosyne + OpenSpec | Cross-session recovery + team sharing |
 
 Artifact naming convention:
 ```text
-Engram:   sdd/{change-name}/{artifact-type}
-OpenSpec: openspec/changes/{change-name}/{artifact-type}
-Archive:  openspec/changes/archive/YYYY-MM-DD-{change-name}/
+Mnemosyne: sdd/{change-name}/{artifact-type}
+OpenSpec:  openspec/changes/{change-name}/{artifact-type}
+Archive:   openspec/changes/archive/YYYY-MM-DD-{change-name}/
 ```
 
 ---

@@ -71,12 +71,20 @@ gaia/
 │   └── exec.go                   # Headless batch execution
 │
 ├── internal/
-│   ├── core/                     # Core Domain, Brain & Execution Kernel
+│   ├── core/                     # Core Domain, Brain & Modular Execution Kernel
 │   │   ├── domain/               # Core data models, configs, tool defs
 │   │   ├── ports/                # Hexagonal ports (Transcriber, Synthesizer, LLM)
-│   │   ├── kernel.go             # Brain loop & tool invocation engine
-│   │   ├── blocking/             # Human confirmation & interactive guard
-│   │   └── policyguard/          # Tier-based execution security
+│   │   ├── kernel.go             # Brain cognitive loop, streaming & tool dispatch
+│   │   ├── session_commands.go   # /undo, /retry, /new, /save, /sessions, /resume
+│   │   ├── workflow_commands.go  # /goal, /subgoal, /snapshot, /branch, /steer, /background
+│   │   ├── config_commands.go    # /model, /fast, /busy, /codegraph, /memory
+│   │   ├── info_commands.go      # /insights, /debug, /credits, /billing, /commands
+│   │   ├── skill_commands.go     # /learn, /suggestions, /blueprint, /curator
+│   │   ├── media_commands.go     # /image, /paste
+│   │   ├── integration_commands.go # /sethome, /trust, /session, /kg, /mcp
+│   │   ├── registry.go           # ToolRegistry & caching
+│   │   ├── policy.go             # PolicyGuard tier enforcement & 4x3 matrix
+│   │   └── blocking/             # Human confirmation & interactive envelope guard
 │   │
 │   ├── profiles/                 # Modular Profiles & Persona Subsystem
 │   │   ├── manager.go            # Thread-safe profile manager & tool filter

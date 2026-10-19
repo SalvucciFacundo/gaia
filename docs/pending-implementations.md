@@ -75,13 +75,19 @@ Features with partial/stub implementations that need to be completed.
 
 ---
 
-## Messaging (Gateway)
+## Completed Core Architectural Upgrades & Refactors
 
-Implemented gateway capabilities across Telegram, WhatsApp (Meta Cloud API), Discord, and Slack:
+The following major diagnostic items and architectural debts were completed, verified, and merged:
 
-- [x] `/approve` & `/deny` — Interactive approval gates with inline keyboard buttons
-- [x] `gaia update` — Self-updater CLI with SemVer, GitHub release download, and atomic binary upgrade
-- [x] Multi-platform audio transcription and voice responses
-- [x] Magic-byte media ingest validation
-- [x] Multi-channel session manager
+- [x] **Tamper Detection in Backup/Restore (BUG-1)**: Full gzip stream checksum verification (`io.Copy(io.Discard, gr)`), path traversal protection, manifest checks, and 0600 file modes (`internal/backup/restore.go`).
+- [x] **Reasoning Effort & Persona Stubs Wired (BUG-2)**: Functional options `WithReasoningEffort` and dynamic persona injection in `ports.go`, `openai.go`, and `copilot_client.go`.
+- [x] **Judgment Day Adversarial Dual-Review (INCOMPLETE-1)**: End-to-end CLI execution with `--judgment-day`, blind dual judges, compare findings, surgical fix cycles, and CAS receipt storage (`cmd/gaia/review.go`, `internal/review/judgment/`).
+- [x] **Auto-Create Skill in Learning Loop (INCOMPLETE-2)**: Subagents trigger skill creation upon reaching execution threshold via `Spawner.SetOnLearningThreshold` callback (`internal/agent/spawner.go`).
+- [x] **Native Mnemosyne Shutdown Persistence (INCOMPLETE-3)**: Replaced external cosmetic Engram stubs with native SQLite session summaries.
+- [x] **`kernel.go` God Object Modularization (DEBT-1)**: Reduced `kernel.go` from ~4,028 to 1,821 lines by extracting 7 domain command files into `internal/core/`.
+- [x] **Context Cancellation & Signal Propagation (DEBT-2)**: Wired `rootCtx` from OS signals (SIGINT/SIGTERM) through TUI, wizard, gateways, and cron routines.
+- [x] **Production Error Visibility (DEBT-3)**: Surfaced asynchronous execution errors into the TUI chat history (`❌ Error: ...`) and added structured error handling in web server and reviewer ops.
+- [x] **Safe CodeAct `Find()` Execution (DEBT-4)**: Captured `filepath.Walk` errors in `GaiaSDK.Find` and added support for relative path glob matching.
+- [x] **Canonical Browser Configuration (DEBT-5)**: Consolidated browser automation under `gateway.browser_tools`.
+- [x] **$O(1)$ Dynamic Loader Tool Validation (DEBT-6)**: Replaced $O(n \times m)$ nested loops with map lookups in `cmd/gaia/main.go`.
 

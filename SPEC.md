@@ -1354,7 +1354,7 @@ require (
 |---|---|---|---|
 | **Type** | Autonomous agent | Ecosystem configurator | Autonomous agent |
 | **Binary** | Python + uv + Node.js | Go binary (config CLI) | Single Go binary |
-| **Memory** | FSRS + Honcho | Engram (MCP server) | Engram (native) |
+| **Memory** | FSRS + Honcho | Engram (MCP server) | Mnemosyne (embedded SQLite FTS5 + Vector + CAS) |
 | **Token Efficiency** | Full transcript replay | N/A | Knowledge graph recall (70%+) |
 | **SDD Workflow** | No (external skill) | Configures for other agents | Native subagent phases |
 | **Code Review** | No (background review) | BR (bash CLI) | Built-in BR + 4 lenses |

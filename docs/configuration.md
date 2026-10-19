@@ -53,6 +53,8 @@ profiles:
 llm:
   provider: "anthropic"                # "anthropic", "openai", "deepseek", "ollama", "groq", "openrouter", etc.
   model: "claude-3-5-sonnet-20241022"
+  reasoning_effort: "medium"           # "low", "medium", "high" (supported on OpenAI o1/o3-mini & GitHub Copilot)
+  persona: "default"                   # "default", "teacher", "friendly", "strict", "professional"
   fallback_chain:                      # Providers to try when encountering rate limits or 429 errors
     - "openai"
     - "deepseek"
@@ -147,15 +149,12 @@ tts:
   speed: 1.0
   format: "mp3"                        # "mp3", "opus", "aac", "flac"
 
-# ── Headless Browser Automation ──────────────────────────────────
-browser:
-  enabled: true
-  executable_path: ""                  # Empty = auto-detect Chrome/Chromium/Brave/Edge/Flatpak
-  headless: true                       # Set to false to inspect browser window visually
-  viewport_width: 1280
-  viewport_height: 720
-  user_data_dir: ""                    # Persistent profile directory (empty = ephemeral session)
-  timeout: 30s
+# ── Headless Browser Automation (MCP) ────────────────────────────
+# Configured under gateway.browser_tools. Points to the browser MCP server (e.g. puppeteer/playwright).
+gateway:
+  browser_tools:
+    enabled: true
+    command: "npx @modelcontextprotocol/server-puppeteer"
 
 # ── Persistence & Database ───────────────────────────────────────
 db:
@@ -214,9 +213,10 @@ current_profile: "dev"
 llm:
   provider: "anthropic"
   model: "claude-3-5-sonnet-20241022"
-browser:
-  enabled: true
-  headless: true
+gateway:
+  browser_tools:
+    enabled: true
+    command: "npx @modelcontextprotocol/server-puppeteer"
 policy:
   tier: "sandbox"
 ```
