@@ -27,12 +27,9 @@ Este documento recopila las 4 mejoras arquitectónicas y de experiencia de usuar
 
 ---
 
-### 2. Feedback Loop Cerrado: Auto-Reparación con Linter y Compilador
-- **Problema actual**: El agente aplica un cambio y devuelve el control al usuario sin saber si el código compila o si introdujo errores de sintaxis o importaciones huérfanas.
-- **Solución propuesta**:
-  - Hook post-tool automático tras cualquier modificación de archivos (`file_write`, `apply_patch`).
-  - Ejecución en background del validador del lenguaje detectado (ej. `go test -run=^$ ./...` o `go vet` en Go; `tsc --noEmit` en TS; `cargo check` en Rust).
-  - Si la verificación falla, el error de compilación se inyecta de forma transparente al turno del modelo con instrucción: *"The change caused a compile error: <error>. Fix it before concluding."*
+### 2. Feedback Loop Cerrado: Auto-Reparación con Linter y Compilador (✅ Implementado)
+- **Estado**: ✅ Implementado y validado en `internal/core/autofix` y `internal/core/kernel.go`.
+- **Problema resuelto**: El agente ya no devuelve el control con código roto; detecta mutaciones de archivos (`file_write`, `file_patch`, `apply_patch`), ejecuta el chequeo en background del lenguaje detectado (Go, Rust, TypeScript, Python) e inyecta los errores de compilación directamente al LLM para que se auto-repare antes de concluir.
 - **Beneficio**: El usuario solo recibe el turno cuando el código compila y pasa validaciones básicas.
 
 ---

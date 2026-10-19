@@ -48,12 +48,17 @@ func (s *stubProvider) Stream(ctx context.Context, msgs []domain.Message, opts .
 func (s *stubProvider) Tools() []domain.ToolDef                          { return nil }
 func (s *stubProvider) ListModels(ctx context.Context) ([]string, error) { return nil, nil }
 
-// stubRepo is a no-op repository for tests.
-type stubRepo struct{}
+// stubRepo is a test repository that records saved messages.
+type stubRepo struct {
+	messages []domain.Message
+}
 
-func (r *stubRepo) SaveMessage(ctx context.Context, msg domain.Message) error { return nil }
+func (r *stubRepo) SaveMessage(ctx context.Context, msg domain.Message) error {
+	r.messages = append(r.messages, msg)
+	return nil
+}
 func (r *stubRepo) GetHistory(ctx context.Context, limit int) ([]domain.Message, error) {
-	return []domain.Message{}, nil
+	return r.messages, nil
 }
 func (r *stubRepo) CreateSession(ctx context.Context, name string) (string, error) {
 	return "test-session", nil
@@ -942,3 +947,61 @@ func TestBrain_SetPersona(t *testing.T) {
 }
 
 
+
+func TestBrain_AutoRepair_FeedbackLoop(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "gaia-autofix-kernel-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	goMod := filepath.Join(tempDir, "go.mod")
+	if err := os.WriteFile(goMod, []byte("module brokenproj\n\ngo 1.22\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	brokenFile := filepath.Join(tempDir, "broken.go")
+	brokenContent := "package main\n\nfunc main() {\n\tundefinedFunctionHere()\n}\n"
+	if err := os.WriteFile(brokenFile, []byte(brokenContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	repo := &stubRepo{}
+	brain := NewBrain(&stubProvider{}, repo, &stubUI{}, nil, domain.BudgetConfig{MaxIterations: 5})
+	brain.RegisterModule(&dummyWriteModule{})
+
+	msg := &domain.Message{
+		Role: domain.RoleAssistant,
+		ToolCalls: []domain.ToolCall{
+			{
+				ID:   "call-fix-1",
+				Name: "file_write",
+				Arguments: map[string]interface{}{
+					"path":    brokenFile,
+					"content": brokenContent,
+				},
+			},
+		},
+	}
+
+	err = brain.handleToolCalls(context.Background(), msg)
+	if err != nil {
+		t.Fatalf("handleToolCalls failed: %v", err)
+	}
+
+	// Verify that an auto-repair feedback message was saved to history
+	var foundAutoRepair bool
+	for _, m := range repo.messages {
+		if m.Role == domain.RoleSystem && strings.Contains(m.Content, "[AUTO-REPAIR FEEDBACK]") {
+			foundAutoRepair = true
+			if !strings.Contains(m.Content, "undefinedFunctionHere") {
+				t.Errorf("expected auto-repair message to contain compiler error details, got: %s", m.Content)
+			}
+			break
+		}
+	}
+
+	if !foundAutoRepair {
+		t.Fatal("expected auto-repair feedback message to be generated and saved into repo")
+	}
+}

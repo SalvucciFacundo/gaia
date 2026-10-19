@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"gaia/internal/core/autofix"
 	"gaia/internal/core/domain"
 	"gaia/internal/core/ports"
 	"gaia/internal/mcp"
@@ -1455,6 +1456,36 @@ func (b *Brain) handleToolCalls(ctx context.Context, msg *domain.Message, tracke
 
 	// Save the assistant message that triggered these tool calls
 	b.repo.SaveMessage(ctx, *msg)
+
+	// Pillar 2 Auto-Repair Feedback Loop:
+	// If any mutation tool was executed successfully, run compiler/lint check
+	// and inject compilation errors into the turn if broken.
+	var lastModifiedPath string
+	for _, item := range items {
+		if !item.skipped && !item.denied && item.result != nil && item.result.Success {
+			if autofix.IsMutationTool(item.tc.Name) {
+				if p := autofix.ExtractModifiedPaths(item.tc.Arguments); p != "" {
+					lastModifiedPath = p
+				}
+			}
+		}
+	}
+
+	if lastModifiedPath != "" {
+		checker := autofix.NewChecker()
+		res, err := checker.Check(ctx, lastModifiedPath)
+		if err == nil && res != nil && !res.Clean {
+			repairPrompt := autofix.FormatAutoRepairPrompt(res)
+			if repairPrompt != "" {
+				repairMsg := domain.Message{
+					Role:    domain.RoleSystem,
+					Content: repairPrompt,
+				}
+				b.repo.SaveMessage(ctx, repairMsg)
+			}
+		}
+	}
+
 	return nil
 }
 
