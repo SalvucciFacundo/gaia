@@ -186,6 +186,17 @@ This document provides a comprehensive reference for all in-session interactive 
 
 ---
 
+## ⌨️ Terminal DX: Autocompletado, Menciones `@archivo` e Imágenes
+
+| Feature / Shortcut | Description |
+|---|---|
+| `Tab` | **Autocompletado inteligente**: completa slash commands (`/di` $\to$ `/diff`), nombres de subagentes (`@impl` $\to$ `@implementer`), y rutas de archivos o directorios locales (`@internal/` $\to$ `@internal/core/`). |
+| `@archivo` | **Inyección automática de contexto**: Escribir `@ruta/archivo.ext` (o arrastrar el archivo a la terminal) lee el contenido directamente del disco y lo inyecta en el prompt, ahorrando llamadas innecesarias a `file_read`. |
+| `@captura.png` | **Adjunto de imagen directo**: Mencionar una imagen con `@foto.png` (o arrastrarla) la convierte automáticamente en base64 y la adjunta al modelo multimodal sin comandos adicionales. |
+| `10.000 Chars` | **Buffer extendido**: Capacidad de entrada ampliada a 10.000 caracteres para pegar código extenso, logs o specs complejas sin cortes. |
+
+---
+
 ## 💬 Messaging Commands (Gateway)
 
 These commands are designed for gateway mode (Telegram, Discord, Slack) but also work in the TUI:

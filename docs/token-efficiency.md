@@ -89,6 +89,11 @@ Instead of executing 10 separate tool calls across 10 sequential LLM turns (e.g.
 
 When the LLM requests multiple read-only tools (e.g., `file_read`, `file_tree`, `web_search`), GAIA partitions the batch and executes independent reads concurrently via Go routines while keeping state-mutating actions strictly sequential.
 
+### 8. Surgical Search & Replace (`file_patch` / `apply_patch`)
+- **Saving**: Saves 70%–80% of tokens on file modifications compared to full `file_write`.
+- **Fuzzy Matching**: Tolerates whitespace, indentation (tabs vs. spaces), and newline differences without failing.
+- **Closed-Loop Compiler Auto-Repair**: Whenever source files are modified, GAIA triggers an immediate background compiler/linter check (`go vet`, `cargo check`, `tsc --noEmit`, `ruff`). If syntax or type errors are introduced, GAIA injects the exact compiler output back into the turn so the LLM self-heals before concluding.
+
 ---
 
 ## Knowledge Graph Structure

@@ -142,6 +142,14 @@ Intuitive security matrix mapping tools into 4 functional categories (`Filesyste
 Pure Go dynamic script interpretation via embedded Yaegi interpreter (`github.com/traefik/yaegi`) with ergonomic `GaiaSDK`. Allows models to bundle complex multi-step tool workflows into a single Go script, cutting latency and multi-turn token costs by 80%.  
 👉 **[Read Token Efficiency & Code Mode →](docs/token-efficiency.md)**
 
+### 🎯 [Surgical Search & Replace + Compiler Auto-Repair Loop](docs/token-efficiency.md#8-surgical-search--replace-file_patch--apply_patch)
+Precision file patching with exact & fuzzy matching (`file_patch` / `apply_patch`), saving 70%–80% of editing tokens. Includes a closed-loop compiler auto-repair hook: whenever a file is modified, GAIA runs instant syntax/compile checks (Go, Rust, TypeScript, Python) and injects compiler diagnostics directly into the turn so the LLM self-heals before concluding.  
+👉 **[Learn about Surgical Patching & Auto-Repair →](docs/token-efficiency.md)**
+
+### ⌨️ [Modern Terminal DX & Multimodal Input](docs/tui-commands.md#dx-de-terminal-autocompletado-menciones-archivo-e-im%C3%A1genes)
+High-productivity TUI with Tab-based autocompletion for slash commands, subagents, and filesystem paths; instant `@path` multi-file context injection (skipping initial `file_read` roundtrips); image attachment via `@screenshot.png` or `/paste` from clipboard; and an expanded 10,000-character input buffer.  
+👉 **[Read TUI & Terminal DX Reference →](docs/tui-commands.md)**
+
 ---
 
 ## 📋 Complete CLI Command Summary
