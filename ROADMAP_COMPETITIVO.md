@@ -41,10 +41,10 @@ Este documento recopila las 4 mejoras arquitectónicas y de experiencia de usuar
 
 ---
 
-### 4. DX de Terminal: Autocompletado `Tab`, Menciones `@archivo` y Diffs Inline
-- **Problema actual**: En la TUI, escribir rutas largas es manual y propenso a errores, y la revisión de diffs requiere saltar a `/diff`.
-- **Solución propuesta**:
-  - **Autocompletado con `Tab`** en el `textinput` de Bubbletea para archivos y comandos.
-  - **Operador `@archivo` / `@simbolo`**: Permite escribir *"arreglá @internal/core/kernel.go"* y GAIA inyecta automáticamente el archivo relevante en el contexto sin que el modelo tenga que gastar un turno en buscarlo.
-  - **Revisión interactiva inline**: Mostrar los bloques modificados con resaltado de color (`+` / `-`) en la TUI y permitir confirmar (`y` / `n`) antes de persistir a disco.
-- **Beneficio**: Experiencia de desarrollo moderna, fluida y ágil idéntica a Claude Code o Cursor.
+### 4. DX de Terminal: Autocompletado `Tab`, Menciones `@archivo` e Ingestión Multimodal (✅ Implementado)
+- **Estado**: ✅ Implementado y validado en `internal/adapters/tui/completer.go` y `internal/adapters/tui/injector.go`.
+- **Problema resuelto**:
+  - **Autocompletado con `Tab`**: Completa automáticamente comandos slash (`/diff`, `/paste`, etc.), nombres de subagentes (`@implementer`) y rutas de archivos/directorios del workspace.
+  - **Menciones `@archivo` y `@imagen`**: Soporta arrastrar o escribir rutas con `@`. Inyecta automáticamente archivos de texto (`.go`, `.yaml`, `.md`, `.json`, etc.) directamente en el turno ahorrando llamadas a `file_read`, y adjunta imágenes (`.png`, `.jpg`, `.webp`) para los modelos de visión.
+  - **Límite de caracteres expandido**: El prompt de la TUI pasó de 200 a 10.000 caracteres, permitiendo prompts extensos y copiado de fragmentos sin cortes.
+- **Beneficio**: Experiencia de desarrollo de terminal ágil, moderna y productiva a la par de Claude Code y Cursor.

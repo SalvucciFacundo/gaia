@@ -212,9 +212,9 @@ type Model struct {
 
 func NewTUI() *Model {
 	ti := textinput.New()
-	ti.Placeholder = "Talk to GAIA..."
+	ti.Placeholder = "Talk to GAIA... (Tab to autocomplete, @file to attach)"
 	ti.Focus()
-	ti.CharLimit = 200
+	ti.CharLimit = 10000
 	ti.Width = 60
 
 	return &Model{
@@ -392,6 +392,20 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.Type {
 		case tea.KeyCtrlC, tea.KeyEsc:
 			return m, tea.Quit
+
+		case tea.KeyTab:
+			if !m.confirming && !m.choosing {
+				var availableSubs []string
+				if brain, ok := m.brain.(interface{ AvailableSubagents() []string }); ok {
+					availableSubs = brain.AvailableSubagents()
+				}
+				val := m.textInput.Value()
+				if completed, ok := CompleteWord(val, availableSubs); ok {
+					m.textInput.SetValue(completed)
+					m.textInput.SetCursor(len(completed))
+					return m, nil
+				}
+			}
 
 		case tea.KeyEnter:
 			// Confirmation prompt mode — resolve the channel.
@@ -965,7 +979,19 @@ For details: gaia help or check the README.`
 				return m, m.policyPanel.Init()
 			}
 
-			// Normal message — append user message and dispatch Brain call.
+			// Normal message — ingest @mentions (files, images)
+			ctx := m.getContext()
+			var availableSubs []string
+			if brain, ok := m.brain.(interface{ AvailableSubagents() []string }); ok {
+				availableSubs = brain.AvailableSubagents()
+			}
+			var attacher ImageAttacher
+			if att, ok := m.brain.(ImageAttacher); ok {
+				attacher = att
+			}
+
+			processedInput, _ := IngestMentions(ctx, attacher, input, availableSubs)
+
 			m.mu.Lock()
 			m.history = append(m.history, domain.Message{
 				Role:    domain.RoleUser,
@@ -981,13 +1007,12 @@ For details: gaia help or check the README.`
 			// Return a command that runs ProcessMessage asynchronously.
 			if brainCopy != nil {
 				return m, tea.Batch(tiCmd, vpCmd, func() tea.Msg {
-					ctx := m.getContext()
 					// Use SessionManager if available (unified mode)
 					if sessionMgr != nil {
-						err := sessionMgr.Route(ctx, "tui", input, "")
+						err := sessionMgr.Route(ctx, "tui", processedInput, "")
 						return processDoneMsg{err: err}
 					}
-					err := brainCopy.ProcessMessage(ctx, input)
+					err := brainCopy.ProcessMessage(ctx, processedInput)
 					return processDoneMsg{err: err}
 				})
 			}
