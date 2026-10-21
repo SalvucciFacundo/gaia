@@ -41,6 +41,10 @@ func (r *ToolRegistry) Register(mod ports.Module) {
 
 // Execute dispatches a tool call by name, with caching for read-only tools.
 func (r *ToolRegistry) Execute(ctx context.Context, name string, args map[string]interface{}) (*domain.ToolResult, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	entry, ok := r.tools[name]
 	if !ok {
 		return &domain.ToolResult{
@@ -110,8 +114,8 @@ type ToolInfo struct {
 
 // ListToolInfo returns all registered tools sorted by name.
 func (r *ToolRegistry) ListToolInfo() []ToolInfo {
-	seen := make(map[string]bool)
-	var tools []ToolInfo
+	seen := make(map[string]bool, len(r.tools))
+	tools := make([]ToolInfo, 0, len(r.tools))
 	for _, entry := range r.tools {
 		if seen[entry.Name] {
 			continue
