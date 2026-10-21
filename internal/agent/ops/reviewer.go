@@ -34,6 +34,17 @@ func (r *reviewer) Description() string {
 }
 
 func (r *reviewer) Execute(ctx context.Context, task domain.SubagentTask) *domain.SubagentResult {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return &domain.SubagentResult{
+				Status:          domain.SubagentBlocked,
+				Summary:         "Reviewer cancelled before execution: " + err.Error(),
+				NextRecommended: "none",
+				SkillResolution: "none",
+			}
+		}
+	}
+
 	task.AllowedTools = []string{
 		"file_read",
 		"file_list",
@@ -126,7 +137,7 @@ func (r *reviewer) Execute(ctx context.Context, task domain.SubagentTask) *domai
 		SkillResolution: "none",
 	}
 
-	// Store receipt reference in Engram if namespace is available.
+	// Store receipt reference in Mneme if namespace is available.
 	if ns := r.spawner.Namespace(); ns != nil {
 		// The receipt is serialized and stored by the caller.
 		_ = ns // placeholder — actual storage is done by the Engine caller
@@ -162,6 +173,11 @@ func (s *spawnerLLM) Chat(ctx context.Context, systemPrompt, userMessage string)
 	return resp.Content, nil
 }
 
+var (
+	reChangeAfter  = regexp.MustCompile(`(?i)\b(?:change|changes/)\s+([a-zA-Z0-9_\-]+)`)
+	reChangeBefore = regexp.MustCompile(`(?i)\b([a-zA-Z0-9_\-]+)\s+change\b`)
+)
+
 // extractChangeName extracts the OpenSpec change name from files or task context.
 func extractChangeName(task domain.SubagentTask, files []string) string {
 	// 1. Check if files point to an OpenSpec change directory
@@ -188,15 +204,13 @@ func extractChangeName(task domain.SubagentTask, files []string) string {
 					return fields[0]
 				}
 			}
-			reAfter := regexp.MustCompile(`(?i)\b(?:change|changes/)\s+([a-zA-Z0-9_\-]+)`)
-			if m := reAfter.FindStringSubmatch(line); len(m) > 1 {
+			if m := reChangeAfter.FindStringSubmatch(line); len(m) > 1 {
 				candidate := m[1]
 				if !strings.EqualFold(candidate, "directory") && !strings.EqualFold(candidate, "specs") && !strings.EqualFold(candidate, "for") && !strings.EqualFold(candidate, "these") {
 					return candidate
 				}
 			}
-			reBefore := regexp.MustCompile(`(?i)\b([a-zA-Z0-9_\-]+)\s+change\b`)
-			if m := reBefore.FindStringSubmatch(line); len(m) > 1 {
+			if m := reChangeBefore.FindStringSubmatch(line); len(m) > 1 {
 				candidate := m[1]
 				if !strings.EqualFold(candidate, "completed") && !strings.EqualFold(candidate, "the") && !strings.EqualFold(candidate, "this") && !strings.EqualFold(candidate, "active") && !strings.EqualFold(candidate, "an") {
 					return candidate
