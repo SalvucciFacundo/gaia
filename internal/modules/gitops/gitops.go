@@ -62,6 +62,10 @@ func (m *Module) GetTools() []domain.ToolCall {
 
 // Execute dispatches a tool call by name.
 func (m *Module) Execute(ctx context.Context, toolName string, args map[string]interface{}) (*domain.ToolResult, error) {
+	if err := ctx.Err(); err != nil {
+		return &domain.ToolResult{Success: false, Error: err.Error()}, nil
+	}
+
 	switch toolName {
 	case "git_status":
 		return m.gitStatus(ctx)
