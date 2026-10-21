@@ -1,4 +1,4 @@
-// Package memory provides modern Engram protocol integration for GAIA.
+// Package memory provides memory protocol helpers and namespace management for GAIA.
 package memory
 
 import (
@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-// ObservationState represents the lifecycle state of a memory in Engram.
+// ObservationState represents the lifecycle state of a memory observation in Mneme.
 type ObservationState string
 
 const (
@@ -38,7 +38,7 @@ const (
 	TypeSessionSummary MemoryType = "session_summary"
 )
 
-// SaveObservationInput contains arguments for saving an observation into Engram.
+// SaveObservationInput contains arguments for saving an observation into memory.
 type SaveObservationInput struct {
 	Title         string
 	Type          MemoryType
@@ -59,7 +59,7 @@ type SessionSummaryInput struct {
 	RelevantFiles map[string]string // path -> brief description
 }
 
-// ConflictCandidate represents a potential conflict surfaced by Engram.
+// ConflictCandidate represents a potential conflict surfaced during memory reconciliation.
 type ConflictCandidate struct {
 	CandidateID int     `json:"candidate_id"`
 	JudgmentID  string  `json:"judgment_id"`
@@ -76,18 +76,26 @@ type SaveResult struct {
 	Candidates       []ConflictCandidate `json:"candidates,omitempty"`
 }
 
-// EngramProtocolHelper formats arguments according to the Engram v1.15.3+ protocol.
-type EngramProtocolHelper struct {
+// MnemeProtocolHelper formats arguments according to the Mneme protocol.
+type MnemeProtocolHelper struct {
 	project   string
 	sessionID string
 }
 
-// NewEngramProtocolHelper initializes a helper with active project and session context.
-func NewEngramProtocolHelper(project, sessionID string) *EngramProtocolHelper {
-	return &EngramProtocolHelper{
+// NewMnemeProtocolHelper initializes a helper with active project and session context.
+func NewMnemeProtocolHelper(project, sessionID string) *MnemeProtocolHelper {
+	return &MnemeProtocolHelper{
 		project:   project,
 		sessionID: sessionID,
 	}
+}
+
+// EngramProtocolHelper is an alias kept for backward compatibility with external tool adapters.
+type EngramProtocolHelper = MnemeProtocolHelper
+
+// NewEngramProtocolHelper initializes a protocol helper for backward compatibility.
+func NewEngramProtocolHelper(project, sessionID string) *MnemeProtocolHelper {
+	return NewMnemeProtocolHelper(project, sessionID)
 }
 
 // FormatCurrentProjectArgs returns tool arguments for mem_current_project.
@@ -100,7 +108,7 @@ func FormatCurrentProjectArgs(dir string) map[string]any {
 }
 
 // FormatSaveArgs builds the payload for a mem_save tool call.
-func (h *EngramProtocolHelper) FormatSaveArgs(input SaveObservationInput) map[string]any {
+func (h *MnemeProtocolHelper) FormatSaveArgs(input SaveObservationInput) map[string]any {
 	args := map[string]any{
 		"title":   input.Title,
 		"type":    string(input.Type),
@@ -141,7 +149,7 @@ func FormatJudgeArgs(judgmentID, relation, evidence string) map[string]any {
 	}
 }
 
-// BuildSessionSummaryText builds standard markdown according to Engram Session Close Protocol.
+// BuildSessionSummaryText builds standard markdown according to Mneme Session Close Protocol.
 func BuildSessionSummaryText(input SessionSummaryInput) string {
 	var sb strings.Builder
 
@@ -196,7 +204,7 @@ func BuildSessionSummaryText(input SessionSummaryInput) string {
 }
 
 // FormatSessionSummaryArgs formats arguments for a mem_session_summary call.
-func (h *EngramProtocolHelper) FormatSessionSummaryArgs(summaryText string) map[string]any {
+func (h *MnemeProtocolHelper) FormatSessionSummaryArgs(summaryText string) map[string]any {
 	args := map[string]any{
 		"content": summaryText,
 	}

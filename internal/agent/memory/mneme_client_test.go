@@ -18,7 +18,7 @@ func TestFormatCurrentProjectArgs(t *testing.T) {
 }
 
 func TestFormatSaveArgs(t *testing.T) {
-	helper := NewEngramProtocolHelper("gaia", "sess-abc")
+	helper := NewMnemeProtocolHelper("gaia", "sess-abc")
 
 	f := false
 	args := helper.FormatSaveArgs(SaveObservationInput{
@@ -61,25 +61,25 @@ func TestFormatJudgeArgs(t *testing.T) {
 
 func TestBuildSessionSummaryText(t *testing.T) {
 	input := SessionSummaryInput{
-		Goal:         "Modernize GAIA to ODD and Engram protocol",
+		Goal:         "Modernize GAIA memory to native Mneme engine",
 		Instructions: "Strict tests, no regressions",
-		Discoveries:  []string{"Engram requires session identity"},
+		Discoveries:  []string{"Mneme provides zero-dependency persistence"},
 		Accomplished: []string{"Implemented Phase 1 memory helpers"},
 		NextSteps:    []string{"Implement Phase 2 ODD router"},
 		RelevantFiles: map[string]string{
-			"internal/agent/memory/engram_client.go": "Engram protocol client helpers",
+			"internal/agent/memory/mneme_client.go": "Mneme memory client helpers",
 		},
 	}
 
 	text := BuildSessionSummaryText(input)
 
-	if !strings.Contains(text, "## Goal\nModernize GAIA to ODD and Engram protocol") {
+	if !strings.Contains(text, "## Goal\nModernize GAIA memory to native Mneme engine") {
 		t.Error("missing or malformed Goal section")
 	}
 	if !strings.Contains(text, "## Instructions\nStrict tests, no regressions") {
 		t.Error("missing or malformed Instructions section")
 	}
-	if !strings.Contains(text, "## Discoveries\n- Engram requires session identity") {
+	if !strings.Contains(text, "## Discoveries\n- Mneme provides zero-dependency persistence") {
 		t.Error("missing or malformed Discoveries section")
 	}
 	if !strings.Contains(text, "## Accomplished\n- Implemented Phase 1 memory helpers") {
@@ -88,7 +88,7 @@ func TestBuildSessionSummaryText(t *testing.T) {
 	if !strings.Contains(text, "## Next Steps\n- Implement Phase 2 ODD router") {
 		t.Error("missing or malformed Next Steps section")
 	}
-	if !strings.Contains(text, "## Relevant Files\n- internal/agent/memory/engram_client.go — Engram protocol client helpers") {
+	if !strings.Contains(text, "## Relevant Files\n- internal/agent/memory/mneme_client.go — Mneme memory client helpers") {
 		t.Error("missing or malformed Relevant Files section")
 	}
 }
