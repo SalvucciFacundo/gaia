@@ -192,6 +192,12 @@ func FormatSessionSummaryMarkdown(summary SessionSummary) string {
 // Old messages (beyond keepRecent) are condensed into a structured session summary message, reducing
 // token usage on long conversations while preventing post-compaction amnesia.
 func (b *Brain) compactHistory(ctx context.Context) error {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+	}
+
 	if b.budget.CompactionThreshold <= 0 {
 		return nil // disabled
 	}
@@ -212,13 +218,17 @@ func (b *Brain) compactHistory(ctx context.Context) error {
 	}
 
 	compactCount := count - keepRecent
-	if compactCount <= b.compactedTo {
+	b.stateMu.RLock()
+	currentCompactedTo := b.compactedTo
+	b.stateMu.RUnlock()
+
+	if compactCount <= currentCompactedTo {
 		return nil // already compacted up to this point
 	}
 
 	// Fetch un-compacted old messages
-	oldCount := compactCount - b.compactedTo
-	oldMsgs, err := b.repo.GetHistoryFrom(ctx, oldCount, b.compactedTo)
+	oldCount := compactCount - currentCompactedTo
+	oldMsgs, err := b.repo.GetHistoryFrom(ctx, oldCount, currentCompactedTo)
 	if err != nil {
 		return fmt.Errorf("fetch old messages for compaction: %w", err)
 	}
@@ -233,7 +243,10 @@ func (b *Brain) compactHistory(ctx context.Context) error {
 	sb.WriteString(FormatRehydrationPrompt(summary))
 	sb.WriteString("\nCompacted conversation history (older messages):\n")
 	for _, msg := range oldMsgs {
-		prefix := strings.ToUpper(string(msg.Role))[:4]
+		prefix := strings.ToUpper(string(msg.Role))
+		if len(prefix) > 4 {
+			prefix = prefix[:4]
+		}
 		content := strings.TrimSpace(msg.Content)
 
 		// For tool messages, keep them extra concise to avoid bloating compaction summaries
@@ -266,7 +279,9 @@ func (b *Brain) compactHistory(ctx context.Context) error {
 		}
 	}
 
+	b.stateMu.Lock()
 	b.compactedTo = compactCount
+	b.stateMu.Unlock()
 
 	// Save compacted summary message
 	compactMsg := domain.Message{
