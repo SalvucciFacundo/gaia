@@ -68,6 +68,7 @@ func (s *KnowledgeSync) RecordSubagentResult(ctx context.Context, name, descript
 	}
 
 	// 2. Save each artifact as a codebase fact
+	artifactLabels := []string{"artifact", "codebase"}
 	for _, artifact := range result.Artifacts {
 		if artifact == "" {
 			continue
@@ -77,7 +78,7 @@ func (s *KnowledgeSync) RecordSubagentResult(ctx context.Context, name, descript
 			Concept:     artifact,
 			Fact:        fmt.Sprintf("Referenced by %s during: %s", name, description),
 			SourceAgent: name,
-			Labels:      []string{"artifact", "codebase"},
+			Labels:      artifactLabels,
 			CreatedAt:   now,
 		})
 		if err == nil && id != "" {
@@ -114,6 +115,7 @@ func (s *KnowledgeSync) RecordSubagentResult(ctx context.Context, name, descript
 	}
 
 	// 3. Save each risk as a risk fact
+	riskLabels := []string{"risk", "warning"}
 	for _, risk := range result.Risks {
 		if risk == "" {
 			continue
@@ -127,7 +129,7 @@ func (s *KnowledgeSync) RecordSubagentResult(ctx context.Context, name, descript
 			Concept:     fmt.Sprintf("%s: %s", name, description),
 			Fact:        riskText,
 			SourceAgent: name,
-			Labels:      []string{"risk", "warning"},
+			Labels:      riskLabels,
 			CreatedAt:   now,
 		})
 		if err == nil && id != "" {
@@ -218,11 +220,26 @@ func (s *KnowledgeSync) RecordResponseFacts(ctx context.Context, response string
 		}
 	}
 
-	if s.store == nil {
+	if s.store == nil || len(response) == 0 {
 		return
 	}
-	lines := strings.Split(response, "\n")
-	for _, line := range lines {
+
+	factLabels := []string{"auto-extracted", "recall"}
+	indicators := []string{"uses ", "implements ", "migrate ", "changed ", "refactored ", "decision: ", "recommend ", "configured "}
+
+	start := 0
+	n := len(response)
+	for start < n {
+		end := strings.IndexByte(response[start:], '\n')
+		var line string
+		if end == -1 {
+			line = response[start:]
+			start = n
+		} else {
+			line = response[start : start+end]
+			start = start + end + 1
+		}
+
 		trimmed := strings.TrimSpace(line)
 		if len(trimmed) < 30 {
 			continue
@@ -230,15 +247,15 @@ func (s *KnowledgeSync) RecordResponseFacts(ctx context.Context, response string
 		if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "#") {
 			continue
 		}
-		indicators := []string{"uses ", "implements ", "migrate ", "changed ", "refactored ", "decision: ", "recommend ", "configured "}
+		lower := strings.ToLower(trimmed)
 		for _, ind := range indicators {
-			if strings.Contains(strings.ToLower(trimmed), ind) {
+			if strings.Contains(lower, ind) {
 				_, _ = s.store.AddFact(ctx, domain.KnowledgeFact{
 					Topic:       "Conversation",
 					Concept:     "Key facts",
 					Fact:        trimmed,
 					SourceAgent: "brain",
-					Labels:      []string{"auto-extracted", "recall"},
+					Labels:      factLabels,
 					CreatedAt:   time.Now(),
 				})
 				break
