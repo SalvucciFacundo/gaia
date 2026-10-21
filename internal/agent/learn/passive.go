@@ -81,6 +81,12 @@ func NewPassiveLearner(loop *LearningLoop) *PassiveLearner {
 
 // CaptureExtract scans output, extracts learnings, and increments the learning loop.
 func (p *PassiveLearner) CaptureExtract(ctx context.Context, subagentName, outputContent string) []string {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return nil
+		}
+	}
+
 	insights := ExtractLearnings(outputContent)
 	if len(insights) > 0 && p.loop != nil {
 		p.loop.RecordExecution(subagentName)
