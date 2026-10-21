@@ -68,6 +68,9 @@ func (m *Manager) SetActive(id string) {
 
 // ChannelRoute resolves or creates a conversation ID for an external chat channel (WhatsApp, Telegram, etc).
 func (m *Manager) ChannelRoute(ctx context.Context, platform, channelID string) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
 	key := fmt.Sprintf("%s:%s", strings.ToLower(platform), channelID)
 
 	m.mu.RLock()
@@ -96,6 +99,9 @@ func (m *Manager) ChannelRoute(ctx context.Context, platform, channelID string) 
 
 // NewSession creates a fresh conversation and makes it active.
 func (m *Manager) NewSession(ctx context.Context) (*mneme.Conversation, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	conv, err := m.repo.CreateConversation(ctx, "")
 	if err != nil {
 		return nil, fmt.Errorf("creating session: %w", err)
@@ -106,6 +112,9 @@ func (m *Manager) NewSession(ctx context.Context) (*mneme.Conversation, error) {
 
 // Save ensures the active session exists; messages already persist incrementally.
 func (m *Manager) Save(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	actID := m.ActiveID()
 	if actID == "" {
 		conv, err := m.repo.CreateConversation(ctx, "")
@@ -123,11 +132,17 @@ func (m *Manager) Save(ctx context.Context) error {
 
 // List returns recent conversations ordered updated_at DESC, id DESC.
 func (m *Manager) List(ctx context.Context, limit int) ([]mneme.Conversation, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	return m.repo.ListConversations(ctx, limit, 0)
 }
 
 // Restore validates and switches to an existing conversation.
 func (m *Manager) Restore(ctx context.Context, id string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if _, err := m.repo.GetConversation(ctx, id); err != nil {
 		return err
 	}
@@ -137,6 +152,9 @@ func (m *Manager) Restore(ctx context.Context, id string) error {
 
 // Rename updates a conversation title after scanning for injection.
 func (m *Manager) Rename(ctx context.Context, id, title string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	clean, dropped := scan.Lines(title)
 	if dropped > 0 {
 		m.logger.Warn("session: dropped injected lines from title", "dropped", dropped)
@@ -150,6 +168,9 @@ func (m *Manager) Rename(ctx context.Context, id, title string) error {
 
 // Compress triggers close-time summarization for the given conversation id.
 func (m *Manager) Compress(ctx context.Context, id string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if m.closer == nil {
 		return nil
 	}
@@ -165,6 +186,9 @@ func (m *Manager) Compress(ctx context.Context, id string) error {
 
 // Delete permanently removes a conversation and its messages.
 func (m *Manager) Delete(ctx context.Context, id string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if err := m.repo.DeleteConversation(ctx, id); err != nil {
 		return err
 	}
@@ -176,11 +200,17 @@ func (m *Manager) Delete(ctx context.Context, id string) error {
 
 // Snapshot creates a frozen point-in-time snapshot of the session.
 func (m *Manager) Snapshot(ctx context.Context, id string) (*mneme.Snapshot, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	return m.repo.CreateSnapshot(ctx, id)
 }
 
 // Export serializes the session messages into the requested format (json, markdown, txt).
 func (m *Manager) Export(ctx context.Context, id string, format ExportFormat) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
 	conv, err := m.repo.GetConversation(ctx, id)
 	if err != nil {
 		return "", fmt.Errorf("fetching conversation: %w", err)
