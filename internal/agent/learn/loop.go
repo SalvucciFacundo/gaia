@@ -12,7 +12,7 @@ import (
 // After N executions (default 5), it suggests a memory save and pattern reflection.
 // The nudge is non-blocking — subagents may decline.
 type LearningLoop struct {
-	mu        sync.Mutex
+	mu        sync.RWMutex
 	counters  map[string]int
 	threshold int
 }
@@ -47,8 +47,8 @@ func (l *LearningLoop) ResetCounter(name string) {
 
 // Count returns the current execution count for a subagent.
 func (l *LearningLoop) Count(name string) int {
-	l.mu.Lock()
-	defer l.mu.Unlock()
+	l.mu.RLock()
+	defer l.mu.RUnlock()
 	return l.counters[name]
 }
 
