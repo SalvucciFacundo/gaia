@@ -45,6 +45,12 @@ type MemorySearchResultItem struct {
 
 // Run executes the search_memory tool.
 func (r *MemorySearchRunner) Run(ctx context.Context, input string) (string, error) {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return "", err
+		}
+	}
+
 	if r.repo == nil {
 		return "", errors.New("memory repository not available")
 	}
@@ -78,7 +84,7 @@ func (r *MemorySearchRunner) Run(ctx context.Context, input string) (string, err
 		return "No memory records found matching query: " + query, nil
 	}
 
-	var formatted []MemorySearchResultItem
+	formatted := make([]MemorySearchResultItem, 0, len(results))
 	for _, res := range results {
 		formatted = append(formatted, MemorySearchResultItem{
 			DocType: res.DocType,
