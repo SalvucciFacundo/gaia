@@ -43,11 +43,22 @@ func deleteFTSRow(ctx context.Context, tx *sql.Tx, docType, docID string) error 
 // searchMatches runs a full-text query over memory_fts, returning up to limit
 // results across every doc_type (message and observation), best matches first.
 func (r *Repository) searchMatches(ctx context.Context, query string, limit int) ([]SearchResult, error) {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+	}
+
+	matchQuery := ftsQuery(query)
+	if matchQuery == "" {
+		return []SearchResult{}, nil
+	}
+
 	q := `SELECT doc_type, doc_id, content
 	      FROM memory_fts
 	      WHERE memory_fts MATCH ?
 	      ORDER BY rank`
-	args := []any{ftsQuery(query)}
+	args := []any{matchQuery}
 	if limit > 0 {
 		q += ` LIMIT ?`
 		args = append(args, limit)
@@ -59,7 +70,11 @@ func (r *Repository) searchMatches(ctx context.Context, query string, limit int)
 	}
 	defer rows.Close()
 
-	results := []SearchResult{}
+	capacity := 0
+	if limit > 0 {
+		capacity = limit
+	}
+	results := make([]SearchResult, 0, capacity)
 	for rows.Next() {
 		var res SearchResult
 		if err := rows.Scan(&res.DocType, &res.DocID, &res.Content); err != nil {
