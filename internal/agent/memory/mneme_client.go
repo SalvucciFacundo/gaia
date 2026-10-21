@@ -100,20 +100,20 @@ func NewEngramProtocolHelper(project, sessionID string) *MnemeProtocolHelper {
 
 // FormatCurrentProjectArgs returns tool arguments for mem_current_project.
 func FormatCurrentProjectArgs(dir string) map[string]any {
-	args := make(map[string]any)
-	if dir != "" {
-		args["directory"] = dir
+	if dir == "" {
+		return make(map[string]any)
 	}
-	return args
+	return map[string]any{
+		"directory": dir,
+	}
 }
 
 // FormatSaveArgs builds the payload for a mem_save tool call.
 func (h *MnemeProtocolHelper) FormatSaveArgs(input SaveObservationInput) map[string]any {
-	args := map[string]any{
-		"title":   input.Title,
-		"type":    string(input.Type),
-		"content": input.Content,
-	}
+	args := make(map[string]any, 6)
+	args["title"] = input.Title
+	args["type"] = string(input.Type)
+	args["content"] = input.Content
 
 	scope := input.Scope
 	if scope == "" {
