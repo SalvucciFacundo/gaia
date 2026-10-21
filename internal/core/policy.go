@@ -440,16 +440,17 @@ func (pg *PolicyGuard) Evaluate(toolName string, args map[string]interface{}) Po
 	requiredTier := ClassifyTool(toolName)
 	if !TierAllows(pg.tier, requiredTier) {
 		// Tier blocks, but check if an override allows it
-		ov, hasOverride := pg.overrides[toolName]
-		if hasOverride && ov == OverrideAllow {
-			return PolicyResult{Allowed: true}
-		}
-		if hasOverride && ov == OverrideDeny {
-			return pg.resultWithEscalation(PolicyResult{
-				Allowed:     false,
-				Reason:      "override_deny",
-				BlockedTool: toolName,
-			}, toolName, fmt.Sprintf("tool %s is denied by override", toolName))
+		if ov, hasOverride := pg.overrides[toolName]; hasOverride {
+			switch ov {
+			case OverrideAllow:
+				return PolicyResult{Allowed: true}
+			case OverrideDeny, OverrideSkip:
+				return pg.resultWithEscalation(PolicyResult{
+					Allowed:     false,
+					Reason:      "override_deny",
+					BlockedTool: toolName,
+				}, toolName, fmt.Sprintf("tool %s is denied by override", toolName))
+			}
 		}
 		return pg.resultWithEscalation(PolicyResult{
 			Allowed:     false,
@@ -535,7 +536,17 @@ func (pg *PolicyGuard) storeDenyRules() []string {
 // mergeDenyRules combines deny rules from global and project configs.
 // Rules are ordered global-first, project-second.
 func mergeDenyRules(global, project *PolicyConfig) []string {
-	var rules []string
+	cap := 0
+	if global != nil {
+		cap += len(global.DenyRules)
+	}
+	if project != nil {
+		cap += len(project.DenyRules)
+	}
+	if cap == 0 {
+		return nil
+	}
+	rules := make([]string, 0, cap)
 	if global != nil {
 		rules = append(rules, global.DenyRules...)
 	}
@@ -635,8 +646,8 @@ func (pg *PolicyGuard) configPathRules() []PathRule {
 // extractPaths pulls filesystem-path-like values from tool arguments.
 // It looks for common path keys: "path", "file", "filePath", "target", "source", "dest".
 func extractPaths(args map[string]interface{}) []string {
-	var paths []string
 	pathKeys := []string{"path", "file", "filePath", "target", "source", "dest", "dir", "directory"}
+	paths := make([]string, 0, len(pathKeys))
 	for _, key := range pathKeys {
 		if v, ok := args[key]; ok {
 			if s, ok := v.(string); ok && s != "" {
