@@ -38,6 +38,12 @@ func (r *WorkflowRouter) ResetTurn() {
 // if an ODD/SDD route or delegated worker should handle the turn.
 // Returns (true, err) if handled, or (false, nil) to let the core engine proceed inline.
 func (r *WorkflowRouter) RouteTurn(ctx context.Context, content string) (bool, error) {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return false, err
+		}
+	}
+
 	if r.brain == nil {
 		return false, nil
 	}
@@ -105,6 +111,12 @@ func (r *WorkflowRouter) RecordToolCall(name string, args map[string]interface{}
 // CheckMidTurn checks in-flight execution progress after each tool call to determine
 // if mid-turn delegation to a subagent (e.g. explorer, implementer, verifier) is triggered.
 func (r *WorkflowRouter) CheckMidTurn(ctx context.Context, content string) (bool, error) {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return false, err
+		}
+	}
+
 	if r.brain == nil || r.midTurnTracker == nil || r.brain.SubagentPort() == nil {
 		return false, nil
 	}
