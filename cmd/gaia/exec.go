@@ -191,6 +191,8 @@ func handleExec(args []string) {
 		Blackboard: bb,
 	}, subagentRegistry)
 	brain.SetSubagentPort(spawner)
+	brain.SetWorkflowRouter(agent.NewWorkflowRouter(brain))
+	brain.SetMutationVerifier(agent.NewAutofixVerifier())
 
 	// Process the user's message.
 	ctx := context.Background()

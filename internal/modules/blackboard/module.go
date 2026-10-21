@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"strings"
 
-	"gaia/internal/adapters/db"
 	bb "gaia/internal/blackboard"
 	"gaia/internal/core/domain"
 )
@@ -14,8 +13,8 @@ import (
 // SnapshotStore defines the interface for persisting and querying blackboard snapshots.
 type SnapshotStore interface {
 	SaveBlackboardSnapshot(ctx context.Context, sessionID, profile, label string, entries map[string]bb.MemoryEntry) (string, error)
-	GetBlackboardSnapshot(ctx context.Context, id string) (map[string]bb.MemoryEntry, *db.SnapshotMeta, error)
-	ListBlackboardSnapshots(ctx context.Context, sessionID, profile string) ([]db.SnapshotMeta, error)
+	GetBlackboardSnapshot(ctx context.Context, id string) (map[string]bb.MemoryEntry, *bb.SnapshotMeta, error)
+	ListBlackboardSnapshots(ctx context.Context, sessionID, profile string) ([]bb.SnapshotMeta, error)
 }
 
 // Module implements the blackboard working memory tools plugin.

@@ -129,3 +129,31 @@ func TestGaiaSDK_FindError(t *testing.T) {
 	}
 }
 
+func TestGaiaSDK_PathTraversalJail(t *testing.T) {
+	tmpDir := t.TempDir()
+	eng := NewEngine(tmpDir, nil)
+
+	// Attempt to read outside project root
+	codeRead := `
+		gaia.ReadFile("../../../etc/passwd")
+	`
+	_, err := eng.Execute(context.Background(), codeRead)
+	if err == nil {
+		t.Fatal("expected error on path traversal in ReadFile, got nil")
+	}
+	if !strings.Contains(err.Error(), "path traversal detected") {
+		t.Errorf("expected path traversal error, got: %v", err)
+	}
+
+	// Attempt to write outside project root
+	codeWrite := `
+		gaia.WriteFile("/tmp/malicious_escape.txt", "payload")
+	`
+	_, err = eng.Execute(context.Background(), codeWrite)
+	if err == nil {
+		t.Fatal("expected error on path traversal in WriteFile, got nil")
+	}
+	if !strings.Contains(err.Error(), "path traversal detected") {
+		t.Errorf("expected path traversal error, got: %v", err)
+	}
+}

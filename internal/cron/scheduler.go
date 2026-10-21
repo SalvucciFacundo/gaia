@@ -106,6 +106,9 @@ func parseCronField(field string, min, max int) ([]int, error) {
 		if err != nil {
 			return nil, fmt.Errorf("invalid step: %s", field[2:])
 		}
+		if step <= 0 {
+			return nil, fmt.Errorf("step must be greater than 0: got %d", step)
+		}
 		var values []int
 		for i := min; i <= max; i += step {
 			values = append(values, i)

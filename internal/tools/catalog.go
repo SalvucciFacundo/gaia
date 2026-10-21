@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -14,6 +16,7 @@ import (
 	"gaia/internal/core/domain"
 	"gaia/internal/skills"
 	"gaia/internal/tools/browser"
+	"gaia/internal/tools/web/search"
 )
 
 // ToolExecutor executes a catalog tool given a context and arguments map.
@@ -137,7 +140,13 @@ func (c *ToolCatalog) Execute(ctx context.Context, name string, args map[string]
 func DefaultCatalog() *ToolCatalog {
 	c := NewToolCatalog()
 
-	// Web tools
+	// Web tools with lazy real runners (zero startup overhead)
+	var (
+		webSearchRunner *WebSearchRunner
+		webFetchRunner  *WebFetchRunner
+		webInitMu       sync.Mutex
+	)
+
 	c.Register(CatalogEntry{
 		Name:        "web_search",
 		Category:    "web",
@@ -165,10 +174,24 @@ func DefaultCatalog() *ToolCatalog {
 			if strings.TrimSpace(query) == "" {
 				return &domain.ToolResult{Success: false, Error: "missing query argument"}, fmt.Errorf("missing query argument")
 			}
-			return &domain.ToolResult{
-				Success: true,
-				Output:  fmt.Sprintf("Simulated web search results for: %q", query),
-			}, nil
+
+			webInitMu.Lock()
+			if webSearchRunner == nil {
+				webSearchRunner = NewWebSearchRunner(nil, "duckduckgo", search.WebProviders{})
+			}
+			runner := webSearchRunner
+			webInitMu.Unlock()
+
+			inBytes, err := json.Marshal(args)
+			if err != nil {
+				return &domain.ToolResult{Success: false, Error: err.Error()}, err
+			}
+
+			out, err := runner.Run(ctx, string(inBytes))
+			if err != nil {
+				return &domain.ToolResult{Success: false, Error: err.Error()}, err
+			}
+			return &domain.ToolResult{Success: true, Output: out}, nil
 		},
 	})
 
@@ -199,10 +222,24 @@ func DefaultCatalog() *ToolCatalog {
 			if strings.TrimSpace(urlStr) == "" {
 				return &domain.ToolResult{Success: false, Error: "missing url argument"}, fmt.Errorf("missing url argument")
 			}
-			return &domain.ToolResult{
-				Success: true,
-				Output:  fmt.Sprintf("Fetched content for URL: %s", urlStr),
-			}, nil
+
+			webInitMu.Lock()
+			if webFetchRunner == nil {
+				webFetchRunner = NewWebFetchRunner(nil, 0)
+			}
+			runner := webFetchRunner
+			webInitMu.Unlock()
+
+			inBytes, err := json.Marshal(args)
+			if err != nil {
+				return &domain.ToolResult{Success: false, Error: err.Error()}, err
+			}
+
+			out, err := runner.Run(ctx, string(inBytes))
+			if err != nil {
+				return &domain.ToolResult{Success: false, Error: err.Error()}, err
+			}
+			return &domain.ToolResult{Success: true, Output: out}, nil
 		},
 	})
 
@@ -275,25 +312,113 @@ func DefaultCatalog() *ToolCatalog {
 	c.Register(CatalogEntry{
 		Name:        "run_tests",
 		Category:    "shell",
-		Description: "Run test suites or targeted unit tests.",
+		Description: "Run test suites or targeted unit tests for the current project.",
 		Definition: domain.ToolDef{
 			Name:        "run_tests",
-			Description: "Run test suites or targeted unit tests.",
+			Description: "Run test suites or targeted unit tests for the current project.",
 			Parameters: map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
 					"package": map[string]interface{}{
 						"type":        "string",
-						"description": "Package path to test",
+						"description": "Package or path to test (e.g. './...', './internal/core', or test file/directory)",
 					},
 				},
 			},
 		},
 		Executor: func(ctx context.Context, args map[string]interface{}) (*domain.ToolResult, error) {
-			pkg, _ := args["package"].(string)
+			target, _ := args["package"].(string)
+			target = strings.TrimSpace(target)
+
+			// Determine working directory
+			cwd, err := os.Getwd()
+			if err != nil {
+				cwd = "."
+			}
+
+			// Detect project type by searching upwards for build files
+			detectProjectRoot := func(start string) (string, string) {
+				curr, _ := filepath.Abs(start)
+				for {
+					if _, err := os.Stat(filepath.Join(curr, "go.mod")); err == nil {
+						return curr, "go"
+					}
+					if _, err := os.Stat(filepath.Join(curr, "Cargo.toml")); err == nil {
+						return curr, "rust"
+					}
+					if _, err := os.Stat(filepath.Join(curr, "package.json")); err == nil {
+						return curr, "node"
+					}
+					if _, err := os.Stat(filepath.Join(curr, "pyproject.toml")); err == nil {
+						return curr, "python"
+					}
+					if _, err := os.Stat(filepath.Join(curr, "requirements.txt")); err == nil {
+						return curr, "python"
+					}
+					parent := filepath.Dir(curr)
+					if parent == curr || parent == "" {
+						break
+					}
+					curr = parent
+				}
+				return cwd, "unknown"
+			}
+
+			root, lang := detectProjectRoot(cwd)
+
+			var cmd *exec.Cmd
+			switch lang {
+			case "go":
+				pkgArg := "./..."
+				if target != "" {
+					pkgArg = target
+				}
+				cmd = exec.CommandContext(ctx, "go", "test", "-count=1", pkgArg)
+			case "rust":
+				if target != "" {
+					cmd = exec.CommandContext(ctx, "cargo", "test", target)
+				} else {
+					cmd = exec.CommandContext(ctx, "cargo", "test")
+				}
+			case "node":
+				cmd = exec.CommandContext(ctx, "npm", "test")
+			case "python":
+				if _, err := exec.LookPath("pytest"); err == nil {
+					if target != "" {
+						cmd = exec.CommandContext(ctx, "pytest", target)
+					} else {
+						cmd = exec.CommandContext(ctx, "pytest")
+					}
+				} else {
+					cmd = exec.CommandContext(ctx, "python3", "-m", "unittest")
+				}
+			default:
+				// Fallback to go test if in a go workspace, or return informative message
+				cmd = exec.CommandContext(ctx, "go", "test", "-count=1", "./...")
+			}
+
+			cmd.Dir = root
+			out, cmdErr := cmd.CombinedOutput()
+			outputStr := strings.TrimSpace(string(out))
+
+			if cmdErr != nil {
+				if outputStr == "" {
+					outputStr = cmdErr.Error()
+				}
+				return &domain.ToolResult{
+					Success: false,
+					Output:  outputStr,
+					Error:   cmdErr.Error(),
+				}, nil
+			}
+
+			if outputStr == "" {
+				outputStr = "Tests passed successfully (no output)."
+			}
+
 			return &domain.ToolResult{
 				Success: true,
-				Output:  fmt.Sprintf("Tests passed for package: %q", pkg),
+				Output:  outputStr,
 			}, nil
 		},
 	})
@@ -599,7 +724,7 @@ func DefaultCatalog() *ToolCatalog {
 				return &domain.ToolResult{Success: false, Error: err.Error()}, err
 			}
 			skillsDir := filepath.Join(config.BaseHome(), "skills")
-			hub := skills.NewHub("", skillsDir)
+			hub := skills.GetSharedHub("", skillsDir)
 			runner := NewCreateSkillRunner(skillsDir, hub)
 			out, err := runner.Run(ctx, string(inBytes))
 			if err != nil {
@@ -633,7 +758,7 @@ func DefaultCatalog() *ToolCatalog {
 				return &domain.ToolResult{Success: false, Error: err.Error()}, err
 			}
 			skillsDir := filepath.Join(config.BaseHome(), "skills")
-			hub := skills.NewHub("", skillsDir)
+			hub := skills.GetSharedHub("", skillsDir)
 			runner := NewReadSkillRunner(hub)
 			out, err := runner.Run(ctx, string(inBytes))
 			if err != nil {

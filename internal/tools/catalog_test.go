@@ -225,6 +225,18 @@ func TestToolCatalog_Execute(t *testing.T) {
 	if res == nil || res.Success {
 		t.Errorf("expected failure result for tool without executor")
 	}
+
+	// 5. Test run_tests tool executes tests for package
+	res, err = cat.Execute(ctx, "run_tests", map[string]interface{}{"package": "gaia/internal/version"})
+	if err != nil {
+		t.Fatalf("unexpected error executing run_tests: %v", err)
+	}
+	if !res.Success {
+		t.Errorf("expected run_tests success on version package, got: %s", res.Output)
+	}
+	if !strings.Contains(res.Output, "PASS") && !strings.Contains(res.Output, "ok") {
+		t.Errorf("expected test pass output, got: %s", res.Output)
+	}
 }
 
 func TestToolCatalog_ConcurrentAccess(t *testing.T) {

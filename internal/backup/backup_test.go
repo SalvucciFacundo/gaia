@@ -211,11 +211,11 @@ func TestBackup_Restore_ChecksumMismatchRollback(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Corrupt a byte in the tar payload (after manifest)
+	// Corrupt a byte in the middle of the gzip compressed payload
 	raw := buf.Bytes()
 	tampered := make([]byte, len(raw))
 	copy(tampered, raw)
-	tampered[len(tampered)-50] ^= 0xFF
+	tampered[len(tampered)/2] ^= 0xFF
 
 	destHome := t.TempDir()
 	_, err = backup.Restore(bytes.NewReader(tampered), "tamper-dest", backup.RestoreOptions{

@@ -1,5 +1,4 @@
-// Package core implements the central orchestrator and routing for GAIA.
-package core
+package agent
 
 import (
 	"fmt"

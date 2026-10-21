@@ -8,6 +8,7 @@ import (
 
 	"gaia/internal/core"
 	"gaia/internal/core/ports"
+	"gaia/internal/mneme"
 	"gaia/internal/session"
 )
 
@@ -23,7 +24,7 @@ type Multiplexer struct {
 	mu             sync.RWMutex
 	adapters       map[string]Adapter
 	brain          BrainRunner
-	repo           core.Repository
+	repo           mneme.Store
 	sessionManager *session.Manager
 	synthesizer    ports.Synthesizer
 	logger         *slog.Logger
@@ -54,8 +55,8 @@ func WithMultiplexerBrain(b BrainRunner) MultiplexerOption {
 	}
 }
 
-// WithMultiplexerRepository wires the core Repository for session persistence.
-func WithMultiplexerRepository(r core.Repository) MultiplexerOption {
+// WithMultiplexerRepository wires the Mneme Store for session persistence.
+func WithMultiplexerRepository(r mneme.Store) MultiplexerOption {
 	return func(m *Multiplexer) {
 		m.repo = r
 	}
@@ -243,7 +244,7 @@ func (m *Multiplexer) HandleEvent(ctx context.Context, ev MessageEvent) error {
 	// Fetch assistant reply to send back via the originating adapter
 	if m.repo != nil {
 		msgs, err := m.repo.Messages(ctx, convID, 1)
-		if err == nil && len(msgs) > 0 && msgs[0].Role == core.RoleAssistant {
+		if err == nil && len(msgs) > 0 && msgs[0].Role == mneme.RoleAssistant {
 			replyText := msgs[0].Content
 
 			// If the incoming message carried an audio note and a speech synthesizer

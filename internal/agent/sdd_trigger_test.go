@@ -1,4 +1,4 @@
-package core
+package agent
 
 import (
 	"testing"
@@ -108,7 +108,7 @@ func TestDetectSDDTrigger_ReasonHasContent(t *testing.T) {
 	}
 }
 
-// TestDetectSDDTrigger_Substring_Match verifies partial keyword matching works.
+// TestDetectSDDTrigger_SubstringMatch verifies partial keyword matching works.
 func TestDetectSDDTrigger_SubstringMatch(t *testing.T) {
 	tr := DetectSDDTrigger("we need a system migration for this service")
 	if !tr.ShouldSDD {

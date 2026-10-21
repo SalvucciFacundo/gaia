@@ -168,11 +168,21 @@ func isReadOnlyTool(name string) bool {
 }
 
 func buildCacheKey(name string, args map[string]interface{}) string {
-	key := name
-	for k, v := range args {
-		key += fmt.Sprintf("|%s=%v", k, v)
+	if len(args) == 0 {
+		return name
 	}
-	return key
+	keys := make([]string, 0, len(args))
+	for k := range args {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	var sb strings.Builder
+	sb.WriteString(name)
+	for _, k := range keys {
+		sb.WriteString(fmt.Sprintf("|%s=%v", k, args[k]))
+	}
+	return sb.String()
 }
 
 type cacheItem struct {

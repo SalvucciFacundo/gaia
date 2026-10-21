@@ -166,6 +166,17 @@ func (k *SQLiteKnowledgeGraph) queryFacts(ctx context.Context, query string, arg
 	return facts, rows.Err()
 }
 
+// Clear removes all stored knowledge facts and resets the FTS index.
+func (k *SQLiteKnowledgeGraph) Clear(ctx context.Context) error {
+	if _, err := k.db.ExecContext(ctx, "DELETE FROM knowledge_facts"); err != nil {
+		return fmt.Errorf("clear knowledge facts: %w", err)
+	}
+	if _, err := k.db.ExecContext(ctx, "DELETE FROM knowledge_facts_fts"); err != nil {
+		return fmt.Errorf("clear knowledge facts fts: %w", err)
+	}
+	return nil
+}
+
 // sanitizeFTS removes characters that break FTS5 match syntax.
 func sanitizeFTS(s string) string {
 	// Wrap each word in quotes to treat as literal terms

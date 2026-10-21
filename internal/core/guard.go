@@ -6,7 +6,6 @@ import (
 
 	"gaia/internal/core/domain"
 	"gaia/internal/core/ports"
-	"gaia/internal/mneme"
 )
 
 // Deprecated: replaced by PolicyGuard.
@@ -109,17 +108,16 @@ type Approver func(ctx context.Context, req GuardRequest) Scope
 // Aliases for core ports and types used across gateways and adapters.
 type Transcriber = ports.Transcriber
 type Synthesizer = ports.Synthesizer
-type Attachment = mneme.Attachment
-type Role = mneme.Role
+type Attachment = domain.Attachment
+type Role = domain.Role
 
 const (
-	RoleAssistant = mneme.RoleAssistant
-	RoleUser      = mneme.RoleUser
+	RoleAssistant = domain.RoleAssistant
+	RoleUser      = domain.RoleUser
 )
 
-type Repository = mneme.Store
-type Conversation = mneme.Conversation
-type Message = mneme.Message
+type Repository = ports.Repository
+type Message = domain.Message
 
 const (
 	MimeTypeMP3  = ports.MimeTypeMP3

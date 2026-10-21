@@ -23,6 +23,15 @@ type ImageContent struct {
 	Data     string `json:"data"`      // base64-encoded
 }
 
+// Attachment represents a non-text media payload (image, audio, document).
+type Attachment struct {
+	Type     string `json:"Type"`
+	MimeType string `json:"MimeType"`
+	Data     []byte `json:"Data"`
+	URL      string `json:"URL"`
+	Name     string `json:"Name"`
+}
+
 // validImageMIMEs are the supported MIME types for vision.
 var validImageMIMEs = map[string]bool{
 	"image/png":  true,
@@ -62,12 +71,13 @@ func ValidateImageContent(img ImageContent) error {
 
 // Message represents a single chat message.
 type Message struct {
-	ID        string         `json:"id"`
-	Role      Role           `json:"role"`
-	Content   string         `json:"content"`
-	CreatedAt time.Time      `json:"created_at"`
-	ToolCalls []ToolCall     `json:"tool_calls,omitempty"`
-	Images    []ImageContent `json:"images,omitempty"`
+	ID          string         `json:"id"`
+	Role        Role           `json:"role"`
+	Content     string         `json:"content"`
+	CreatedAt   time.Time      `json:"created_at"`
+	ToolCalls   []ToolCall     `json:"tool_calls,omitempty"`
+	Images      []ImageContent `json:"images,omitempty"`
+	Attachments []Attachment   `json:"attachments,omitempty"`
 }
 
 // ToolCall represents a request from the LLM to execute a tool.

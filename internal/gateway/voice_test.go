@@ -14,6 +14,7 @@ import (
 	"gaia/internal/config"
 	"gaia/internal/core"
 	"gaia/internal/gateway"
+	"gaia/internal/mneme"
 )
 
 type mockSynthesizer struct {
@@ -72,17 +73,17 @@ func (m *mockBrainRunner) Step(ctx context.Context, input string) error {
 func (m *mockBrainRunner) SetActiveConversation(id string) {}
 
 type mockRepoWithReply struct {
-	core.Repository
+	mneme.Store
 	replyText string
 }
 
-func (m *mockRepoWithReply) CreateConversation(ctx context.Context, title string) (*core.Conversation, error) {
-	return &core.Conversation{ID: "test-conv-1"}, nil
+func (m *mockRepoWithReply) CreateConversation(ctx context.Context, title string) (*mneme.Conversation, error) {
+	return &mneme.Conversation{ID: "test-conv-1"}, nil
 }
 
-func (m *mockRepoWithReply) Messages(ctx context.Context, convID string, limit int) ([]core.Message, error) {
-	return []core.Message{
-		{Role: core.RoleAssistant, Content: m.replyText},
+func (m *mockRepoWithReply) Messages(ctx context.Context, convID string, limit int) ([]mneme.Message, error) {
+	return []mneme.Message{
+		{Role: mneme.RoleAssistant, Content: m.replyText},
 	}, nil
 }
 

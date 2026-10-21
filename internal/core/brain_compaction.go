@@ -136,8 +136,8 @@ func FormatRehydrationPrompt(summary SessionSummary) string {
 	return sb.String()
 }
 
-// FormatEngramSessionSummary formats an Engram-compliant markdown session summary from SessionSummary.
-func FormatEngramSessionSummary(summary SessionSummary) string {
+// FormatSessionSummaryMarkdown formats a structured markdown session summary from SessionSummary.
+func FormatSessionSummaryMarkdown(summary SessionSummary) string {
 	var sb strings.Builder
 	sb.WriteString("## Goal\n")
 	if summary.Goal != "" {
@@ -186,38 +186,6 @@ func FormatEngramSessionSummary(summary SessionSummary) string {
 		sb.WriteString("- None\n")
 	}
 	return sb.String()
-}
-
-// recallKnowledgeGraph searches the knowledge graph for facts relevant to text.
-// Returns a slice of formatted fact strings to append to system prompt.
-// Uses keyword search; falls back to recent facts if search yields nothing.
-func (b *Brain) recallKnowledgeGraph(ctx context.Context, text string) []string {
-	if !b.kgEnabled || b.kgStore == nil {
-		return nil
-	}
-
-	// Search for facts matching the query — use keywords from the text
-	facts, err := b.kgStore.SearchFacts(ctx, text)
-	if err != nil || len(facts) == 0 {
-		// Fall back to recent facts if search yields nothing
-		recent, recentErr := b.kgStore.GetRecentFacts(ctx, 5)
-		if recentErr != nil || len(recent) == 0 {
-			return nil
-		}
-		facts = recent
-	}
-
-	result := make([]string, 0, len(facts))
-	seen := make(map[string]bool)
-	for _, f := range facts {
-		key := f.Topic + "/" + f.Concept + "/" + f.Fact
-		if seen[key] {
-			continue
-		}
-		seen[key] = true
-		result = append(result, fmt.Sprintf("[%s/%s] %s (by %s)", f.Topic, f.Concept, f.Fact, f.SourceAgent))
-	}
-	return result
 }
 
 // compactHistory compacts stale messages when the history exceeds the compaction threshold.

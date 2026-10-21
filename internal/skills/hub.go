@@ -35,6 +35,21 @@ type Hub struct {
 	lastUsed   map[string]time.Time // last load timestamp per skill
 }
 
+var (
+	sharedHubMu sync.Mutex
+	sharedHub   *Hub
+)
+
+// GetSharedHub returns a lazily-initialized shared Hub instance to prevent repeated disk index rebuilds.
+func GetSharedHub(bundledDir, installedDir string) *Hub {
+	sharedHubMu.Lock()
+	defer sharedHubMu.Unlock()
+	if sharedHub == nil {
+		sharedHub = NewHub(bundledDir, installedDir)
+	}
+	return sharedHub
+}
+
 // NewHub creates a Skills Hub scanning both bundled and installed directories.
 // bundledDir is the project's skills/ path (shipped with the binary).
 // installedDir is the user's ~/.gaia/skills/ path (created if missing).

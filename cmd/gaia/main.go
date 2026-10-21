@@ -13,6 +13,7 @@ import (
 	"log/slog"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -26,6 +27,7 @@ import (
 	"gaia/internal/blackboard"
 	"gaia/internal/browser"
 	"gaia/internal/codegraph"
+	"gaia/internal/commands"
 	"gaia/internal/config"
 	"gaia/internal/core"
 	"gaia/internal/core/domain"
@@ -38,6 +40,7 @@ import (
 	"gaia/internal/modules/gitops"
 	"gaia/internal/modules/multimodal"
 	"gaia/internal/modules/shell"
+	"gaia/internal/persona"
 	"gaia/internal/skills"
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -296,6 +299,7 @@ func main() {
 	// 7b2. Initialize Knowledge Graph store for cross-domain facts.
 	kgStore := db.NewKnowledgeGraph(repo.DB())
 	brain.SetKnowledgeGraphStore(kgStore)
+	brain.SetKnowledgeRecorder(memory.NewKnowledgeSync(kgStore, repo))
 
 	// 7c. Initialize async TaskManager with SQLite persistence.
 	taskRepo := db.NewTaskRepo(repo.DB())
@@ -354,17 +358,26 @@ func main() {
 
 	brain.SetSubagentPort(subagentSpawner)
 
-	// 7f. Wire MoA providers into Brain for /moa command.
-	brain.SetMoAProviders(moaProviders)
+	// 7f. Wire available providers for runtime /model switching and MoA runner for /moa command.
+	brain.SetAvailableProviders(moaProviders)
+	brain.SetMoARunner(agent.NewOneShotMoARunner(router, moaProviders, 60*time.Second))
 
 	// 7g. Wire Skills Hub to Brain for intent-driven progressive skill loading & context protection.
 	brain.SetSkillLister(func() []string {
 		active := skillsHub.ListActive()
-		names := make([]string, len(active))
+		index := make([]string, len(active))
 		for i, s := range active {
-			names[i] = s.Name
+			triggers := strings.Join(s.Triggers, ", ")
+			if triggers == "" && s.Trigger != "" {
+				triggers = s.Trigger
+			}
+			if triggers != "" {
+				index[i] = fmt.Sprintf("%s: %s (triggers: %s)", s.Name, s.Description, triggers)
+			} else {
+				index[i] = fmt.Sprintf("%s: %s", s.Name, s.Description)
+			}
 		}
-		return names
+		return index
 	})
 	brain.SetSkillPathResolver(func(skillNames []string) []string {
 		return skillsHub.ResolveSkillPaths(skillNames)
@@ -372,6 +385,9 @@ func main() {
 	brain.SetSkillMatcher(func(taskDesc string, files []string) []string {
 		return skillsHub.MatchSkills(taskDesc, files)
 	})
+
+	// 7h. Wire PersonaResolver for personality overlay support.
+	brain.SetPersonaResolver(persona.NewOverlays(nil))
 
 	// 8. Register tool modules
 	brain.RegisterModule(shell.NewModule(projectRoot))
@@ -396,6 +412,15 @@ func main() {
 			fmt.Println("Browser automation registered")
 		}
 	}
+
+	// Wire command dispatcher for slash commands and direct routing.
+	brain.SetCommandDispatcher(commands.New(brain))
+
+	// Wire workflow router for ODD / SDD engineering pipelines.
+	brain.SetWorkflowRouter(agent.NewWorkflowRouter(brain))
+
+	// Wire mutation verifier for compiler/linter checks on file edits.
+	brain.SetMutationVerifier(agent.NewAutofixVerifier())
 
 	// Wire brain into the TUI so Enter key dispatches ProcessMessage.
 	ui.SetBrain(brain)

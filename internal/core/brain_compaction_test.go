@@ -69,7 +69,7 @@ func TestBuildSessionSummary(t *testing.T) {
 	}
 }
 
-func TestFormatEngramSessionSummary(t *testing.T) {
+func TestFormatSessionSummaryMarkdown(t *testing.T) {
 	summary := SessionSummary{
 		Goal:          "Implement ODD Router",
 		Instructions:  []string{"Use TDD", "Verify edge cases"},
@@ -79,18 +79,18 @@ func TestFormatEngramSessionSummary(t *testing.T) {
 		RelevantFiles: []string{"internal/core/odd_router.go"},
 	}
 
-	engramSummary := FormatEngramSessionSummary(summary)
-	if !strings.Contains(engramSummary, "## Goal\nImplement ODD Router") {
-		t.Error("expected Goal section in Engram summary")
+	sessionSummary := FormatSessionSummaryMarkdown(summary)
+	if !strings.Contains(sessionSummary, "## Goal\nImplement ODD Router") {
+		t.Error("expected Goal section in session summary")
 	}
-	if !strings.Contains(engramSummary, "## Discoveries\n- Router should keep /sdd as deprecated alias") {
-		t.Error("expected Discoveries section in Engram summary")
+	if !strings.Contains(sessionSummary, "## Discoveries\n- Router should keep /sdd as deprecated alias") {
+		t.Error("expected Discoveries section in session summary")
 	}
-	if !strings.Contains(engramSummary, "## Accomplished\n- Built ODD routing and unit tests") {
-		t.Error("expected Accomplished section in Engram summary")
+	if !strings.Contains(sessionSummary, "## Accomplished\n- Built ODD routing and unit tests") {
+		t.Error("expected Accomplished section in session summary")
 	}
-	if !strings.Contains(engramSummary, "## Relevant Files\n- internal/core/odd_router.go") {
-		t.Error("expected Relevant Files section in Engram summary")
+	if !strings.Contains(sessionSummary, "## Relevant Files\n- internal/core/odd_router.go") {
+		t.Error("expected Relevant Files section in session summary")
 	}
 }
 

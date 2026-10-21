@@ -1,4 +1,4 @@
-package autofix
+package agent
 
 import (
 	"context"
@@ -8,6 +8,9 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"gaia/internal/core"
+	"gaia/internal/core/ports"
 )
 
 // Language represents a detected programming language ecosystem.
@@ -30,20 +33,23 @@ type CheckResult struct {
 	Duration time.Duration
 }
 
-// Checker verifies if the codebase builds cleanly or has syntax/type errors.
-type Checker struct {
+// AutofixVerifier verifies if mutations build cleanly or introduce compiler/linter errors.
+// It implements ports.MutationVerifier.
+type AutofixVerifier struct {
 	Timeout time.Duration
 }
 
-// NewChecker creates a Checker with default sensible timeouts.
-func NewChecker() *Checker {
-	return &Checker{
+var _ ports.MutationVerifier = (*AutofixVerifier)(nil)
+
+// NewAutofixVerifier creates an AutofixVerifier with default sensible timeouts.
+func NewAutofixVerifier() *AutofixVerifier {
+	return &AutofixVerifier{
 		Timeout: 15 * time.Second,
 	}
 }
 
 // IsMutationTool returns true if the tool modifies source files.
-func IsMutationTool(toolName string) bool {
+func (v *AutofixVerifier) IsMutationTool(toolName string) bool {
 	switch strings.ToLower(toolName) {
 	case "file_write", "file_edit", "write_file", "edit_file", "file_patch", "apply_patch":
 		return true
@@ -53,7 +59,7 @@ func IsMutationTool(toolName string) bool {
 }
 
 // ExtractModifiedPaths extracts file paths from arguments of mutation tools.
-func ExtractModifiedPaths(args map[string]interface{}) string {
+func (v *AutofixVerifier) ExtractModifiedPaths(args map[string]interface{}) string {
 	if p, ok := args["path"].(string); ok && p != "" {
 		return p
 	}
@@ -63,8 +69,8 @@ func ExtractModifiedPaths(args map[string]interface{}) string {
 	return ""
 }
 
-// DetectLanguage inspects the directory hierarchy upwards from startPath to find project markers.
-func DetectLanguage(startPath string) (Language, string) {
+// DetectProjectLanguage inspects the directory hierarchy upwards from startPath using core.DetectLanguage.
+func DetectProjectLanguage(startPath string) (Language, string) {
 	if startPath == "" {
 		startPath = "."
 	}
@@ -73,7 +79,6 @@ func DetectLanguage(startPath string) (Language, string) {
 		abs = startPath
 	}
 
-	// If startPath is a file, take its directory
 	fi, err := os.Stat(abs)
 	if err == nil && !fi.IsDir() {
 		abs = filepath.Dir(abs)
@@ -81,20 +86,9 @@ func DetectLanguage(startPath string) (Language, string) {
 
 	curr := abs
 	for {
-		if fileExists(filepath.Join(curr, "go.mod")) {
-			return LangGo, curr
-		}
-		if fileExists(filepath.Join(curr, "Cargo.toml")) {
-			return LangRust, curr
-		}
-		if fileExists(filepath.Join(curr, "tsconfig.json")) {
-			return LangTypeScript, curr
-		}
-		if fileExists(filepath.Join(curr, "package.json")) {
-			return LangJavaScript, curr
-		}
-		if fileExists(filepath.Join(curr, "pyproject.toml")) || fileExists(filepath.Join(curr, "requirements.txt")) {
-			return LangPython, curr
+		langStr := core.DetectLanguage(curr)
+		if langStr != "" {
+			return Language(langStr), curr
 		}
 
 		parent := filepath.Dir(curr)
@@ -107,14 +101,14 @@ func DetectLanguage(startPath string) (Language, string) {
 	return LangUnknown, abs
 }
 
-// Check runs the appropriate compiler/linter check for the project located at or above path.
-func (c *Checker) Check(ctx context.Context, targetPath string) (*CheckResult, error) {
-	lang, root := DetectLanguage(targetPath)
+// Check runs the compiler/linter check for the project located at or above targetPath.
+func (v *AutofixVerifier) Check(ctx context.Context, targetPath string) (*CheckResult, error) {
+	lang, root := DetectProjectLanguage(targetPath)
 	if lang == LangUnknown {
 		return &CheckResult{Language: LangUnknown, Clean: true}, nil
 	}
 
-	timeout := c.Timeout
+	timeout := v.Timeout
 	if timeout <= 0 {
 		timeout = 15 * time.Second
 	}
@@ -126,12 +120,10 @@ func (c *Checker) Check(ctx context.Context, targetPath string) (*CheckResult, e
 
 	switch lang {
 	case LangGo:
-		// Fast syntax & type check across packages
 		cmd = exec.CommandContext(ctx, "go", "vet", "./...")
 	case LangRust:
 		cmd = exec.CommandContext(ctx, "cargo", "check", "--message-format=short")
 	case LangTypeScript:
-		// Check if tsc exists
 		if _, err := exec.LookPath("tsc"); err == nil {
 			cmd = exec.CommandContext(ctx, "tsc", "--noEmit")
 		} else if _, err := exec.LookPath("npx"); err == nil {
@@ -157,7 +149,6 @@ func (c *Checker) Check(ctx context.Context, targetPath string) (*CheckResult, e
 
 	outputStr := strings.TrimSpace(string(out))
 	if err != nil {
-		// Non-zero exit code means compile / lint error
 		return &CheckResult{
 			Language: lang,
 			Clean:    false,
@@ -174,6 +165,32 @@ func (c *Checker) Check(ctx context.Context, targetPath string) (*CheckResult, e
 	}, nil
 }
 
+// VerifyMutations checks modified paths across all unique roots and returns a repair prompt if any check fails.
+func (v *AutofixVerifier) VerifyMutations(ctx context.Context, modifiedPaths []string) (string, error) {
+	checkedRoots := make(map[string]bool)
+	var prompts []string
+
+	for _, path := range modifiedPaths {
+		_, root := DetectProjectLanguage(path)
+		if checkedRoots[root] {
+			continue
+		}
+		checkedRoots[root] = true
+
+		res, err := v.Check(ctx, path)
+		if err == nil && res != nil && !res.Clean {
+			if prompt := FormatAutoRepairPrompt(res); prompt != "" {
+				prompts = append(prompts, prompt)
+			}
+		}
+	}
+
+	if len(prompts) == 0 {
+		return "", nil
+	}
+	return strings.Join(prompts, "\n\n"), nil
+}
+
 // FormatAutoRepairPrompt formats compiler error output into an actionable system instruction.
 func FormatAutoRepairPrompt(res *CheckResult) string {
 	if res == nil || res.Clean {
@@ -188,9 +205,4 @@ func FormatAutoRepairPrompt(res *CheckResult) string {
 		res.Language,
 		res.Output,
 	)
-}
-
-func fileExists(path string) bool {
-	_, err := os.Stat(path)
-	return err == nil
 }

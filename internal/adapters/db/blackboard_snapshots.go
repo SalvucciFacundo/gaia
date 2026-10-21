@@ -20,16 +20,8 @@ var (
 	ErrSnapshotNotFound = errors.New("snapshot not found")
 )
 
-// SnapshotMeta represents metadata of a stored blackboard snapshot.
-type SnapshotMeta struct {
-	ID         string    `json:"id"`
-	SessionID  string    `json:"session_id"`
-	Profile    string    `json:"profile"`
-	Label      string    `json:"label"`
-	SHA256     string    `json:"sha256"`
-	EntryCount int       `json:"entry_count"`
-	CreatedAt  time.Time `json:"created_at"`
-}
+// SnapshotMeta is an alias for blackboard.SnapshotMeta for backwards compatibility.
+type SnapshotMeta = blackboard.SnapshotMeta
 
 // SaveBlackboardSnapshot serializes working memory entries, computes an immutable SHA-256 hash, and stores it in SQLite.
 func (r *SQLiteRepo) SaveBlackboardSnapshot(ctx context.Context, sessionID, profile, label string, entries map[string]blackboard.MemoryEntry) (string, error) {

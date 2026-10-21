@@ -35,12 +35,22 @@ func NewGaiaSDK(projectRoot string, registry *core.ToolRegistry, out *bytes.Buff
 	}
 }
 
-// resolvePath returns the normalized path relative to the project root.
+// resolvePath returns the normalized path relative to the project root,
+// preventing path traversal outside the project directory.
 func (s *GaiaSDK) resolvePath(rel string) string {
-	if filepath.IsAbs(rel) {
-		return rel
+	cleanRel := filepath.Clean(rel)
+	var target string
+	if filepath.IsAbs(cleanRel) {
+		target = cleanRel
+	} else {
+		target = filepath.Join(s.projectRoot, cleanRel)
 	}
-	return filepath.Join(s.projectRoot, rel)
+
+	relToRoot, err := filepath.Rel(s.projectRoot, target)
+	if err != nil || relToRoot == ".." || strings.HasPrefix(relToRoot, ".."+string(filepath.Separator)) {
+		panic(fmt.Sprintf("path traversal detected: %q is outside project root %q", rel, s.projectRoot))
+	}
+	return target
 }
 
 // ReadFile reads the full contents of a file or panics if not found/unreadable.

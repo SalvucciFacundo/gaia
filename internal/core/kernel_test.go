@@ -2,10 +2,9 @@ package core
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"io"
-	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -199,9 +198,7 @@ func (m *fakeModule) Execute(ctx context.Context, name string, args map[string]i
 	}, nil
 }
 
-func TestAttachImage_ValidPNG(t *testing.T) {
-	tmpDir := t.TempDir()
-	imgPath := filepath.Join(tmpDir, "test.png")
+func TestBrain_ProcessMessageWiresImages(t *testing.T) {
 	pngData := []byte{
 		0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
 		0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
@@ -213,45 +210,6 @@ func TestAttachImage_ValidPNG(t *testing.T) {
 		0xE7, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E,
 		0x44, 0xAE, 0x42, 0x60, 0x82,
 	}
-	os.WriteFile(imgPath, pngData, 0644)
-
-	ui := &stubUI{}
-	brain := NewBrain(&stubProvider{}, &stubRepo{}, ui, nil, domain.BudgetConfig{MaxIterations: 25})
-
-	err := brain.AttachImage(context.Background(), imgPath)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	if len(brain.pendingImages) != 1 {
-		t.Fatalf("expected 1 pending image, got %d", len(brain.pendingImages))
-	}
-	if brain.pendingImages[0].MIMEType != "image/png" {
-		t.Errorf("expected image/png, got %q", brain.pendingImages[0].MIMEType)
-	}
-	if len(ui.displayed) != 1 {
-		t.Fatalf("expected 1 displayed message, got %d", len(ui.displayed))
-	}
-	if !contains(ui.displayed[0].Content, "Image attached") {
-		t.Errorf("expected 'Image attached' message, got: %s", ui.displayed[0].Content)
-	}
-}
-
-func TestAttachImage_ProcessMessageWiresImages(t *testing.T) {
-	tmpDir := t.TempDir()
-	imgPath := filepath.Join(tmpDir, "test.png")
-	pngData := []byte{
-		0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
-		0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
-		0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
-		0x08, 0x02, 0x00, 0x00, 0x00, 0x90, 0x77, 0x53,
-		0xDE, 0x00, 0x00, 0x00, 0x0C, 0x49, 0x44, 0x41,
-		0x54, 0x08, 0xD7, 0x63, 0xF8, 0xFF, 0xFF, 0x3F,
-		0x00, 0x05, 0xFE, 0x02, 0xFE, 0xDC, 0xCC, 0x59,
-		0xE7, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E,
-		0x44, 0xAE, 0x42, 0x60, 0x82,
-	}
-	os.WriteFile(imgPath, pngData, 0644)
 
 	ui := &stubUI{}
 	repo := &recordingRepo{
@@ -262,12 +220,13 @@ func TestAttachImage_ProcessMessageWiresImages(t *testing.T) {
 	}
 	brain := NewBrain(prov, repo, ui, nil, domain.BudgetConfig{MaxIterations: 25})
 
-	if err := brain.AttachImage(context.Background(), imgPath); err != nil {
-		t.Fatalf("AttachImage failed: %v", err)
-	}
+	brain.AddPendingImage(domain.ImageContent{
+		MIMEType: "image/png",
+		Data:     base64.StdEncoding.EncodeToString(pngData),
+	})
 
 	if len(brain.pendingImages) != 1 {
-		t.Fatal("expected 1 pending image after AttachImage")
+		t.Fatal("expected 1 pending image after AddPendingImage")
 	}
 
 	err := brain.ProcessMessage(context.Background(), "What do you see?")
@@ -290,160 +249,52 @@ func (r *recordingRepo) SaveMessage(ctx context.Context, msg domain.Message) err
 	return nil
 }
 
-func TestAttachImage_FileNotFound(t *testing.T) {
-	ui := &stubUI{}
-	brain := NewBrain(&stubProvider{}, &stubRepo{}, ui, nil, domain.BudgetConfig{MaxIterations: 25})
-
-	err := brain.AttachImage(context.Background(), "nonexistent.png")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	if len(ui.displayed) != 1 {
-		t.Fatalf("expected 1 displayed message, got %d", len(ui.displayed))
-	}
-	if !contains(ui.displayed[0].Content, "Image not found") {
-		t.Errorf("expected 'Image not found', got %q", ui.displayed[0].Content)
-	}
+type stubCommandDispatcher struct {
+	handled bool
+	err     error
+	lastCmd string
 }
 
-func TestAttachImage_UnsupportedFormat(t *testing.T) {
-	tmpDir := t.TempDir()
-	imgPath := filepath.Join(tmpDir, "test.gif")
-	os.WriteFile(imgPath, []byte("GIF89a"), 0644)
-
-	ui := &stubUI{}
-	brain := NewBrain(&stubProvider{}, &stubRepo{}, ui, nil, domain.BudgetConfig{MaxIterations: 25})
-
-	err := brain.AttachImage(context.Background(), imgPath)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	if !contains(ui.displayed[0].Content, "Unsupported image format") {
-		t.Errorf("expected 'Unsupported image format', got %q", ui.displayed[0].Content)
-	}
+func (s *stubCommandDispatcher) Dispatch(_ context.Context, cmd string) (bool, error) {
+	s.lastCmd = cmd
+	return s.handled, s.err
 }
 
-func TestBrain_FastMode(t *testing.T) {
-	ui := &stubUI{}
-	prov := &stubProvider{
-		resp: &domain.Message{Role: domain.RoleAssistant, Content: "ok"},
-	}
-	brain := NewBrain(prov, &stubRepo{}, ui, nil, domain.BudgetConfig{MaxIterations: 5})
-	brain.providerName = "gpt-4o"
-	brain.availableProviders = map[string]ports.LLMProvider{
-		"gpt-4o":      prov,
-		"gpt-4o-mini": &stubProvider{},
-	}
-
-	ctx := context.Background()
-
-	// 1. Enable fast mode
-	if err := brain.FastMode(ctx, "on"); err != nil {
-		t.Fatalf("FastMode on failed: %v", err)
-	}
-	if !brain.fastModeEnabled {
-		t.Error("expected fastModeEnabled to be true")
-	}
-	if brain.providerName != "gpt-4o-mini" {
-		t.Errorf("expected model 'gpt-4o-mini', got %q", brain.providerName)
-	}
-	if brain.originalModel != "gpt-4o" {
-		t.Errorf("expected originalModel 'gpt-4o', got %q", brain.originalModel)
-	}
-
-	// 2. Disable fast mode
-	if err := brain.FastMode(ctx, "off"); err != nil {
-		t.Fatalf("FastMode off failed: %v", err)
-	}
-	if brain.fastModeEnabled {
-		t.Error("expected fastModeEnabled to be false")
-	}
-	if brain.providerName != "gpt-4o" {
-		t.Errorf("expected restored model 'gpt-4o', got %q", brain.providerName)
-	}
-}
-
-func TestBrain_BusyMode(t *testing.T) {
-	ui := &stubUI{}
-	brain := NewBrain(&stubProvider{}, &stubRepo{}, ui, nil, domain.BudgetConfig{MaxIterations: 5})
-
-	ctx := context.Background()
-
-	// Default status
-	_ = brain.BusyMode(ctx, "status")
-	if len(ui.displayed) != 1 || !strings.Contains(ui.displayed[0].Content, "queue") {
-		t.Errorf("expected default busy mode 'queue', got: %v", ui.displayed)
-	}
-
-	// Set to steer
-	_ = brain.BusyMode(ctx, "steer")
-	if brain.busyMode != "steer" {
-		t.Errorf("expected busyMode 'steer', got %q", brain.busyMode)
-	}
-
-	// Set to ignore
-	_ = brain.BusyMode(ctx, "ignore")
-	if brain.busyMode != "ignore" {
-		t.Errorf("expected busyMode 'ignore', got %q", brain.busyMode)
-	}
-}
-
-func TestBrain_DiffCommand(t *testing.T) {
+func TestBrain_CommandDispatcher(t *testing.T) {
 	prov := &stubProvider{}
 	repo := &stubRepo{}
 	ui := &stubUI{}
-	budget := domain.BudgetConfig{MaxIterations: 5}
+	brain := NewBrain(prov, repo, ui, nil, domain.BudgetConfig{MaxIterations: 5})
 
-	brain := NewBrain(prov, repo, ui, nil, budget)
+	// Without dispatcher
+	handled, err := brain.DispatchCommand(context.Background(), "/test")
+	if handled || err != nil {
+		t.Errorf("expected false, nil without dispatcher, got %v, %v", handled, err)
+	}
 
-	err := brain.ProcessMessage(context.Background(), "/diff")
+	// With wired dispatcher
+	cd := &stubCommandDispatcher{handled: true}
+	brain.SetCommandDispatcher(cd)
+
+	handled, err = brain.DispatchCommand(context.Background(), "/test")
+	if !handled || err != nil {
+		t.Fatalf("expected true, nil with dispatcher, got %v, %v", handled, err)
+	}
+	if cd.lastCmd != "/test" {
+		t.Errorf("expected '/test', got %q", cd.lastCmd)
+	}
+
+	// Via ProcessMessage
+	cd.lastCmd = ""
+	err = brain.ProcessMessage(context.Background(), "/test2")
 	if err != nil {
-		t.Fatalf("unexpected error running /diff: %v", err)
+		t.Fatalf("unexpected error from ProcessMessage: %v", err)
 	}
-
-	if len(ui.displayed) == 0 {
-		t.Fatal("expected UI display output for /diff")
-	}
-
-	lastMsg := ui.displayed[len(ui.displayed)-1]
-	if !contains(lastMsg.Content, "Git Diff") && !contains(lastMsg.Content, "Working tree clean") && !contains(lastMsg.Content, "Error") {
-		t.Errorf("unexpected output from /diff: %s", lastMsg.Content)
+	if cd.lastCmd != "/test2" {
+		t.Errorf("expected dispatcher to receive '/test2', got %q", cd.lastCmd)
 	}
 }
 
-func TestBrain_CodeGraphCommand(t *testing.T) {
-	prov := &stubProvider{}
-	repo := &stubRepo{}
-	ui := &stubUI{}
-	budget := domain.BudgetConfig{MaxIterations: 5}
-
-	brain := NewBrain(prov, repo, ui, nil, budget)
-
-	ctx := context.Background()
-
-	// 1. Status query
-	err := brain.ProcessMessage(ctx, "/codegraph")
-	if err != nil {
-		t.Fatalf("unexpected error running /codegraph: %v", err)
-	}
-
-	if len(ui.displayed) == 0 {
-		t.Fatal("expected UI display output for /codegraph")
-	}
-
-	lastMsg := ui.displayed[len(ui.displayed)-1]
-	if !contains(lastMsg.Content, "CodeGraph") {
-		t.Errorf("unexpected output from /codegraph: %s", lastMsg.Content)
-	}
-
-	// 2. Find query
-	err = brain.ProcessMessage(ctx, "/codegraph find MySymbol")
-	if err != nil {
-		t.Fatalf("unexpected error running /codegraph find: %v", err)
-	}
-}
 
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(s) > 0 && len(substr) > 0 && searchSubstring(s, substr))
@@ -521,6 +372,11 @@ func (m *recordingKGStore) GetRecentTopics(_ context.Context, _ time.Duration) (
 	return m.GetAllTopics(context.Background())
 }
 
+func (m *recordingKGStore) Clear(_ context.Context) error {
+	m.facts = nil
+	return nil
+}
+
 type dummyWriteModule struct{}
 
 func (d *dummyWriteModule) Name() string        { return "fileops" }
@@ -535,6 +391,24 @@ func (d *dummyWriteModule) Execute(_ context.Context, _ string, _ map[string]int
 	}, nil
 }
 
+type stubKGRecorder struct {
+	facts []domain.KnowledgeFact
+}
+
+func (r *stubKGRecorder) RecordToolExecution(ctx context.Context, toolName string, args map[string]interface{}, result *domain.ToolResult) {
+	if result != nil && result.Success {
+		filePath, _ := args["path"].(string)
+		r.facts = append(r.facts, domain.KnowledgeFact{
+			Topic:   "DirectAction",
+			Concept: filePath,
+			Fact:    fmt.Sprintf("Directly modified file %s via %s", filePath, toolName),
+		})
+	}
+}
+
+func (r *stubKGRecorder) RecordResponseFacts(ctx context.Context, response string) {}
+func (r *stubKGRecorder) RecordSubagentResult(ctx context.Context, name, description string, result *domain.SubagentResult) {}
+
 func TestBrain_DirectAction_MemoryPersistence(t *testing.T) {
 	prov := &stubProvider{}
 	repo := &stubRepo{}
@@ -542,8 +416,8 @@ func TestBrain_DirectAction_MemoryPersistence(t *testing.T) {
 	budget := domain.BudgetConfig{MaxIterations: 5}
 
 	brain := NewBrain(prov, repo, ui, nil, budget)
-	kg := &recordingKGStore{}
-	brain.SetKnowledgeGraphStore(kg)
+	recorder := &stubKGRecorder{}
+	brain.SetKnowledgeRecorder(recorder)
 
 	// Register dummy module
 	brain.RegisterModule(&dummyWriteModule{})
@@ -567,11 +441,11 @@ func TestBrain_DirectAction_MemoryPersistence(t *testing.T) {
 		t.Fatalf("handleToolCalls failed: %v", err)
 	}
 
-	if len(kg.facts) == 0 {
+	if len(recorder.facts) == 0 {
 		t.Fatal("expected direct action tool execution to persist a fact in KnowledgeGraph")
 	}
 
-	fact := kg.facts[0]
+	fact := recorder.facts[0]
 	if fact.Topic != "DirectAction" {
 		t.Errorf("expected Topic 'DirectAction', got %q", fact.Topic)
 	}
@@ -632,66 +506,68 @@ func TestBrain_SkillResolver_ProgressiveLoading(t *testing.T) {
 	}
 }
 
-func TestBrain_ProcessMessage_ProactiveSDDSuggestion(t *testing.T) {
-	prov := &stubProvider{}
-	repo := &stubRepo{}
-	ui := &stubUI{}
-	budget := domain.BudgetConfig{MaxIterations: 5}
-
-	brain := NewBrain(prov, repo, ui, nil, budget)
-
-	err := brain.ProcessMessage(context.Background(), "crea un nuevo subsistema de colas para entrega diferida")
-	if err != nil {
-		t.Fatalf("ProcessMessage failed: %v", err)
-	}
-
-	if len(ui.displayed) == 0 {
-		t.Fatal("expected UI display output with proactive SDD suggestion")
-	}
-
-	lastMsg := ui.displayed[len(ui.displayed)-1]
-	if !strings.Contains(lastMsg.Content, "Architectural Scope Detected") {
-		t.Errorf("expected proactive suggestion in output, got: %s", lastMsg.Content)
-	}
-	if !strings.Contains(lastMsg.Content, "/sdd") || !strings.Contains(lastMsg.Content, "/direct") {
-		t.Errorf("expected /sdd and /direct choices in output, got: %s", lastMsg.Content)
-	}
+type stubWorkflowRouter struct {
+	routedTurn   bool
+	recordedTool string
+	checkedMid   bool
+	resetCount   int
 }
 
-func TestBrain_ProcessMessage_ModelsAlias(t *testing.T) {
-	prov := &stubProvider{}
+func (s *stubWorkflowRouter) RouteTurn(ctx context.Context, content string) (bool, error) {
+	if content == "route-me" {
+		s.routedTurn = true
+		return true, nil
+	}
+	return false, nil
+}
+
+func (s *stubWorkflowRouter) RecordToolCall(name string, args map[string]interface{}, output string) {
+	s.recordedTool = name
+}
+
+func (s *stubWorkflowRouter) CheckMidTurn(ctx context.Context, content string) (bool, error) {
+	s.checkedMid = true
+	return false, nil
+}
+
+func (s *stubWorkflowRouter) ResetTurn() {
+	s.resetCount++
+}
+
+func TestBrain_WorkflowRouter(t *testing.T) {
+	prov := &stubProvider{
+		resp: &domain.Message{
+			Role: domain.RoleAssistant,
+			ToolCalls: []domain.ToolCall{
+				{ID: "1", Name: "fake_tool", Arguments: map[string]interface{}{}},
+			},
+		},
+	}
 	repo := &stubRepo{}
 	ui := &stubUI{}
-	budget := domain.BudgetConfig{MaxIterations: 5}
+	brain := NewBrain(prov, repo, ui, nil, domain.BudgetConfig{MaxIterations: 2})
+	brain.RegisterModule(&fakeModule{})
 
-	brain := NewBrain(prov, repo, ui, nil, budget)
-	brain.availableProviders = map[string]ports.LLMProvider{
-		"primary":  prov,
-		"fallback": prov,
-	}
-	brain.providerName = "primary"
+	wr := &stubWorkflowRouter{}
+	brain.SetWorkflowRouter(wr)
 
-	err := brain.ProcessMessage(context.Background(), "/models")
+	// 1. Test RouteTurn interception
+	err := brain.ProcessMessage(context.Background(), "route-me")
 	if err != nil {
-		t.Fatalf("ProcessMessage with /models failed: %v", err)
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !wr.routedTurn {
+		t.Error("expected RouteTurn to intercept 'route-me'")
+	}
+	if wr.resetCount == 0 {
+		t.Error("expected ResetTurn to be called")
 	}
 
-	if len(ui.displayed) == 0 {
-		t.Fatal("expected UI display for /models")
-	}
-
-	lastMsg := ui.displayed[len(ui.displayed)-1]
-	if !strings.Contains(lastMsg.Content, "Available models") {
-		t.Errorf("expected model listing in output, got: %s", lastMsg.Content)
-	}
-
-	// Also test switching with /models alias
-	err = brain.ProcessMessage(context.Background(), "/models fallback")
+	// 2. Test mid-turn RecordToolCall and CheckMidTurn
+	prov.resp = &domain.Message{Role: domain.RoleAssistant, Content: "all done"}
+	err = brain.ProcessMessage(context.Background(), "normal turn")
 	if err != nil {
-		t.Fatalf("ProcessMessage with /models fallback failed: %v", err)
-	}
-	if brain.providerName != "fallback" {
-		t.Errorf("expected providerName to be fallback, got %q", brain.providerName)
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
@@ -709,7 +585,7 @@ func (s *stubSubagentPort) Spawn(ctx context.Context, name string, task domain.S
 	return s.spawnResult, s.spawnErr
 }
 
-func TestBrain_DelegateMidTurnODD_PostTurnHooks(t *testing.T) {
+func TestBrain_PostTurnHooks(t *testing.T) {
 	prov := &stubProvider{
 		resp: &domain.Message{
 			Role:    domain.RoleAssistant,
@@ -721,43 +597,12 @@ func TestBrain_DelegateMidTurnODD_PostTurnHooks(t *testing.T) {
 	budget := domain.BudgetConfig{MaxIterations: 5}
 
 	brain := NewBrain(prov, repo, ui, nil, budget)
-	brain.SetSubagentPort(&stubSubagentPort{
-		available: []string{"explorer"},
-		spawnResult: &domain.SubagentResult{
-			Status:  domain.SubagentSuccess,
-			Summary: "Exploration completed mid-turn",
-		},
-	})
-
-	// Enqueue a follow-up message to verify post-turn hook processes it
 	brain.messageQueue = append(brain.messageQueue, "check queued task")
 
-	tracker := NewMidTurnBudgetTracker()
-	tracker.SequentialRead = MaxInlineSequentialRead + 1
+	brain.PostTurnHooks(context.Background(), "completed turn output")
 
-	handled, err := brain.delegateMidTurnODD(context.Background(), "search codebase for handler", tracker, TriggerResult{})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !handled {
-		t.Fatal("expected delegateMidTurnODD to handle mid-turn trigger")
-	}
-
-	// Verify post-turn hook processQueuedMessages drained the messageQueue
 	if len(brain.messageQueue) != 0 {
-		t.Errorf("expected messageQueue to be drained by post-turn hooks, remaining: %d", len(brain.messageQueue))
-	}
-
-	// Verify delegation UI output was displayed
-	foundDelegation := false
-	for _, m := range ui.displayed {
-		if strings.Contains(m.Content, "ODD Mid-Turn Dynamic Delegation (explorer)") {
-			foundDelegation = true
-			break
-		}
-	}
-	if !foundDelegation {
-		t.Error("expected delegation display message in UI")
+		t.Errorf("expected messageQueue to be drained by PostTurnHooks, remaining: %d", len(brain.messageQueue))
 	}
 }
 
@@ -857,22 +702,25 @@ func TestBrain_ParallelToolCalls_OrderPreserved(t *testing.T) {
 		t.Errorf("expected mem_fast to finish first, but %s finished first", firstFinished)
 	}
 
-	// Order preservation check: repo.messages must have 3 tool messages + 1 assistant message,
+	// Order preservation check: repo.messages must have 1 assistant message + 3 tool messages (in that order),
 	// and tool messages MUST be in original order: mem_slow, mem_fast, mem_med
 	repo.mu.Lock()
 	defer repo.mu.Unlock()
 	if len(repo.messages) != 4 {
-		t.Fatalf("expected 4 saved messages (3 tool + 1 assistant), got %d", len(repo.messages))
+		t.Fatalf("expected 4 saved messages (1 assistant + 3 tool), got %d", len(repo.messages))
 	}
 
-	if repo.messages[0].Content != "output_mem_slow" {
-		t.Errorf("expected message 0 to be output_mem_slow, got %s", repo.messages[0].Content)
+	if repo.messages[0].Role != domain.RoleAssistant {
+		t.Errorf("expected message 0 to be assistant, got %s", repo.messages[0].Role)
 	}
-	if repo.messages[1].Content != "output_mem_fast" {
-		t.Errorf("expected message 1 to be output_mem_fast, got %s", repo.messages[1].Content)
+	if repo.messages[1].Content != "output_mem_slow" {
+		t.Errorf("expected message 1 to be output_mem_slow, got %s", repo.messages[1].Content)
 	}
-	if repo.messages[2].Content != "output_mem_med" {
-		t.Errorf("expected message 2 to be output_mem_med, got %s", repo.messages[2].Content)
+	if repo.messages[2].Content != "output_mem_fast" {
+		t.Errorf("expected message 2 to be output_mem_fast, got %s", repo.messages[2].Content)
+	}
+	if repo.messages[3].Content != "output_mem_med" {
+		t.Errorf("expected message 3 to be output_mem_med, got %s", repo.messages[3].Content)
 	}
 }
 
@@ -900,17 +748,20 @@ func TestBrain_ParallelToolCalls_MixedSafety(t *testing.T) {
 	repo.mu.Lock()
 	defer repo.mu.Unlock()
 	if len(repo.messages) != 4 {
-		t.Fatalf("expected 4 saved messages, got %d", len(repo.messages))
+		t.Fatalf("expected 4 saved messages (1 assistant + 3 tool), got %d", len(repo.messages))
 	}
 
-	if repo.messages[0].Content != "output_mem_fast" {
-		t.Errorf("message 0: got %s, want output_mem_fast", repo.messages[0].Content)
+	if repo.messages[0].Role != domain.RoleAssistant {
+		t.Errorf("message 0: expected assistant, got %s", repo.messages[0].Role)
 	}
-	if repo.messages[1].Content != "output_file_write" {
-		t.Errorf("message 1: got %s, want output_file_write", repo.messages[1].Content)
+	if repo.messages[1].Content != "output_mem_fast" {
+		t.Errorf("message 1: got %s, want output_mem_fast", repo.messages[1].Content)
 	}
-	if repo.messages[2].Content != "output_mem_med" {
-		t.Errorf("message 2: got %s, want output_mem_med", repo.messages[2].Content)
+	if repo.messages[2].Content != "output_file_write" {
+		t.Errorf("message 2: got %s, want output_file_write", repo.messages[2].Content)
+	}
+	if repo.messages[3].Content != "output_mem_med" {
+		t.Errorf("message 3: got %s, want output_mem_med", repo.messages[3].Content)
 	}
 }
 
@@ -931,8 +782,19 @@ func TestBrain_SetReasoningEffort(t *testing.T) {
 	}
 }
 
+type stubPersonaResolver struct{}
+
+func (s *stubPersonaResolver) Resolve(name string) (string, error) {
+	if name == "teacher" {
+		return "Teach while answering", nil
+	}
+	return "", nil
+}
+
 func TestBrain_SetPersona(t *testing.T) {
 	brain := NewBrain(nil, nil, nil, nil, domain.BudgetConfig{})
+	brain.SetPersonaResolver(&stubPersonaResolver{})
+
 	name, overlay := brain.Persona()
 	if name != "" || overlay != "" {
 		t.Fatalf("expected initial persona empty, got name=%q, overlay=%q", name, overlay)
@@ -957,27 +819,28 @@ func TestBrain_SetPersona(t *testing.T) {
 
 
 
+type stubMutationVerifier struct{}
+
+func (s *stubMutationVerifier) IsMutationTool(name string) bool {
+	return name == "file_write"
+}
+
+func (s *stubMutationVerifier) ExtractModifiedPaths(args map[string]interface{}) string {
+	if p, ok := args["path"].(string); ok {
+		return p
+	}
+	return ""
+}
+
+func (s *stubMutationVerifier) VerifyMutations(ctx context.Context, paths []string) (string, error) {
+	return "[AUTO-REPAIR FEEDBACK]\ncompiler error: undefinedFunctionHere", nil
+}
+
 func TestBrain_AutoRepair_FeedbackLoop(t *testing.T) {
-	tempDir, err := os.MkdirTemp("", "gaia-autofix-kernel-*")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(tempDir)
-
-	goMod := filepath.Join(tempDir, "go.mod")
-	if err := os.WriteFile(goMod, []byte("module brokenproj\n\ngo 1.22\n"), 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	brokenFile := filepath.Join(tempDir, "broken.go")
-	brokenContent := "package main\n\nfunc main() {\n\tundefinedFunctionHere()\n}\n"
-	if err := os.WriteFile(brokenFile, []byte(brokenContent), 0644); err != nil {
-		t.Fatal(err)
-	}
-
 	repo := &stubRepo{}
 	brain := NewBrain(&stubProvider{}, repo, &stubUI{}, nil, domain.BudgetConfig{MaxIterations: 5})
 	brain.RegisterModule(&dummyWriteModule{})
+	brain.SetMutationVerifier(&stubMutationVerifier{})
 
 	msg := &domain.Message{
 		Role: domain.RoleAssistant,
@@ -986,14 +849,14 @@ func TestBrain_AutoRepair_FeedbackLoop(t *testing.T) {
 				ID:   "call-fix-1",
 				Name: "file_write",
 				Arguments: map[string]interface{}{
-					"path":    brokenFile,
-					"content": brokenContent,
+					"path":    "broken.go",
+					"content": "package main\n\nfunc main() { undefinedFunctionHere() }\n",
 				},
 			},
 		},
 	}
 
-	err = brain.handleToolCalls(context.Background(), msg)
+	err := brain.handleToolCalls(context.Background(), msg)
 	if err != nil {
 		t.Fatalf("handleToolCalls failed: %v", err)
 	}

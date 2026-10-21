@@ -1,4 +1,4 @@
-package autofix
+package agent
 
 import (
 	"context"
@@ -8,35 +8,37 @@ import (
 	"testing"
 )
 
-func TestIsMutationTool(t *testing.T) {
+func TestAutofixVerifier_IsMutationTool(t *testing.T) {
+	v := NewAutofixVerifier()
 	mutationTools := []string{"file_write", "file_edit", "write_file", "edit_file", "file_patch", "apply_patch"}
 	for _, tool := range mutationTools {
-		if !IsMutationTool(tool) {
+		if !v.IsMutationTool(tool) {
 			t.Errorf("expected %q to be mutation tool", tool)
 		}
 	}
 
 	nonMutation := []string{"file_read", "file_tree", "search", "web_fetch", "run_command"}
 	for _, tool := range nonMutation {
-		if IsMutationTool(tool) {
+		if v.IsMutationTool(tool) {
 			t.Errorf("expected %q to NOT be mutation tool", tool)
 		}
 	}
 }
 
-func TestExtractModifiedPaths(t *testing.T) {
-	if p := ExtractModifiedPaths(map[string]interface{}{"path": "main.go"}); p != "main.go" {
+func TestAutofixVerifier_ExtractModifiedPaths(t *testing.T) {
+	v := NewAutofixVerifier()
+	if p := v.ExtractModifiedPaths(map[string]interface{}{"path": "main.go"}); p != "main.go" {
 		t.Errorf("expected main.go, got %q", p)
 	}
-	if p := ExtractModifiedPaths(map[string]interface{}{"file": "pkg/calc.go"}); p != "pkg/calc.go" {
+	if p := v.ExtractModifiedPaths(map[string]interface{}{"file": "pkg/calc.go"}); p != "pkg/calc.go" {
 		t.Errorf("expected pkg/calc.go, got %q", p)
 	}
-	if p := ExtractModifiedPaths(map[string]interface{}{"cmd": "ls"}); p != "" {
+	if p := v.ExtractModifiedPaths(map[string]interface{}{"cmd": "ls"}); p != "" {
 		t.Errorf("expected empty string, got %q", p)
 	}
 }
 
-func TestDetectLanguageGo(t *testing.T) {
+func TestDetectProjectLanguageGo(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "gaia-autofix-test-*")
 	if err != nil {
 		t.Fatal(err)
@@ -53,7 +55,7 @@ func TestDetectLanguageGo(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	lang, root := DetectLanguage(subDir)
+	lang, root := DetectProjectLanguage(subDir)
 	if lang != LangGo {
 		t.Errorf("expected LangGo, got %q", lang)
 	}
@@ -62,7 +64,7 @@ func TestDetectLanguageGo(t *testing.T) {
 	}
 }
 
-func TestCheckerWithValidGoProject(t *testing.T) {
+func TestAutofixVerifier_ValidGoProject(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "gaia-autofix-valid-*")
 	if err != nil {
 		t.Fatal(err)
@@ -80,8 +82,8 @@ func TestCheckerWithValidGoProject(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	checker := NewChecker()
-	res, err := checker.Check(context.Background(), mainGoPath)
+	v := NewAutofixVerifier()
+	res, err := v.Check(context.Background(), mainGoPath)
 	if err != nil {
 		t.Fatalf("checker error: %v", err)
 	}
@@ -91,29 +93,17 @@ func TestCheckerWithValidGoProject(t *testing.T) {
 	if res.Language != LangGo {
 		t.Errorf("expected LangGo, got %v", res.Language)
 	}
-}
 
-func TestFormatAutoRepairPrompt(t *testing.T) {
-	cleanRes := &CheckResult{Clean: true}
-	if prompt := FormatAutoRepairPrompt(cleanRes); prompt != "" {
-		t.Errorf("expected empty prompt for clean result, got %q", prompt)
+	prompt, err := v.VerifyMutations(context.Background(), []string{mainGoPath})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
-
-	brokenRes := &CheckResult{
-		Language: LangGo,
-		Clean:    false,
-		Output:   "main.go:12:2: undefined: fmt.Printlnx",
-	}
-	prompt := FormatAutoRepairPrompt(brokenRes)
-	if prompt == "" {
-		t.Fatal("expected non-empty prompt for broken result")
-	}
-	if !strings.Contains(prompt, "undefined: fmt.Printlnx") {
-		t.Errorf("prompt missing compiler error: %s", prompt)
+	if prompt != "" {
+		t.Errorf("expected empty prompt for clean project, got %q", prompt)
 	}
 }
 
-func TestCheckerWithBrokenGoProject(t *testing.T) {
+func TestAutofixVerifier_BrokenGoProject(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "gaia-autofix-broken-*")
 	if err != nil {
 		t.Fatal(err)
@@ -126,14 +116,13 @@ func TestCheckerWithBrokenGoProject(t *testing.T) {
 	}
 
 	mainGoPath := filepath.Join(tempDir, "main.go")
-	// Syntax / compile error: undefined identifier
 	mainContent := "package main\n\nfunc main() {\n\tundefinedFunctionCall()\n}\n"
 	if err := os.WriteFile(mainGoPath, []byte(mainContent), 0644); err != nil {
 		t.Fatal(err)
 	}
 
-	checker := NewChecker()
-	res, err := checker.Check(context.Background(), mainGoPath)
+	v := NewAutofixVerifier()
+	res, err := v.Check(context.Background(), mainGoPath)
 	if err != nil {
 		t.Fatalf("checker error: %v", err)
 	}
@@ -142,5 +131,13 @@ func TestCheckerWithBrokenGoProject(t *testing.T) {
 	}
 	if !strings.Contains(res.Output, "undefinedFunctionCall") && !strings.Contains(res.Output, "undefined") {
 		t.Errorf("expected error output to mention undefined function, got: %s", res.Output)
+	}
+
+	prompt, err := v.VerifyMutations(context.Background(), []string{mainGoPath})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(prompt, "[AUTO-REPAIR FEEDBACK]") {
+		t.Errorf("expected prompt to contain [AUTO-REPAIR FEEDBACK], got: %s", prompt)
 	}
 }

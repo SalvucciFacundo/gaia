@@ -138,6 +138,8 @@ func TestParseScheduleInvalid(t *testing.T) {
 		{"60 * * * *"},      // minute out of range
 		{"* 24 * * *"},      // hour out of range
 		{"* * * invalid *"}, // non-numeric
+		{"*/0 * * * *"},     // step 0
+		{"*/-5 * * * *"},    // negative step
 	}
 
 	for _, tc := range tests {

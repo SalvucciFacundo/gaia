@@ -149,6 +149,8 @@ type KnowledgeGraphStore interface {
 	GetAllTopics(ctx context.Context) ([]string, error)
 	// GetRecentTopics returns topics that have facts newer than the given duration.
 	GetRecentTopics(ctx context.Context, since time.Duration) ([]string, error)
+	// Clear removes all stored knowledge facts and resets the FTS index.
+	Clear(ctx context.Context) error
 }
 
 // IncomingMessage is a normalized message from any gateway adapter.
@@ -181,3 +183,55 @@ type Synthesizer interface {
 	// Synthesize converts text into audio bytes and returns payload alongside its MIME type.
 	Synthesize(ctx context.Context, text string) ([]byte, string, error)
 }
+
+// CommandDispatcher defines the port for intercepting and handling slash commands or special directives.
+// Returns (handled, error) where handled is true if the content was recognized and processed.
+type CommandDispatcher interface {
+	Dispatch(ctx context.Context, content string) (bool, error)
+}
+
+// WorkflowRouter defines the inbound port for methodology routing (ODD, SDD, delegated workers).
+// It intercepts turns or mid-turn tool loops before standard inline LLM execution.
+type WorkflowRouter interface {
+	RouteTurn(ctx context.Context, content string) (bool, error)
+	RecordToolCall(name string, args map[string]interface{}, output string)
+	CheckMidTurn(ctx context.Context, content string) (bool, error)
+	ResetTurn()
+}
+
+// MutationVerifier inspects files modified during tool execution and returns
+// an auto-repair prompt if compilation or lint checks fail.
+type MutationVerifier interface {
+	IsMutationTool(toolName string) bool
+	ExtractModifiedPaths(args map[string]interface{}) string
+	VerifyMutations(ctx context.Context, modifiedPaths []string) (string, error)
+}
+
+// MoARunner executes a Mixture of Agents fan-out across multiple LLM models and synthesizes the result.
+type MoARunner interface {
+	Run(ctx context.Context, messages []domain.Message) (*domain.Message, error)
+	RunPrompt(ctx context.Context, prompt string) (*domain.Message, error)
+}
+
+// KnowledgeRecorder captures domain facts, mutations, and subagent discoveries for long-term recall.
+type KnowledgeRecorder interface {
+	RecordToolExecution(ctx context.Context, toolName string, args map[string]interface{}, result *domain.ToolResult)
+	RecordResponseFacts(ctx context.Context, response string)
+	RecordSubagentResult(ctx context.Context, name, description string, result *domain.SubagentResult)
+}
+
+// PersonaResolver maps a personality name to its system prompt instructions.
+type PersonaResolver interface {
+	Resolve(name string) (string, error)
+}
+
+// MCPManager defines operations for managing MCP server connections and discovery.
+type MCPManager interface {
+	StatusText() string
+	Connect(ctx context.Context, name string) error
+	Disconnect(name string) error
+}
+
+
+
+

@@ -17,10 +17,23 @@ import (
 	"gaia/internal/core/domain"
 )
 
+// ServerOption configures Server behavior.
+type ServerOption func(*Server)
+
+// WithHost configures the network host to bind to.
+func WithHost(host string) ServerOption {
+	return func(s *Server) {
+		if host != "" {
+			s.host = host
+		}
+	}
+}
+
 // Server implements the Web UI server adapter for GAIA.
 type Server struct {
 	mu            sync.RWMutex
 	brain         *core.Brain
+	host          string
 	port          string
 	projects      []views.ProjectViewModel
 	activeProject views.ProjectViewModel
@@ -32,7 +45,7 @@ type Server struct {
 }
 
 // NewServer creates a new Web UI Server adapter.
-func NewServer(brain *core.Brain, port string, providerName, modelName string) *Server {
+func NewServer(brain *core.Brain, port string, providerName, modelName string, opts ...ServerOption) *Server {
 	if port == "" {
 		port = "8080"
 	}
@@ -57,8 +70,9 @@ func NewServer(brain *core.Brain, port string, providerName, modelName string) *
 		{Name: "verifier", Role: "Execute tests & verify", Active: false},
 	}
 
-	return &Server{
+	s := &Server{
 		brain:         brain,
+		host:          "127.0.0.1",
 		port:          port,
 		projects:      []views.ProjectViewModel{defaultProject},
 		activeProject: defaultProject,
@@ -66,6 +80,10 @@ func NewServer(brain *core.Brain, port string, providerName, modelName string) *
 		providerName:  providerName,
 		modelName:     modelName,
 	}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
 }
 
 // Start launches the HTTP Web UI server.
@@ -79,12 +97,16 @@ func (s *Server) Start(ctx context.Context) error {
 	mux.HandleFunc("/web/policy", s.handlePolicyStatus)
 	mux.HandleFunc("/web/policy/update", s.handlePolicyUpdate)
 
-	addr := net.JoinHostPort("0.0.0.0", s.port)
+	bindHost := s.host
+	if bindHost == "" {
+		bindHost = "127.0.0.1"
+	}
+	addr := net.JoinHostPort(bindHost, s.port)
 	log.Printf("🚀 GAIA Web UI Dashboard listening on http://%s", addr)
 
 	server := &http.Server{
 		Addr:    addr,
-		Handler: mux,
+		Handler: s.csrfProtectionMiddleware(mux),
 	}
 
 	go func() {
@@ -96,6 +118,62 @@ func (s *Server) Start(ctx context.Context) error {
 		return fmt.Errorf("web ui server: %w", err)
 	}
 	return nil
+}
+
+// csrfProtectionMiddleware blocks state-changing cross-origin requests (POST, PUT, DELETE, PATCH).
+func (s *Server) csrfProtectionMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost || r.Method == http.MethodPut || r.Method == http.MethodDelete || r.Method == http.MethodPatch {
+			if !s.isSameOrigin(r) {
+				slog.Warn("Blocked untrusted cross-origin mutation request", "method", r.Method, "path", r.URL.Path, "origin", r.Header.Get("Origin"))
+				http.Error(w, "Forbidden: Cross-Origin Request Blocked", http.StatusForbidden)
+				return
+			}
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// isSameOrigin checks if the request origin matches the requested host or is localhost/127.0.0.1.
+func (s *Server) isSameOrigin(r *http.Request) bool {
+	origin := r.Header.Get("Origin")
+	if origin == "" {
+		origin = r.Header.Get("Referer")
+	}
+	if origin == "" {
+		// Non-browser or direct curl/tools request without origin/referer headers is allowed
+		return true
+	}
+
+	// Strip scheme if present
+	originClean := strings.TrimPrefix(strings.TrimPrefix(origin, "http://"), "https://")
+	if idx := strings.Index(originClean, "/"); idx != -1 {
+		originClean = originClean[:idx]
+	}
+
+	host := r.Host
+	if originClean == host {
+		return true
+	}
+
+	// Allow loopback combinations (localhost, 127.0.0.1)
+	originHost, _, err := net.SplitHostPort(originClean)
+	if err != nil {
+		originHost = originClean
+	}
+	reqHost, _, err := net.SplitHostPort(host)
+	if err != nil {
+		reqHost = host
+	}
+
+	isLoopback := func(h string) bool {
+		return h == "localhost" || h == "127.0.0.1" || h == "::1"
+	}
+	if isLoopback(originHost) && isLoopback(reqHost) {
+		return true
+	}
+
+	return false
 }
 
 func (s *Server) handleSSEStream(w http.ResponseWriter, r *http.Request) {

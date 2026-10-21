@@ -1,4 +1,4 @@
-package core
+package commands
 
 import (
 	"context"
@@ -10,16 +10,21 @@ import (
 	"gaia/internal/core/domain"
 )
 
-func (b *Brain) LearnSkill(ctx context.Context, source string) error {
+// LearnSkill creates or updates a skill from a directory or description.
+func (d *Dispatcher) LearnSkill(ctx context.Context, source string) error {
+	repo := d.brain.Repo()
+	ui := d.brain.UI()
+	if repo == nil || ui == nil {
+		return nil
+	}
+
 	home, _ := os.UserHomeDir()
 	skillsDir := filepath.Join(home, ".gaia", "skills")
 
-	// Check if source is a directory with existing patterns
 	if info, err := os.Stat(source); err == nil && info.IsDir() {
-		// Create a skill from directory contents
 		name := filepath.Base(source)
 		skillDir := filepath.Join(skillsDir, name)
-		os.MkdirAll(skillDir, 0755)
+		_ = os.MkdirAll(skillDir, 0755)
 
 		content := fmt.Sprintf(`---
 name: %s
@@ -41,21 +46,20 @@ Load this skill when working with code similar to the source directory.
 - Review the source for specific patterns to document here.
 `, name, source, name, source)
 
-		os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte(content), 0644)
+		_ = os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte(content), 0644)
 
 		msg := domain.Message{
 			Role:    domain.RoleSystem,
 			Content: fmt.Sprintf("Skill created from %s\n  Name: %s\n  Location: %s\n  Edit SKILL.md to add patterns and instructions.", source, name, skillDir),
 		}
-		b.repo.SaveMessage(ctx, msg)
-		return b.ui.Display(msg)
+		_ = repo.SaveMessage(ctx, msg)
+		return ui.Display(msg)
 	}
 
-	// Otherwise, create a skill from description (naming convention)
 	name := strings.ReplaceAll(strings.ToLower(source), " ", "-")
 	name = strings.TrimRight(name, "-.,!?")
 	skillDir := filepath.Join(skillsDir, name)
-	os.MkdirAll(skillDir, 0755)
+	_ = os.MkdirAll(skillDir, 0755)
 
 	content := fmt.Sprintf(`---
 name: %s
@@ -73,18 +77,24 @@ category: custom
 Customize this skill with specific patterns, conventions, and examples.
 `, name, source, name, source)
 
-	os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte(content), 0644)
+	_ = os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte(content), 0644)
 
 	msg := domain.Message{
 		Role:    domain.RoleSystem,
 		Content: fmt.Sprintf("Skill created from description:\n  Name: %s\n  Description: %s\n  Location: %s\n  Use /skills list to activate it.", name, source, skillDir),
 	}
-	b.repo.SaveMessage(ctx, msg)
-	return b.ui.Display(msg)
+	_ = repo.SaveMessage(ctx, msg)
+	return ui.Display(msg)
 }
 
 // SkillSuggestions analyzes usage and suggests skills to create.
-func (b *Brain) SkillSuggestions(ctx context.Context) error {
+func (d *Dispatcher) SkillSuggestions(ctx context.Context) error {
+	repo := d.brain.Repo()
+	ui := d.brain.UI()
+	if repo == nil || ui == nil {
+		return nil
+	}
+
 	home, _ := os.UserHomeDir()
 	skillsDir := filepath.Join(home, ".gaia", "skills")
 	existing := make(map[string]bool)
@@ -128,16 +138,22 @@ func (b *Brain) SkillSuggestions(ctx context.Context) error {
 	}
 
 	msg := domain.Message{Role: domain.RoleSystem, Content: sb.String()}
-	b.repo.SaveMessage(ctx, msg)
-	return b.ui.Display(msg)
+	_ = repo.SaveMessage(ctx, msg)
+	return ui.Display(msg)
 }
 
 // BlueprintCreate creates a new skill from a named template.
-func (b *Brain) BlueprintCreate(ctx context.Context, name string) error {
+func (d *Dispatcher) BlueprintCreate(ctx context.Context, name string) error {
+	repo := d.brain.Repo()
+	ui := d.brain.UI()
+	if repo == nil || ui == nil {
+		return nil
+	}
+
 	home, _ := os.UserHomeDir()
 	skillsDir := filepath.Join(home, ".gaia", "skills")
 	skillDir := filepath.Join(skillsDir, name)
-	os.MkdirAll(skillDir, 0755)
+	_ = os.MkdirAll(skillDir, 0755)
 
 	templates := map[string]string{
 		"daily-report": `---
@@ -217,30 +233,36 @@ category: testing
 			Role:    domain.RoleSystem,
 			Content: fmt.Sprintf("Unknown blueprint %q.\nAvailable blueprints: %s\n\nUsage: /blueprint <name>", name, strings.Join(available, ", ")),
 		}
-		b.repo.SaveMessage(ctx, msg)
-		return b.ui.Display(msg)
+		_ = repo.SaveMessage(ctx, msg)
+		return ui.Display(msg)
 	}
 
-	os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte(template), 0644)
+	_ = os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte(template), 0644)
 
 	msg := domain.Message{
 		Role:    domain.RoleSystem,
 		Content: fmt.Sprintf("Blueprint created: %s\n  Location: %s\n  Edit SKILL.md to customize.", name, skillDir),
 	}
-	b.repo.SaveMessage(ctx, msg)
-	return b.ui.Display(msg)
+	_ = repo.SaveMessage(ctx, msg)
+	return ui.Display(msg)
 }
 
 // SkillCurator scans installed skills and reports issues.
-func (b *Brain) SkillCurator(ctx context.Context) error {
+func (d *Dispatcher) SkillCurator(ctx context.Context) error {
+	repo := d.brain.Repo()
+	ui := d.brain.UI()
+	if repo == nil || ui == nil {
+		return nil
+	}
+
 	home, _ := os.UserHomeDir()
 	skillsDir := filepath.Join(home, ".gaia", "skills")
 
 	entries, err := os.ReadDir(skillsDir)
 	if err != nil {
 		msg := domain.Message{Role: domain.RoleSystem, Content: "No skills directory found. Install some skills first with 'gaia skills install'."}
-		b.repo.SaveMessage(ctx, msg)
-		return b.ui.Display(msg)
+		_ = repo.SaveMessage(ctx, msg)
+		return ui.Display(msg)
 	}
 
 	var sb strings.Builder
@@ -274,30 +296,6 @@ func (b *Brain) SkillCurator(ctx context.Context) error {
 	}
 
 	msg := domain.Message{Role: domain.RoleSystem, Content: sb.String()}
-	b.repo.SaveMessage(ctx, msg)
-	return b.ui.Display(msg)
-}
-// triggerSkillLearning analyzes a completed subagent task and proposes skill improvements.
-func (b *Brain) triggerSkillLearning(ctx context.Context, subagentName string, taskDesc string, result *domain.SubagentResult) {
-	// Only analyze if skills were resolved
-	if result == nil || result.SkillResolution == "none" {
-		return
-	}
-	// For now, log that learning happened — actual skill creation/deep analysis
-	// requires a separate Learner subagent invocation.
-	_ = subagentName
-	_ = taskDesc
-}
-
-// createSkillFromProposal creates a new skill from a Learner proposal.
-func (b *Brain) createSkillFromProposal(name string, content string) error {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return fmt.Errorf("create skill: %w", err)
-	}
-	skillDir := filepath.Join(home, ".gaia", "skills", name)
-	if err := os.MkdirAll(skillDir, 0755); err != nil {
-		return fmt.Errorf("create skill dir: %w", err)
-	}
-	return os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte(content), 0644)
+	_ = repo.SaveMessage(ctx, msg)
+	return ui.Display(msg)
 }

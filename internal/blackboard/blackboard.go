@@ -9,7 +9,19 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 )
+
+// SnapshotMeta represents metadata of a stored blackboard snapshot.
+type SnapshotMeta struct {
+	ID         string    `json:"id"`
+	SessionID  string    `json:"session_id"`
+	Profile    string    `json:"profile"`
+	Label      string    `json:"label"`
+	SHA256     string    `json:"sha256"`
+	EntryCount int       `json:"entry_count"`
+	CreatedAt  time.Time `json:"created_at"`
+}
 
 var (
 	// ErrInvalidNamespace is returned when a key does not match tasks.<producer_id>.*

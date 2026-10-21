@@ -106,11 +106,46 @@ func (sm *SessionManager) SetMode(mode SessionMode) {
 	}
 }
 
+// SetPlatformTier sets a policy tier override for a specific platform.
+func (sm *SessionManager) SetPlatformTier(platform string, tier PolicyTier) {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+	if sm.platformTiers == nil {
+		sm.platformTiers = make(map[string]PolicyTier)
+	}
+	sm.platformTiers[platform] = tier
+}
+
+// SetPlatformTiers sets multiple policy tier overrides at once.
+func (sm *SessionManager) SetPlatformTiers(tiers map[string]PolicyTier) {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+	sm.platformTiers = make(map[string]PolicyTier, len(tiers))
+	for k, v := range tiers {
+		sm.platformTiers[k] = v
+	}
+}
+
+func shortSessionID(id string) string {
+	if len(id) > 12 {
+		return id[:12]
+	}
+	return id
+}
+
 // Route directs a message from a platform to the correct session.
 // It sets the repo's active session and optionally prefixes the message.
 func (sm *SessionManager) Route(ctx context.Context, platform string, content string, senderName string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
 	sm.mu.Lock()
-	defer sm.mu.Unlock()
+
+	// If there's a pending message awaiting user choice in ask mode:
+	if sm.pendingMessage != nil {
+		return sm.handleAskResponse(ctx, platform, content)
+	}
 
 	var sessID string
 
@@ -119,6 +154,7 @@ func (sm *SessionManager) Route(ctx context.Context, platform string, content st
 		if sm.unifiedID == "" {
 			id, err := sm.creator(ctx, fmt.Sprintf("unified-%s", platform))
 			if err != nil {
+				sm.mu.Unlock()
 				return fmt.Errorf("create unified session: %w", err)
 			}
 			sm.unifiedID = id
@@ -130,6 +166,7 @@ func (sm *SessionManager) Route(ctx context.Context, platform string, content st
 		if !ok {
 			id, err := sm.creator(ctx, fmt.Sprintf("platform-%s", platform))
 			if err != nil {
+				sm.mu.Unlock()
 				return fmt.Errorf("create platform session: %w", err)
 			}
 			ps = &platformSession{SessionID: id, CreatedAt: time.Now(), Name: platform}
@@ -141,6 +178,7 @@ func (sm *SessionManager) Route(ctx context.Context, platform string, content st
 		if sm.unifiedID == "" {
 			id, err := sm.creator(ctx, "unified")
 			if err != nil {
+				sm.mu.Unlock()
 				return fmt.Errorf("create unified session: %w", err)
 			}
 			sm.unifiedID = id
@@ -150,27 +188,36 @@ func (sm *SessionManager) Route(ctx context.Context, platform string, content st
 			if sm.repo != nil {
 				sm.repo.SetSessionID(sessID)
 			}
-			sm.brain.currentSessionID = sessID
+			if sm.brain != nil {
+				sm.brain.SetActiveConversation(sessID)
+			}
 
-			var prompt strings.Builder
-			prompt.WriteString(fmt.Sprintf("📱 You switched from **%s** to **%s**.\n\n", sm.lastPlatform, platform))
-			prompt.WriteString(fmt.Sprintf("Your message: \"%s\"\n\n", content))
-			prompt.WriteString("\nHow should I handle this?\n\n")
-			prompt.WriteString("  • Reply **unify** to continue the current session\n")
-			prompt.WriteString("  • Reply **isolate** to start a fresh conversation here\n")
-			prompt.WriteString("  • Reply **always unify** to stop asking and always merge\n")
-			prompt.WriteString("  • Reply **always isolate** to stop asking and keep separate\n\n")
-			prompt.WriteString("Waiting for your choice...")
-
-			promptMsg := domain.Message{Role: domain.RoleSystem, Content: prompt.String()}
-			sm.brain.repo.SaveMessage(ctx, promptMsg)
-			sm.brain.ui.Display(promptMsg)
+			prompt := fmt.Sprintf("📱 You switched from **%s** to **%s**.\n\n"+
+				"Your message: \"%s\"\n\n"+
+				"How should I handle this?\n\n"+
+				"  • Reply **unify** to continue the current session\n"+
+				"  • Reply **isolate** to start a fresh conversation here\n"+
+				"  • Reply **always unify** to stop asking and always merge\n"+
+				"  • Reply **always isolate** to stop asking and keep separate\n\n"+
+				"Waiting for your choice...", sm.lastPlatform, platform, content)
 
 			sm.pendingMessage = &pendingMessage{
 				Platform:   platform,
 				Content:    content,
 				SenderName: senderName,
 				SessID:     sessID,
+			}
+			brain := sm.brain
+			sm.mu.Unlock()
+
+			if brain != nil {
+				promptMsg := domain.Message{Role: domain.RoleSystem, Content: prompt}
+				if brain.repo != nil {
+					_ = brain.repo.SaveMessage(ctx, promptMsg)
+				}
+				if brain.ui != nil {
+					_ = brain.ui.Display(promptMsg)
+				}
 			}
 			return nil
 		} else {
@@ -181,15 +228,13 @@ func (sm *SessionManager) Route(ctx context.Context, platform string, content st
 	if sm.repo != nil {
 		sm.repo.SetSessionID(sessID)
 	}
-	sm.brain.currentSessionID = sessID
+	if sm.brain != nil {
+		sm.brain.SetActiveConversation(sessID)
+	}
 	sm.lastPlatform = platform
 
 	// Set platform-specific policy tier if configured
 	sm.applyPlatformTier(platform)
-
-	if sm.pendingMessage != nil {
-		return sm.handleAskResponse(ctx, platform, content)
-	}
 
 	prefixed := content
 	if senderName != "" {
@@ -197,15 +242,22 @@ func (sm *SessionManager) Route(ctx context.Context, platform string, content st
 	} else {
 		prefixed = fmt.Sprintf("[%s] %s", platform, content)
 	}
-	return sm.brain.ProcessMessage(ctx, prefixed)
+
+	brain := sm.brain
+	sm.mu.Unlock()
+
+	if brain != nil {
+		return brain.ProcessMessage(ctx, prefixed)
+	}
+	return nil
 }
 
 func (sm *SessionManager) handleAskResponse(ctx context.Context, platform string, choice string) error {
-	if sm.pendingMessage == nil {
+	pending := sm.pendingMessage
+	if pending == nil {
+		sm.mu.Unlock()
 		return nil
 	}
-	pending := sm.pendingMessage
-	sm.pendingMessage = nil
 
 	normalized := strings.ToLower(strings.TrimSpace(choice))
 
@@ -214,26 +266,46 @@ func (sm *SessionManager) handleAskResponse(ctx context.Context, platform string
 		sm.mode = SessionUnify
 		fallthrough
 	case strings.Contains(normalized, "unify"):
+		sm.pendingMessage = nil
+		sessID := pending.SessID
 		if sm.repo != nil {
-			sm.repo.SetSessionID(pending.SessID)
+			sm.repo.SetSessionID(sessID)
 		}
-		sm.brain.currentSessionID = pending.SessID
+		if sm.brain != nil {
+			sm.brain.SetActiveConversation(sessID)
+		}
+		sm.lastPlatform = pending.Platform
+		sm.applyPlatformTier(pending.Platform)
+
 		prefixed := fmt.Sprintf("[%s] %s", pending.Platform, pending.Content)
 		if pending.SenderName != "" {
 			prefixed = fmt.Sprintf("[%s] %s: %s", pending.Platform, pending.SenderName, pending.Content)
 		}
-		info := domain.Message{Role: domain.RoleSystem, Content: "✅ Continuing in the unified session."}
-		sm.brain.repo.SaveMessage(ctx, info)
-		sm.brain.ui.Display(info)
-		return sm.brain.ProcessMessage(ctx, prefixed)
+
+		brain := sm.brain
+		sm.mu.Unlock()
+
+		if brain != nil {
+			info := domain.Message{Role: domain.RoleSystem, Content: "✅ Continuing in the unified session."}
+			if brain.repo != nil {
+				_ = brain.repo.SaveMessage(ctx, info)
+			}
+			if brain.ui != nil {
+				_ = brain.ui.Display(info)
+			}
+			return brain.ProcessMessage(ctx, prefixed)
+		}
+		return nil
 
 	case strings.Contains(normalized, "always isolate"):
 		sm.mode = SessionIsolate
 		sm.unifiedID = ""
 		fallthrough
 	case strings.Contains(normalized, "isolate") || strings.Contains(normalized, "separate") || strings.Contains(normalized, "nuev"):
+		sm.pendingMessage = nil
 		id, err := sm.creator(ctx, fmt.Sprintf("platform-%s", pending.Platform))
 		if err != nil {
+			sm.mu.Unlock()
 			return fmt.Errorf("create platform session: %w", err)
 		}
 		sm.platforms[pending.Platform] = &platformSession{
@@ -242,17 +314,40 @@ func (sm *SessionManager) handleAskResponse(ctx context.Context, platform string
 		if sm.repo != nil {
 			sm.repo.SetSessionID(id)
 		}
-		sm.brain.currentSessionID = id
-		info := domain.Message{Role: domain.RoleSystem, Content: fmt.Sprintf("✅ New session created for %s. Messages here won't affect other platforms.", pending.Platform)}
-		sm.brain.repo.SaveMessage(ctx, info)
-		sm.brain.ui.Display(info)
-		return sm.brain.ProcessMessage(ctx, pending.Content)
+		if sm.brain != nil {
+			sm.brain.SetActiveConversation(id)
+		}
+		sm.lastPlatform = pending.Platform
+		sm.applyPlatformTier(pending.Platform)
+
+		brain := sm.brain
+		sm.mu.Unlock()
+
+		if brain != nil {
+			info := domain.Message{Role: domain.RoleSystem, Content: fmt.Sprintf("✅ New session created for %s. Messages here won't affect other platforms.", pending.Platform)}
+			if brain.repo != nil {
+				_ = brain.repo.SaveMessage(ctx, info)
+			}
+			if brain.ui != nil {
+				_ = brain.ui.Display(info)
+			}
+			return brain.ProcessMessage(ctx, pending.Content)
+		}
+		return nil
 
 	default:
-		retry := domain.Message{Role: domain.RoleSystem, Content: "I didn't understand that choice. Please reply with **unify**, **isolate**, **always unify**, or **always isolate**."}
-		sm.brain.repo.SaveMessage(ctx, retry)
-		sm.brain.ui.Display(retry)
-		sm.pendingMessage = pending
+		brain := sm.brain
+		sm.mu.Unlock()
+
+		if brain != nil {
+			retry := domain.Message{Role: domain.RoleSystem, Content: "I didn't understand that choice. Please reply with **unify**, **isolate**, **always unify**, or **always isolate**."}
+			if brain.repo != nil {
+				_ = brain.repo.SaveMessage(ctx, retry)
+			}
+			if brain.ui != nil {
+				_ = brain.ui.Display(retry)
+			}
+		}
 		return nil
 	}
 }
@@ -268,7 +363,7 @@ func (sm *SessionManager) Status() string {
 	switch sm.mode {
 	case SessionUnify:
 		if sm.unifiedID != "" {
-			sb.WriteString(fmt.Sprintf("Unified session: %s\n", sm.unifiedID[:12]))
+			sb.WriteString(fmt.Sprintf("Unified session: %s\n", shortSessionID(sm.unifiedID)))
 		} else {
 			sb.WriteString("No active unified session.\n")
 		}
@@ -278,7 +373,16 @@ func (sm *SessionManager) Status() string {
 			sb.WriteString("  (none yet)\n")
 		}
 		for platform, ps := range sm.platforms {
-			sb.WriteString(fmt.Sprintf("  %s → %s (since %s)\n", platform, ps.SessionID[:12], ps.CreatedAt.Format("15:04")))
+			sb.WriteString(fmt.Sprintf("  %s → %s (since %s)\n", platform, shortSessionID(ps.SessionID), ps.CreatedAt.Format("15:04")))
+		}
+	case SessionAsk:
+		if sm.unifiedID != "" {
+			sb.WriteString(fmt.Sprintf("Unified session: %s\n", shortSessionID(sm.unifiedID)))
+		} else {
+			sb.WriteString("No active unified session.\n")
+		}
+		if sm.pendingMessage != nil {
+			sb.WriteString(fmt.Sprintf("Pending switch from %s waiting for user choice.\n", sm.pendingMessage.Platform))
 		}
 	}
 
@@ -297,7 +401,7 @@ func (sm *SessionManager) GetSessionID(platform string) string {
 	defer sm.mu.RUnlock()
 
 	switch sm.mode {
-	case SessionUnify:
+	case SessionUnify, SessionAsk:
 		return sm.unifiedID
 	case SessionIsolate:
 		if ps, ok := sm.platforms[platform]; ok {
@@ -318,7 +422,7 @@ func (sm *SessionManager) applyPlatformTier(platform string) {
 	if sm.platformTiers != nil {
 		if tier, ok := sm.platformTiers[platform]; ok {
 			sm.brain.policy.SetTier(tier)
-			return
 		}
 	}
 }
+

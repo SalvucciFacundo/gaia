@@ -3,11 +3,9 @@ package blackboard
 import (
 	"context"
 	"encoding/json"
-	"path/filepath"
 	"strings"
 	"testing"
 
-	"gaia/internal/adapters/db"
 	bb "gaia/internal/blackboard"
 )
 
@@ -91,17 +89,65 @@ func TestModule_GetSetList(t *testing.T) {
 	}
 }
 
+type memSnapshotStore struct {
+	snapshots map[string]map[string]bb.MemoryEntry
+	metas     map[string]bb.SnapshotMeta
+}
+
+func newMemSnapshotStore() *memSnapshotStore {
+	return &memSnapshotStore{
+		snapshots: make(map[string]map[string]bb.MemoryEntry),
+		metas:     make(map[string]bb.SnapshotMeta),
+	}
+}
+
+func (m *memSnapshotStore) SaveBlackboardSnapshot(ctx context.Context, sessionID, profile, label string, entries map[string]bb.MemoryEntry) (string, error) {
+	id := "snap-1"
+	copyMap := make(map[string]bb.MemoryEntry, len(entries))
+	for k, v := range entries {
+		if !v.IsSpilled && v.Data != nil && !json.Valid(v.Data) {
+			encoded, _ := json.Marshal(string(v.Data))
+			v.Data = encoded
+		}
+		copyMap[k] = v
+	}
+	m.snapshots[id] = copyMap
+	m.metas[id] = bb.SnapshotMeta{
+		ID:         id,
+		SessionID:  sessionID,
+		Profile:    profile,
+		Label:      label,
+		EntryCount: len(entries),
+	}
+	return id, nil
+}
+
+func (m *memSnapshotStore) GetBlackboardSnapshot(ctx context.Context, id string) (map[string]bb.MemoryEntry, *bb.SnapshotMeta, error) {
+	s, ok := m.snapshots[id]
+	if !ok {
+		return nil, nil, nil
+	}
+	meta := m.metas[id]
+	return s, &meta, nil
+}
+
+func (m *memSnapshotStore) ListBlackboardSnapshots(ctx context.Context, sessionID, profile string) ([]bb.SnapshotMeta, error) {
+	var list []bb.SnapshotMeta
+	for _, meta := range m.metas {
+		if meta.SessionID == sessionID && meta.Profile == profile {
+			list = append(list, meta)
+		}
+	}
+	return list, nil
+}
+
 func TestModule_Snapshots(t *testing.T) {
 	tempDir := t.TempDir()
 	bbInst := bb.New(tempDir)
 	mod := NewModule(bbInst)
 
-	dbPath := filepath.Join(tempDir, "snapshots.db")
-	repo, err := db.NewSQLiteRepoWithPath(dbPath)
-	if err != nil {
-		t.Fatalf("failed to init db: %v", err)
-	}
-	mod.SetStore(repo, "sess-test", "dev")
+	store := newMemSnapshotStore()
+	mod.SetStore(store, "sess-test", "dev")
 
 	ctx := context.Background()
 
@@ -134,7 +180,7 @@ func TestModule_Snapshots(t *testing.T) {
 	if err != nil || !listRes.Success {
 		t.Fatalf("list snapshots failed: %v, res=%+v", err, listRes)
 	}
-	var metas []db.SnapshotMeta
+	var metas []bb.SnapshotMeta
 	if err := json.Unmarshal([]byte(listRes.Output), &metas); err != nil {
 		t.Fatalf("unmarshal list output failed: %v", err)
 	}

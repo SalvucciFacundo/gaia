@@ -23,13 +23,13 @@ func (r *SQLiteRepo) SetSessionID(id string) {
 	r.sessionID = id
 }
 
-// sessionWhere returns the session filter clause with the current session ID.
-func (r *SQLiteRepo) sessionWhere() string {
+// activeSessionID returns the effective session ID, defaulting to "default".
+func (r *SQLiteRepo) activeSessionID() string {
 	id := r.sessionID
 	if id == "" {
-		id = "default"
+		return "default"
 	}
-	return fmt.Sprintf("session_id = '%s'", id)
+	return id
 }
 
 // NewSQLiteRepo creates a new SQLite repository at the default path (~/.config/gaia/gaia.db).
@@ -218,15 +218,15 @@ func (r *SQLiteRepo) GetHistory(ctx context.Context, limit int) ([]domain.Messag
 }
 
 func (r *SQLiteRepo) GetMessageCount(ctx context.Context) (int, error) {
-	query := fmt.Sprintf(`SELECT COUNT(*) FROM messages WHERE %s`, r.sessionWhere())
+	query := `SELECT COUNT(*) FROM messages WHERE session_id = ?`
 	var count int
-	err := r.db.QueryRowContext(ctx, query).Scan(&count)
+	err := r.db.QueryRowContext(ctx, query, r.activeSessionID()).Scan(&count)
 	return count, err
 }
 
 func (r *SQLiteRepo) GetHistoryFrom(ctx context.Context, limit, offset int) ([]domain.Message, error) {
-	query := fmt.Sprintf(`SELECT id, role, content, created_at FROM messages WHERE %s ORDER BY created_at ASC LIMIT ? OFFSET ?`, r.sessionWhere())
-	rows, err := r.db.QueryContext(ctx, query, limit, offset)
+	query := `SELECT id, role, content, created_at FROM messages WHERE session_id = ? ORDER BY created_at ASC LIMIT ? OFFSET ?`
+	rows, err := r.db.QueryContext(ctx, query, r.activeSessionID(), limit, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -248,8 +248,8 @@ func (r *SQLiteRepo) GetHistoryFrom(ctx context.Context, limit, offset int) ([]d
 }
 
 func (r *SQLiteRepo) GetLastMessages(ctx context.Context, n int) ([]domain.Message, error) {
-	query := fmt.Sprintf(`SELECT id, role, content, created_at FROM messages WHERE %s ORDER BY created_at DESC LIMIT ?`, r.sessionWhere())
-	rows, err := r.db.QueryContext(ctx, query, n)
+	query := `SELECT id, role, content, created_at FROM messages WHERE session_id = ? ORDER BY created_at DESC LIMIT ?`
+	rows, err := r.db.QueryContext(ctx, query, r.activeSessionID(), n)
 	if err != nil {
 		return nil, err
 	}
@@ -278,12 +278,12 @@ func (r *SQLiteRepo) DeleteMessagesAfter(ctx context.Context, afterID string) er
 		return fmt.Errorf("find message %s: %w", afterID, err)
 	}
 
-	_, err = r.db.ExecContext(ctx, fmt.Sprintf(`DELETE FROM messages WHERE %s AND created_at >= ?`, r.sessionWhere()), ts)
+	_, err = r.db.ExecContext(ctx, `DELETE FROM messages WHERE session_id = ? AND created_at >= ?`, r.activeSessionID(), ts)
 	return err
 }
 
 func (r *SQLiteRepo) ClearMessages(ctx context.Context) error {
-	_, err := r.db.ExecContext(ctx, fmt.Sprintf(`DELETE FROM messages WHERE %s`, r.sessionWhere()))
+	_, err := r.db.ExecContext(ctx, `DELETE FROM messages WHERE session_id = ?`, r.activeSessionID())
 	return err
 }
 

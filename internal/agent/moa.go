@@ -11,22 +11,26 @@ import (
 	"gaia/internal/core/ports"
 )
 
-// moaRunner executes the Mixture-of-Agents fan-out for a subagent task.
-// It fans out the same messages to multiple models in parallel, collects
-// responses, and synthesizes them into a single response via the primary model.
-type moaRunner struct {
-	primary     ports.LLMProvider
-	moaModels   []moaModelInstance // the extra models (primary excluded)
-	synthesizer ports.LLMProvider  // defaults to primary
-}
-
+// moaModelInstance represents an instantiated model provider candidate.
 type moaModelInstance struct {
 	Label    string
 	Provider ports.LLMProvider
 }
 
-// newMoARunner creates a MoA runner from the task config and available providers.
-func newMoARunner(primary ports.LLMProvider, moaProviders map[string]ports.LLMProvider, cfg domain.MoAConfig) (*moaRunner, error) {
+// MoARunner executes the Mixture-of-Agents fan-out for subagents or one-shot commands.
+// It fans out the same messages to multiple models in parallel, collects
+// responses, and synthesizes them into a single response via the primary model.
+type MoARunner struct {
+	primary     ports.LLMProvider
+	moaModels   []moaModelInstance
+	synthesizer ports.LLMProvider
+	timeout     time.Duration
+}
+
+var _ ports.MoARunner = (*MoARunner)(nil)
+
+// NewMoARunner creates a MoA runner from the task config and available providers.
+func NewMoARunner(primary ports.LLMProvider, moaProviders map[string]ports.LLMProvider, cfg domain.MoAConfig) (*MoARunner, error) {
 	if !cfg.Enabled || len(cfg.Models) == 0 {
 		return nil, nil // MoA disabled or no extra models
 	}
@@ -51,19 +55,52 @@ func newMoARunner(primary ports.LLMProvider, moaProviders map[string]ports.LLMPr
 		return nil, nil
 	}
 
-	return &moaRunner{
+	return &MoARunner{
 		primary:     primary,
 		moaModels:   models,
 		synthesizer: primary,
+		timeout:     30 * time.Second,
 	}, nil
 }
 
-// run executes the MoA fan-out:
+// newMoARunner is an internal alias for backward compatibility.
+func newMoARunner(primary ports.LLMProvider, moaProviders map[string]ports.LLMProvider, cfg domain.MoAConfig) (*MoARunner, error) {
+	return NewMoARunner(primary, moaProviders, cfg)
+}
+
+// NewOneShotMoARunner creates a MoA runner using all available providers for a one-shot command.
+func NewOneShotMoARunner(primary ports.LLMProvider, moaProviders map[string]ports.LLMProvider, timeout time.Duration) *MoARunner {
+	if timeout <= 0 {
+		timeout = 60 * time.Second
+	}
+
+	var models []moaModelInstance
+	for name, prov := range moaProviders {
+		if prov != nil {
+			models = append(models, moaModelInstance{
+				Label:    name,
+				Provider: prov,
+			})
+		}
+	}
+
+	return &MoARunner{
+		primary:     primary,
+		moaModels:   models,
+		synthesizer: primary,
+		timeout:     timeout,
+	}
+}
+
+// Run executes the MoA fan-out:
 // 1. Fans out the same messages to all extra models in parallel
 // 2. Collects all responses (with timeout)
 // 3. Synthesizes them into a single response via the primary model
-func (m *moaRunner) run(ctx context.Context, messages []domain.Message) (*domain.Message, error) {
-	// 1. Fan out to all MoA models in parallel
+func (m *MoARunner) Run(ctx context.Context, messages []domain.Message) (*domain.Message, error) {
+	if m == nil || len(m.moaModels) == 0 {
+		return nil, nil
+	}
+
 	type moaResult struct {
 		Label string
 		Msg   *domain.Message
@@ -73,12 +110,16 @@ func (m *moaRunner) run(ctx context.Context, messages []domain.Message) (*domain
 	results := make(chan moaResult, len(m.moaModels))
 	var wg sync.WaitGroup
 
+	timeout := m.timeout
+	if timeout <= 0 {
+		timeout = 30 * time.Second
+	}
+
 	for _, model := range m.moaModels {
 		wg.Add(1)
 		go func(model moaModelInstance) {
 			defer wg.Done()
-			// Timeout per model call (30s per model)
-			callCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+			callCtx, cancel := context.WithTimeout(ctx, timeout)
 			defer cancel()
 
 			msg, err := model.Provider.Chat(callCtx, messages)
@@ -101,8 +142,12 @@ func (m *moaRunner) run(ctx context.Context, messages []domain.Message) (*domain
 	}
 
 	if len(responses) == 0 {
-		// All MoA models failed — fall back to primary only
 		return nil, nil
+	}
+
+	if len(responses) == 1 {
+		responses[0].Msg.Role = domain.RoleAssistant
+		return responses[0].Msg, nil
 	}
 
 	// 3. Synthesize: build a prompt with all responses and ask the synthesizer to merge
@@ -128,8 +173,24 @@ func (m *moaRunner) run(ctx context.Context, messages []domain.Message) (*domain
 	}, *synthMsg})
 	if err != nil {
 		// Synthesis failed — return the first MoA response as fallback
+		responses[0].Msg.Role = domain.RoleAssistant
 		return responses[0].Msg, nil
 	}
 
+	synthResp.Role = domain.RoleAssistant
 	return synthResp, nil
+}
+
+// run is an internal alias for Run (backward compatibility).
+func (m *MoARunner) run(ctx context.Context, messages []domain.Message) (*domain.Message, error) {
+	return m.Run(ctx, messages)
+}
+
+// RunPrompt executes a one-shot MoA on a given user prompt.
+func (m *MoARunner) RunPrompt(ctx context.Context, prompt string) (*domain.Message, error) {
+	messages := []domain.Message{
+		{Role: domain.RoleSystem, Content: "You are a helpful AI assistant."},
+		{Role: domain.RoleUser, Content: prompt},
+	}
+	return m.Run(ctx, messages)
 }

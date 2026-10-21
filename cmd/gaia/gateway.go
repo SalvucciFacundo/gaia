@@ -287,7 +287,13 @@ func runGatewayWithContext(ctx context.Context, args []string, stdout, stderr io
 		return 1
 	}
 
-	fmt.Fprintf(stdout, "gaia gateway: multiplexer daemon running. Press Ctrl+C to terminate.\n")
+	pidFile := filepath.Join(os.TempDir(), "gaia-gateway.pid")
+	if err := os.WriteFile(pidFile, []byte(strconv.Itoa(os.Getpid())), 0600); err != nil {
+		fmt.Fprintf(stderr, "gaia gateway: warning: could not write pid file: %v\n", err)
+	}
+	defer os.Remove(pidFile)
+
+	fmt.Fprintf(stdout, "gaia gateway: multiplexer daemon running (PID: %d). Press Ctrl+C to terminate.\n", os.Getpid())
 
 	<-ctx.Done()
 
@@ -303,11 +309,32 @@ func runGatewayWithContext(ctx context.Context, args []string, stdout, stderr io
 
 func handleGatewayStop() {
 	pidFile := filepath.Join(os.TempDir(), "gaia-gateway.pid")
-	if _, err := os.Stat(pidFile); os.IsNotExist(err) {
-		fmt.Println("Gateway is not running.")
+	data, err := os.ReadFile(pidFile)
+	if err != nil {
+		fmt.Println("Gateway is not running (no PID file found).")
 		return
 	}
-	fmt.Println("Gateway stop signal sent.")
+
+	pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
+	if err != nil {
+		fmt.Printf("Invalid PID in %s: %v\n", pidFile, err)
+		os.Remove(pidFile)
+		return
+	}
+
+	proc, err := os.FindProcess(pid)
+	if err != nil {
+		fmt.Printf("Could not find process %d: %v\n", pid, err)
+		os.Remove(pidFile)
+		return
+	}
+
+	if err := proc.Signal(syscall.SIGTERM); err != nil {
+		fmt.Printf("Failed to send stop signal to process %d: %v\n", pid, err)
+		return
+	}
+
+	fmt.Printf("Gateway stop signal sent to PID %d.\n", pid)
 }
 
 func handleGatewayStatus() {

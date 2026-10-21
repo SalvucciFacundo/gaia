@@ -1,4 +1,4 @@
-package core
+package commands
 
 import (
 	"context"
@@ -13,13 +13,21 @@ import (
 	"strings"
 	"time"
 
+	"gaia/internal/core"
 	"gaia/internal/core/domain"
 	"gaia/internal/diff"
 )
 
-func (b *Brain) Insights(ctx context.Context) error {
-	msgCount, _ := b.repo.GetMessageCount(ctx)
-	history, _ := b.repo.GetHistory(ctx, 200)
+// Insights reports conversation metrics and costs.
+func (d *Dispatcher) Insights(ctx context.Context) error {
+	repo := d.brain.Repo()
+	ui := d.brain.UI()
+	if repo == nil || ui == nil {
+		return nil
+	}
+
+	msgCount, _ := repo.GetMessageCount(ctx)
+	history, _ := repo.GetHistory(ctx, 200)
 
 	var userMsgs, assistantMsgs, toolMsgs, systemMsgs int
 	for _, m := range history {
@@ -35,6 +43,11 @@ func (b *Brain) Insights(ctx context.Context) error {
 		}
 	}
 
+	sessID := d.brain.CurrentSessionID()
+	if len(sessID) > 12 {
+		sessID = sessID[:12]
+	}
+
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("Session Insights\n%s\n\n", strings.Repeat("─", 40)))
 	sb.WriteString(fmt.Sprintf("Total messages:  %d\n", msgCount))
@@ -42,52 +55,64 @@ func (b *Brain) Insights(ctx context.Context) error {
 	sb.WriteString(fmt.Sprintf("  AI:            %d\n", assistantMsgs))
 	sb.WriteString(fmt.Sprintf("  Tool calls:    %d\n", toolMsgs))
 	sb.WriteString(fmt.Sprintf("  System:        %d\n", systemMsgs))
-	sb.WriteString(fmt.Sprintf("  Compactions:   %d\n\n", b.compactedTo))
-	sb.WriteString(fmt.Sprintf("Model:           %s\n", b.providerName))
-	sb.WriteString(fmt.Sprintf("Session ID:      %s\n", b.currentSessionID[:min(12, len(b.currentSessionID))]))
-	sb.WriteString(fmt.Sprintf("Budget used:     %d/%d iterations\n", len(history), b.budget.MaxIterations))
+	sb.WriteString(fmt.Sprintf("  Compactions:   %d\n\n", d.brain.CompactedTo()))
+	sb.WriteString(fmt.Sprintf("Model:           %s\n", d.brain.ProviderName()))
+	sb.WriteString(fmt.Sprintf("Session ID:      %s\n", sessID))
+	sb.WriteString(fmt.Sprintf("Budget used:     %d/%d iterations\n", len(history), d.brain.Budget().MaxIterations))
 
-	if b.costTracker != nil {
-		summary := b.costTracker.GetSummary()
+	if ct := d.brain.CostTracker(); ct != nil {
+		summary := ct.GetSummary()
 		sb.WriteString(fmt.Sprintf("\nCost:           $%.2f (%.1fK in / %.1fK out)\n", summary.TotalCost, float64(summary.TotalInput)/1000, float64(summary.TotalOutput)/1000))
 	}
 
 	msg := domain.Message{Role: domain.RoleSystem, Content: sb.String()}
-	b.repo.SaveMessage(ctx, msg)
-	return b.ui.Display(msg)
+	_ = repo.SaveMessage(ctx, msg)
+	return ui.Display(msg)
 }
 
 // DebugInfo collects system information for debugging.
-func (b *Brain) DebugInfo(ctx context.Context) error {
+func (d *Dispatcher) DebugInfo(ctx context.Context) error {
+	repo := d.brain.Repo()
+	ui := d.brain.UI()
+	if repo == nil || ui == nil {
+		return nil
+	}
+
 	home, _ := os.UserHomeDir()
 	configPath := filepath.Join(home, ".config", "gaia", "config.yaml")
 
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("GAIA Debug Report\n%s\n\n", strings.Repeat("─", 40)))
 	sb.WriteString(fmt.Sprintf("Go version:     %s\n", runtime.Version()))
-	sb.WriteString(fmt.Sprintf("Provider:       %s\n", b.providerName))
-	sb.WriteString(fmt.Sprintf("Model:          %s\n", b.modelName))
+	sb.WriteString(fmt.Sprintf("Provider:       %s\n", d.brain.ProviderName()))
+	sb.WriteString(fmt.Sprintf("Model:          %s\n", d.brain.ModelName()))
 	sb.WriteString(fmt.Sprintf("Config:         %s\n", configPath))
-	sb.WriteString(fmt.Sprintf("Session Msgs:   %d\n", func() int { n, _ := b.repo.GetMessageCount(ctx); return n }()))
-	sb.WriteString(fmt.Sprintf("Budget:         %d max iterations\n", b.budget.MaxIterations))
-	sb.WriteString(fmt.Sprintf("Compaction:     %d threshold, %d compacted\n", b.budget.CompactionThreshold, b.compactedTo))
+	sb.WriteString(fmt.Sprintf("Session Msgs:   %d\n", func() int { n, _ := repo.GetMessageCount(ctx); return n }()))
+	sb.WriteString(fmt.Sprintf("Budget:         %d max iterations\n", d.brain.Budget().MaxIterations))
+	sb.WriteString(fmt.Sprintf("Compaction:     %d threshold, %d compacted\n", d.brain.Budget().CompactionThreshold, d.brain.CompactedTo()))
 	sb.WriteString(fmt.Sprintf("Policy tier:    %s\n", func() string {
-		if b.policy != nil {
-			return string(b.policy.Tier())
+		if p := d.brain.Policy(); p != nil {
+			return string(p.Tier())
 		}
 		return "not configured"
 	}()))
-	if len(b.goal) > 0 {
-		sb.WriteString(fmt.Sprintf("Active goal:    %s\n", b.goal))
+	if goal := d.brain.Goal(); len(goal) > 0 {
+		sb.WriteString(fmt.Sprintf("Active goal:    %s\n", goal))
 	}
 
 	msg := domain.Message{Role: domain.RoleSystem, Content: sb.String()}
-	b.repo.SaveMessage(ctx, msg)
-	return b.ui.Display(msg)
+	_ = repo.SaveMessage(ctx, msg)
+	return ui.Display(msg)
 }
 
 // CreditsInfo shows credit/usage balance information.
-func (b *Brain) CreditsInfo(ctx context.Context) error {
+func (d *Dispatcher) CreditsInfo(ctx context.Context) error {
+	repo := d.brain.Repo()
+	ui := d.brain.UI()
+	if repo == nil || ui == nil {
+		return nil
+	}
+
 	msg := domain.Message{
 		Role: domain.RoleSystem,
 		Content: "Credit/Billing Info\n" + strings.Repeat("─", 40) + "\n\n" +
@@ -99,12 +124,18 @@ func (b *Brain) CreditsInfo(ctx context.Context) error {
 			"For session-level cost tracking, enable cost_tracker in config.yaml\n" +
 			"and use /insights to see per-session costs.",
 	}
-	b.repo.SaveMessage(ctx, msg)
-	return b.ui.Display(msg)
+	_ = repo.SaveMessage(ctx, msg)
+	return ui.Display(msg)
 }
 
 // BillingInfo shows billing management information.
-func (b *Brain) BillingInfo(ctx context.Context) error {
+func (d *Dispatcher) BillingInfo(ctx context.Context) error {
+	repo := d.brain.Repo()
+	ui := d.brain.UI()
+	if repo == nil || ui == nil {
+		return nil
+	}
+
 	msg := domain.Message{
 		Role: domain.RoleSystem,
 		Content: "Billing management is handled by your LLM provider:\n\n" +
@@ -114,44 +145,49 @@ func (b *Brain) BillingInfo(ctx context.Context) error {
 			"  • Copilot:    https://github.com/settings/billing\n\n" +
 			"Use /insights to track your session-level LLM costs.",
 	}
-	b.repo.SaveMessage(ctx, msg)
-	return b.ui.Display(msg)
+	_ = repo.SaveMessage(ctx, msg)
+	return ui.Display(msg)
 }
-func (b *Brain) CommandsList(ctx context.Context) error {
-	// Delegate to the help system
-	return b.HelpCommands(ctx)
+
+// CommandsList delegates to HelpCommands.
+func (d *Dispatcher) CommandsList(ctx context.Context) error {
+	return d.HelpCommands(ctx)
 }
 
 // RestartGateway performs a graceful restart by spawning a new process and exiting.
-func (b *Brain) RestartGateway(ctx context.Context) error {
+func (d *Dispatcher) RestartGateway(ctx context.Context) error {
+	repo := d.brain.Repo()
+	ui := d.brain.UI()
+	if repo == nil || ui == nil {
+		return nil
+	}
+
 	execPath, err := os.Executable()
 	if err != nil {
 		msg := domain.Message{Role: domain.RoleSystem, Content: fmt.Sprintf("Cannot locate executable: %v", err)}
-		b.repo.SaveMessage(ctx, msg)
-		return b.ui.Display(msg)
+		_ = repo.SaveMessage(ctx, msg)
+		return ui.Display(msg)
 	}
 
 	msg := domain.Message{
 		Role:    domain.RoleSystem,
 		Content: "Restarting GAIA...",
 	}
-	b.repo.SaveMessage(ctx, msg)
-	b.ui.Display(msg)
+	_ = repo.SaveMessage(ctx, msg)
+	_ = ui.Display(msg)
 
-	// Spawn a new instance after a brief delay (allows this message to be sent)
 	go func() {
 		time.Sleep(500 * time.Millisecond)
 		cmd := exec.Command(execPath, os.Args[1:]...)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
-		cmd.Start()
+		_ = cmd.Start()
 	}()
 
 	os.Exit(0)
 	return nil
 }
 
-// updateReleaseInfo holds info about a GitHub release.
 type updateReleaseInfo struct {
 	Available   bool
 	Tag         string
@@ -159,9 +195,7 @@ type updateReleaseInfo struct {
 	Size        string
 }
 
-// checkLatestRelease queries GitHub for the latest GAIA release.
 func checkLatestRelease() (*updateReleaseInfo, error) {
-	// GitHub API endpoint for the latest release
 	resp, err := http.Get("https://api.github.com/repos/SalvucciFacundo/gaia/releases/latest")
 	if err != nil {
 		return &updateReleaseInfo{
@@ -169,7 +203,7 @@ func checkLatestRelease() (*updateReleaseInfo, error) {
 			Tag:         "",
 			DownloadURL: "https://github.com/SalvucciFacundo/gaia/releases",
 			Size:        "",
-		}, nil // non-fatal — show manual link
+		}, nil
 	}
 	defer resp.Body.Close()
 
@@ -190,11 +224,10 @@ func checkLatestRelease() (*updateReleaseInfo, error) {
 		return nil, fmt.Errorf("parse response: %w", err)
 	}
 
-	if release.TagName == "" || release.TagName == GAIAVersion {
+	if release.TagName == "" || release.TagName == core.GAIAVersion {
 		return &updateReleaseInfo{Available: false}, nil
 	}
 
-	// Find the right asset for this platform
 	arch := runtime.GOOS + "-" + runtime.GOARCH
 	var downloadURL string
 	var size int
@@ -219,7 +252,6 @@ func checkLatestRelease() (*updateReleaseInfo, error) {
 	}, nil
 }
 
-// downloadAndReplace downloads a release binary and replaces the current executable atomically.
 func downloadAndReplace(execPath, downloadURL string) error {
 	if downloadURL == "" {
 		return fmt.Errorf("no download URL available")
@@ -252,7 +284,6 @@ func downloadAndReplace(execPath, downloadURL string) error {
 	}
 	out.Close()
 
-	// Atomically replace: rename current to .old, move new in place
 	oldPath := execPath + ".old"
 	os.Remove(oldPath)
 	if err := os.Rename(execPath, oldPath); err != nil {
@@ -260,66 +291,79 @@ func downloadAndReplace(execPath, downloadURL string) error {
 		return fmt.Errorf("backup current binary: %w", err)
 	}
 	if err := os.Rename(tmpPath, execPath); err != nil {
-		os.Rename(oldPath, execPath) // restore backup
+		os.Rename(oldPath, execPath)
 		os.Remove(tmpPath)
 		return fmt.Errorf("replace binary: %w", err)
 	}
 	os.Chmod(execPath, 0755)
-
 	return nil
 }
 
 // UpdateGAIA checks for updates and applies them automatically.
-func (b *Brain) UpdateGAIA(ctx context.Context) error {
+func (d *Dispatcher) UpdateGAIA(ctx context.Context) error {
+	repo := d.brain.Repo()
+	ui := d.brain.UI()
+	if repo == nil || ui == nil {
+		return nil
+	}
+
 	msg := domain.Message{Role: domain.RoleSystem, Content: "Checking for updates..."}
-	b.repo.SaveMessage(ctx, msg)
-	b.ui.Display(msg)
+	_ = repo.SaveMessage(ctx, msg)
+	_ = ui.Display(msg)
 
 	execPath, err := os.Executable()
 	if err != nil {
 		msg := domain.Message{Role: domain.RoleSystem, Content: fmt.Sprintf("Cannot locate executable: %v", err)}
-		b.repo.SaveMessage(ctx, msg)
-		return b.ui.Display(msg)
+		_ = repo.SaveMessage(ctx, msg)
+		return ui.Display(msg)
 	}
 
 	latest, err := checkLatestRelease()
 	if err != nil {
 		msg := domain.Message{Role: domain.RoleSystem, Content: fmt.Sprintf("Update check failed: %v", err)}
-		b.repo.SaveMessage(ctx, msg)
-		return b.ui.Display(msg)
+		_ = repo.SaveMessage(ctx, msg)
+		return ui.Display(msg)
 	}
 
 	if !latest.Available {
 		msg := domain.Message{Role: domain.RoleSystem, Content: "You're on the latest version. No update needed.\nCheck manually: https://github.com/SalvucciFacundo/gaia/releases"}
-		b.repo.SaveMessage(ctx, msg)
-		return b.ui.Display(msg)
+		_ = repo.SaveMessage(ctx, msg)
+		return ui.Display(msg)
 	}
 
 	msg = domain.Message{Role: domain.RoleSystem, Content: fmt.Sprintf("Downloading %s (%s)...", latest.Tag, latest.Size)}
-	b.repo.SaveMessage(ctx, msg)
-	b.ui.Display(msg)
+	_ = repo.SaveMessage(ctx, msg)
+	_ = ui.Display(msg)
 
 	if err := downloadAndReplace(execPath, latest.DownloadURL); err != nil {
 		msg := domain.Message{Role: domain.RoleSystem, Content: fmt.Sprintf("Update failed: %v", err)}
-		b.repo.SaveMessage(ctx, msg)
-		return b.ui.Display(msg)
+		_ = repo.SaveMessage(ctx, msg)
+		return ui.Display(msg)
 	}
 
 	msg = domain.Message{Role: domain.RoleSystem, Content: fmt.Sprintf("Updated to %s! Restarting...", latest.Tag)}
-	b.repo.SaveMessage(ctx, msg)
-	b.ui.Display(msg)
+	_ = repo.SaveMessage(ctx, msg)
+	_ = ui.Display(msg)
 
 	go func() {
 		time.Sleep(500 * time.Millisecond)
 		cmd := exec.Command(execPath, os.Args[1:]...)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
-		cmd.Start()
+		_ = cmd.Start()
 	}()
 	os.Exit(0)
 	return nil
 }
-func (b *Brain) TopicHelp(ctx context.Context) error {
+
+// TopicHelp displays usage for multi-session DM topics.
+func (d *Dispatcher) TopicHelp(ctx context.Context) error {
+	repo := d.brain.Repo()
+	ui := d.brain.UI()
+	if repo == nil || ui == nil {
+		return nil
+	}
+
 	msg := domain.Message{
 		Role: domain.RoleSystem,
 		Content: "Multi-session DM mode (Telegram-specific):\n\n" +
@@ -330,22 +374,34 @@ func (b *Brain) TopicHelp(ctx context.Context) error {
 			"Each topic has its own conversation history.\n" +
 			"Useful for parallel conversations in one chat.",
 	}
-	b.repo.SaveMessage(ctx, msg)
-	return b.ui.Display(msg)
+	_ = repo.SaveMessage(ctx, msg)
+	return ui.Display(msg)
 }
 
 // TopicSession switches to a named topic/session.
-func (b *Brain) TopicSession(ctx context.Context, name string) error {
+func (d *Dispatcher) TopicSession(ctx context.Context, name string) error {
+	repo := d.brain.Repo()
+	ui := d.brain.UI()
+	if repo == nil || ui == nil {
+		return nil
+	}
+
 	msg := domain.Message{
 		Role:    domain.RoleSystem,
 		Content: fmt.Sprintf("Switched to topic: %s\nAll messages will be scoped to this topic until you switch back.", name),
 	}
-	b.repo.SaveMessage(ctx, msg)
-	return b.ui.Display(msg)
+	_ = repo.SaveMessage(ctx, msg)
+	return ui.Display(msg)
 }
 
 // HelpCommands is the shared implementation for both /help and /commands.
-func (b *Brain) HelpCommands(ctx context.Context) error {
+func (d *Dispatcher) HelpCommands(ctx context.Context) error {
+	repo := d.brain.Repo()
+	ui := d.brain.UI()
+	if repo == nil || ui == nil {
+		return nil
+	}
+
 	help := `Available Commands:
 
   Session:     /new, /clear, /history, /save, /resume, /sessions, /title, /compress, /undo, /retry
@@ -365,12 +421,18 @@ func (b *Brain) HelpCommands(ctx context.Context) error {
 
 For details: gaia help or check the README.`
 	msg := domain.Message{Role: domain.RoleSystem, Content: help}
-	b.repo.SaveMessage(ctx, msg)
-	return b.ui.Display(msg)
+	_ = repo.SaveMessage(ctx, msg)
+	return ui.Display(msg)
 }
 
 // DiffView renders the current git diff in unified format or reports clean tree.
-func (b *Brain) DiffView(ctx context.Context, staged bool) error {
+func (d *Dispatcher) DiffView(ctx context.Context, staged bool) error {
+	repo := d.brain.Repo()
+	ui := d.brain.UI()
+	if repo == nil || ui == nil {
+		return nil
+	}
+
 	args := []string{"diff"}
 	targetName := "working tree"
 	if staged {
@@ -381,21 +443,21 @@ func (b *Brain) DiffView(ctx context.Context, staged bool) error {
 	output, err := cmd.Output()
 	if err != nil {
 		msg := domain.Message{Role: domain.RoleSystem, Content: fmt.Sprintf("Error running git diff: %v", err)}
-		b.repo.SaveMessage(ctx, msg)
-		return b.ui.Display(msg)
+		_ = repo.SaveMessage(ctx, msg)
+		return ui.Display(msg)
 	}
 
 	files, err := diff.ParseUnifiedDiff(string(output))
 	if err != nil {
 		msg := domain.Message{Role: domain.RoleSystem, Content: fmt.Sprintf("Error parsing git diff: %v", err)}
-		b.repo.SaveMessage(ctx, msg)
-		return b.ui.Display(msg)
+		_ = repo.SaveMessage(ctx, msg)
+		return ui.Display(msg)
 	}
 
 	if len(files) == 0 {
 		msg := domain.Message{Role: domain.RoleSystem, Content: fmt.Sprintf("Working tree clean — no modifications in %s.", targetName)}
-		b.repo.SaveMessage(ctx, msg)
-		return b.ui.Display(msg)
+		_ = repo.SaveMessage(ctx, msg)
+		return ui.Display(msg)
 	}
 
 	var sb strings.Builder
@@ -406,27 +468,34 @@ func (b *Brain) DiffView(ctx context.Context, staged bool) error {
 	}
 
 	msg := domain.Message{Role: domain.RoleSystem, Content: sb.String()}
-	b.repo.SaveMessage(ctx, msg)
-	return b.ui.Display(msg)
+	_ = repo.SaveMessage(ctx, msg)
+	return ui.Display(msg)
 }
 
 // AuditLog displays the policy audit trail.
-func (b *Brain) AuditLog(ctx context.Context) error {
-	if len(b.auditLog) == 0 {
+func (d *Dispatcher) AuditLog(ctx context.Context) error {
+	repo := d.brain.Repo()
+	ui := d.brain.UI()
+	if repo == nil || ui == nil {
+		return nil
+	}
+
+	logs := d.brain.AuditEntries()
+	if len(logs) == 0 {
 		msg := domain.Message{Role: domain.RoleSystem, Content: "Audit log is empty.\n\nSet a tool override to 'audit' via /permisos to start logging.\nExample: set shell_exec → audit to log all shell commands."}
-		b.repo.SaveMessage(ctx, msg)
-		return b.ui.Display(msg)
+		_ = repo.SaveMessage(ctx, msg)
+		return ui.Display(msg)
 	}
 
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("Policy Audit Log (%d entries)\n%s\n\n", len(b.auditLog), strings.Repeat("─", 40)))
+	sb.WriteString(fmt.Sprintf("Policy Audit Log (%d entries)\n%s\n\n", len(logs), strings.Repeat("─", 40)))
 	start := 0
-	if len(b.auditLog) > 50 {
-		start = len(b.auditLog) - 50
-		sb.WriteString(fmt.Sprintf("Showing last 50 of %d entries.\n\n", len(b.auditLog)))
+	if len(logs) > 50 {
+		start = len(logs) - 50
+		sb.WriteString(fmt.Sprintf("Showing last 50 of %d entries.\n\n", len(logs)))
 	}
-	for i := start; i < len(b.auditLog); i++ {
-		e := b.auditLog[i]
+	for i := start; i < len(logs); i++ {
+		e := logs[i]
 		status := "ALLOW"
 		if !e.Allowed {
 			status = "DENY"
@@ -441,40 +510,83 @@ func (b *Brain) AuditLog(ctx context.Context) error {
 	sb.WriteString("Use /audit clear to clear the log.")
 
 	msg := domain.Message{Role: domain.RoleSystem, Content: sb.String()}
-	b.repo.SaveMessage(ctx, msg)
-	return b.ui.Display(msg)
+	_ = repo.SaveMessage(ctx, msg)
+	return ui.Display(msg)
 }
 
 // AuditClear clears the policy audit log.
-func (b *Brain) AuditClear(ctx context.Context) error {
-	b.auditLog = nil
+func (d *Dispatcher) AuditClear(ctx context.Context) error {
+	repo := d.brain.Repo()
+	ui := d.brain.UI()
+	if repo == nil || ui == nil {
+		return nil
+	}
+
+	d.brain.ClearAuditEntries()
 	msg := domain.Message{Role: domain.RoleSystem, Content: "Audit log cleared."}
-	b.repo.SaveMessage(ctx, msg)
-	return b.ui.Display(msg)
+	_ = repo.SaveMessage(ctx, msg)
+	return ui.Display(msg)
 }
 
-// logAudit records a tool execution in the audit trail if the tool has an "audit" override.
-func (b *Brain) logAudit(toolName string, args map[string]interface{}, success bool) {
-	if b.policy == nil {
-		return
+// SessionStatus reports current multi-platform session status.
+func (d *Dispatcher) SessionStatus(ctx context.Context) error {
+	repo := d.brain.Repo()
+	ui := d.brain.UI()
+	if repo == nil || ui == nil {
+		return nil
 	}
-	ov, ok := b.policy.Override(toolName)
-	if !ok || ov != OverrideAudit {
-		return
-	}
-	var argStr string
-	if len(args) > 0 {
-		parts := make([]string, 0, len(args))
-		for k, v := range args {
-			parts = append(parts, fmt.Sprintf("%s=%v", k, v))
+
+	sm := d.brain.SessionManager()
+	if sm == nil {
+		msg := domain.Message{
+			Role:    domain.RoleSystem,
+			Content: "Session manager is not configured. Running in default single-session mode.",
 		}
-		argStr = strings.Join(parts, " ")
+		_ = repo.SaveMessage(ctx, msg)
+		return ui.Display(msg)
 	}
-	b.auditLog = append(b.auditLog, AuditEntry{
-		Time:    time.Now(),
-		Tool:    toolName,
-		Args:    argStr,
-		Tier:    string(b.policy.Tier()),
-		Allowed: success,
-	})
+
+	msg := domain.Message{Role: domain.RoleSystem, Content: sm.Status()}
+	_ = repo.SaveMessage(ctx, msg)
+	return ui.Display(msg)
+}
+
+// SessionCommand handles /session subcommands.
+func (d *Dispatcher) SessionCommand(ctx context.Context, arg string) error {
+	repo := d.brain.Repo()
+	ui := d.brain.UI()
+	if repo == nil || ui == nil {
+		return nil
+	}
+
+	sm := d.brain.SessionManager()
+	if sm == nil {
+		msg := domain.Message{
+			Role:    domain.RoleSystem,
+			Content: "Session manager is not configured. Running in default single-session mode.",
+		}
+		_ = repo.SaveMessage(ctx, msg)
+		return ui.Display(msg)
+	}
+
+	arg = strings.ToLower(strings.TrimSpace(arg))
+	switch arg {
+	case "unify":
+		sm.SetMode(core.SessionUnify)
+		msg := domain.Message{Role: domain.RoleSystem, Content: "Session mode set to **unify**. All platforms now share one conversation."}
+		_ = repo.SaveMessage(ctx, msg)
+		return ui.Display(msg)
+	case "isolate":
+		sm.SetMode(core.SessionIsolate)
+		msg := domain.Message{Role: domain.RoleSystem, Content: "Session mode set to **isolate**. Each platform has its own separate conversation."}
+		_ = repo.SaveMessage(ctx, msg)
+		return ui.Display(msg)
+	case "ask":
+		sm.SetMode(core.SessionAsk)
+		msg := domain.Message{Role: domain.RoleSystem, Content: "Session mode set to **ask**. I will ask how to handle new platforms when they message."}
+		_ = repo.SaveMessage(ctx, msg)
+		return ui.Display(msg)
+	default:
+		return d.SessionStatus(ctx)
+	}
 }

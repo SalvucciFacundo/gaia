@@ -10,7 +10,6 @@ import (
 
 	"go.uber.org/goleak"
 
-	"gaia/internal/core"
 	"gaia/internal/gateway"
 	"gaia/internal/mneme"
 )
@@ -75,7 +74,7 @@ type mockBrain struct {
 	mu           sync.Mutex
 	activeConvID string
 	stepCalls    []string
-	repo         core.Repository
+	repo         mneme.Store
 	replyText    string
 }
 

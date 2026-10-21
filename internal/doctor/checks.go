@@ -5,15 +5,17 @@ package doctor
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
 
-	"gaia/internal/adapters/db"
 	"gaia/internal/config"
+	_ "modernc.org/sqlite"
 )
 
 // Status represents the health of a check.
@@ -84,10 +86,18 @@ func CheckLLMProvider(ctx context.Context) CheckResult {
 	}
 }
 
+// defaultDBPath returns the path to the standard GAIA SQLite database.
+func defaultDBPath() string {
+	home, _ := os.UserHomeDir()
+	return filepath.Join(home, ".config", "gaia", "gaia.db")
+}
+
 // CheckDatabase verifies the SQLite database is accessible.
 func CheckDatabase(ctx context.Context) CheckResult {
 	start := time.Now()
-	repo, err := db.NewSQLiteRepo()
+	dbPath := defaultDBPath()
+
+	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		return CheckResult{
 			Name:     "Database",
@@ -96,19 +106,17 @@ func CheckDatabase(ctx context.Context) CheckResult {
 			Duration: time.Since(start),
 		}
 	}
+	defer db.Close()
 
-	// Try a simple query
-	messages, err := repo.GetHistory(ctx, 1)
-	if err != nil {
+	if err := db.PingContext(ctx); err != nil {
 		return CheckResult{
 			Name:     "Database",
 			Status:   StatusWarn,
-			Message:  fmt.Sprintf("Database open but query failed: %v", err),
+			Message:  fmt.Sprintf("Database open but ping failed: %v", err),
 			Duration: time.Since(start),
 		}
 	}
 
-	_ = messages
 	return CheckResult{
 		Name:     "Database",
 		Status:   StatusOK,
@@ -221,8 +229,9 @@ func CheckGoVersion(ctx context.Context) CheckResult {
 // CheckMemory verifies memory/database health (reading history).
 func CheckMemory(ctx context.Context) CheckResult {
 	start := time.Now()
+	dbPath := defaultDBPath()
 
-	repo, err := db.NewSQLiteRepo()
+	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		return CheckResult{
 			Name:     "Memory",
@@ -231,13 +240,14 @@ func CheckMemory(ctx context.Context) CheckResult {
 			Duration: time.Since(start),
 		}
 	}
+	defer db.Close()
 
-	count, err := countMessages(ctx, repo)
+	count, err := countMessages(ctx, db)
 	if err != nil {
 		return CheckResult{
 			Name:     "Memory",
 			Status:   StatusWarn,
-			Message:  fmt.Sprintf("Memory accessible but count failed: %v", err),
+			Message:  fmt.Sprintf("Memory accessible but query failed: %v", err),
 			Duration: time.Since(start),
 		}
 	}
@@ -251,12 +261,16 @@ func CheckMemory(ctx context.Context) CheckResult {
 }
 
 // countMessages returns the number of stored messages.
-func countMessages(ctx context.Context, repo *db.SQLiteRepo) (int, error) {
-	msgs, err := repo.GetHistory(ctx, 10000)
+func countMessages(ctx context.Context, db *sql.DB) (int, error) {
+	var count int
+	err := db.QueryRowContext(ctx, "SELECT COUNT(*) FROM messages").Scan(&count)
 	if err != nil {
+		if strings.Contains(err.Error(), "no such table") {
+			return 0, nil
+		}
 		return 0, err
 	}
-	return len(msgs), nil
+	return count, nil
 }
 
 // RunAll executes all checks sequentially and returns results.
