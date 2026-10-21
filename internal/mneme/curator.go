@@ -46,6 +46,12 @@ func NewCurator(provider Provider, repo Store, logger *slog.Logger) *Curator {
 // observations) so a malformed response never fails the turn; only genuine
 // infrastructure failures (Chat or SaveObservations) return an error.
 func (c *Curator) Nudge(ctx context.Context, convID string, msgs []Message) ([]Observation, error) {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+	}
+
 	resp, err := c.provider.Chat(ctx, ChatRequest{Messages: curationMessages(msgs)})
 	if err != nil {
 		return nil, fmt.Errorf("curator chat: %w", err)
