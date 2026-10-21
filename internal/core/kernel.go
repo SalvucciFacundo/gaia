@@ -325,7 +325,9 @@ func (b *Brain) getHistory(ctx context.Context, limit int) ([]domain.Message, er
 			// GetLastMessages returns newest first
 			for _, m := range recent {
 				if m.Role == domain.RoleSystem && strings.Contains(m.Content, "Compacted conversation") {
-					msgs = append([]domain.Message{m}, history...)
+					msgs = make([]domain.Message, 0, len(history)+1)
+					msgs = append(msgs, m)
+					msgs = append(msgs, history...)
 					foundSummary = true
 					break
 				}
@@ -347,7 +349,9 @@ func (b *Brain) getHistory(ctx context.Context, limit int) ([]domain.Message, er
 			Role:    domain.RoleSystem,
 			Content: fmt.Sprintf("PERSONALITY OVERLAY [%s]:\n%s", strings.ToUpper(personaName), personaOverlay),
 		}
-		msgs = append([]domain.Message{personaMsg}, msgs...)
+		out := make([]domain.Message, 0, len(msgs)+1)
+		out = append(out, personaMsg)
+		msgs = append(out, msgs...)
 	}
 
 	return msgs, nil
@@ -402,37 +406,49 @@ func (b *Brain) StepWithSessionAndAttachments(ctx context.Context, sessionID str
 		}()
 	}
 	if len(attachments) > 0 {
+		var images []domain.ImageContent
 		for _, att := range attachments {
-			if strings.HasPrefix(att.MimeType, "image/") || att.Type == "image" {
-				mime := att.MimeType
-				if mime == "" {
-					mime = "image/jpeg"
-				}
-				data := ""
-				if len(att.Data) > 0 {
-					data = base64.StdEncoding.EncodeToString(att.Data)
-				} else if att.URL != "" {
-					if strings.HasPrefix(att.URL, "data:") {
-						parts := strings.SplitN(att.URL, ",", 2)
-						if len(parts) == 2 {
-							data = parts[1]
-						}
-					} else {
-						data = att.URL
-					}
-				}
-				if data != "" {
-					b.stateMu.Lock()
-					b.pendingImages = append(b.pendingImages, domain.ImageContent{
-						MIMEType: mime,
-						Data:     data,
-					})
-					b.stateMu.Unlock()
-				}
+			if img, ok := parseImageAttachment(att); ok {
+				images = append(images, img)
 			}
+		}
+		if len(images) > 0 {
+			b.stateMu.Lock()
+			b.pendingImages = append(b.pendingImages, images...)
+			b.stateMu.Unlock()
 		}
 	}
 	return b.ProcessMessage(ctx, input)
+}
+
+func parseImageAttachment(att Attachment) (domain.ImageContent, bool) {
+	if !strings.HasPrefix(att.MimeType, "image/") && att.Type != "image" {
+		return domain.ImageContent{}, false
+	}
+	mime := att.MimeType
+	if mime == "" {
+		mime = "image/jpeg"
+	}
+	data := ""
+	if len(att.Data) > 0 {
+		data = base64.StdEncoding.EncodeToString(att.Data)
+	} else if att.URL != "" {
+		if strings.HasPrefix(att.URL, "data:") {
+			parts := strings.SplitN(att.URL, ",", 2)
+			if len(parts) == 2 {
+				data = parts[1]
+			}
+		} else {
+			data = att.URL
+		}
+	}
+	if data == "" {
+		return domain.ImageContent{}, false
+	}
+	return domain.ImageContent{
+		MIMEType: mime,
+		Data:     data,
+	}, true
 }
 
 // StepWithAttachments processes one user turn with attachments.
@@ -505,6 +521,10 @@ func (b *Brain) ProcessMessage(ctx context.Context, content string) error {
 
 	// 3. Iteration loop with budget
 	for iter := 0; iter < b.budget.MaxIterations; iter++ {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+
 		history, err := b.getHistory(ctx, 50)
 		if err != nil {
 			return fmt.Errorf("get history: %w", err)
@@ -658,6 +678,9 @@ func (b *Brain) readStream(ctx context.Context, reader io.Reader) (*domain.Messa
 // checkGoalAfterTurn evaluates goal completion and auto-continues if needed.
 // Called after ProcessMessage completes (not for goal commands themselves).
 func (b *Brain) checkGoalAfterTurn(ctx context.Context) {
+	if ctx.Err() != nil {
+		return
+	}
 	b.stateMu.RLock()
 	goal := b.goal
 	subgoals := b.subgoals
@@ -782,7 +805,7 @@ func (b *Brain) recallKnowledgeGraph(ctx context.Context, text string) []string 
 	}
 
 	result := make([]string, 0, len(facts))
-	seen := make(map[string]bool)
+	seen := make(map[string]bool, len(facts))
 	for _, f := range facts {
 		key := f.Topic + "/" + f.Concept + "/" + f.Fact
 		if seen[key] {
