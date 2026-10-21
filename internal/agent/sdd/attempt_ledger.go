@@ -91,6 +91,12 @@ type AcquireResponse struct {
 // Acquire reserves an attempt execution slot under budget guards.
 // If previous attempts failed, it returns learned insights from the permanent agent's memory.
 func (l *AttemptLedger) Acquire(ctx context.Context, req AcquireRequest) (*AcquireResponse, error) {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+	}
+
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
@@ -191,6 +197,12 @@ type SettleRequest struct {
 
 // Settle finalizes an attempt, checks line budgets, and feeds insights into permanent subagent memory.
 func (l *AttemptLedger) Settle(ctx context.Context, req SettleRequest) (*WorkUnitEntry, error) {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+	}
+
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
