@@ -42,11 +42,9 @@ func (g *ConfirmGuard) ShouldConfirm(toolName string) bool {
 	switch g.mode {
 	case domain.TrustNever:
 		return false
-	case domain.TrustAlways:
-		return true
 	case domain.TrustPerSession:
 		return !g.approved[toolName]
-	case domain.TrustPerAction:
+	case domain.TrustAlways, domain.TrustPerAction:
 		return true
 	default:
 		return true
