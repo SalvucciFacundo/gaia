@@ -156,11 +156,21 @@ func (s *YAMLPolicyStore) Merge(global, project *PolicyConfig) *PolicyConfig {
 	}
 
 	// Build deny rules: global deny rules come first, then project
+	denyCap := 0
 	if global != nil {
-		merged.DenyRules = append(merged.DenyRules, global.DenyRules...)
+		denyCap += len(global.DenyRules)
 	}
 	if project != nil {
-		merged.DenyRules = append(merged.DenyRules, project.DenyRules...)
+		denyCap += len(project.DenyRules)
+	}
+	if denyCap > 0 {
+		merged.DenyRules = make([]string, 0, denyCap)
+		if global != nil {
+			merged.DenyRules = append(merged.DenyRules, global.DenyRules...)
+		}
+		if project != nil {
+			merged.DenyRules = append(merged.DenyRules, project.DenyRules...)
+		}
 	}
 
 	// Build path rules: global first, then project appends/overrides
