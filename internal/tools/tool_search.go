@@ -44,7 +44,13 @@ func (t *ToolSearchRunner) Description() string {
 }
 
 // Run executes the search query and returns matching tool metadata serialized as JSON.
-func (t *ToolSearchRunner) Run(_ context.Context, input string) (string, error) {
+func (t *ToolSearchRunner) Run(ctx context.Context, input string) (string, error) {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return "", err
+		}
+	}
+
 	if t.catalog == nil {
 		return "", errors.New("tool catalog not available")
 	}
