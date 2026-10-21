@@ -64,25 +64,29 @@ var redactionPatterns = []struct {
 	},
 }
 
+// base64Pattern identifies potential encoded high-entropy secrets (>50 chars).
+var base64Pattern = regexp.MustCompile(`[A-Za-z0-9+/=]{50,}`)
+
 // RedactContent scans content for sensitive patterns and replaces them
 // with descriptive placeholders. Returns the redacted content and the
 // count of redactions performed.
 func RedactContent(content string) (string, int) {
+	if content == "" {
+		return "", 0
+	}
+
 	result := content
 	count := 0
 
 	for _, rp := range redactionPatterns {
-		matches := rp.pattern.FindAllString(result, -1)
+		matches := rp.pattern.FindAllStringIndex(result, -1)
 		if len(matches) > 0 {
 			result = rp.pattern.ReplaceAllString(result, rp.replacement)
 			count += len(matches)
 		}
 	}
 
-	// Heuristic: very long base64-looking strings (>50 chars without spaces,
-	// containing both letters and numbers, with typical base64 characters).
-	// This catches encoded credentials that don't match specific patterns.
-	base64Pattern := regexp.MustCompile(`[A-Za-z0-9+/=]{50,}`)
+	// Heuristic: catches encoded credentials with mixed character classes
 	matches := base64Pattern.FindAllString(result, -1)
 	for _, match := range matches {
 		hasUpper := strings.ContainsAny(match, "ABCDEFGHIJKLMNOPQRSTUVWXYZ")
