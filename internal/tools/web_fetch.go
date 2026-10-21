@@ -76,6 +76,12 @@ func parseFetchArgs(input string, defaultMaxBytes int64) (fetchArgs, error) {
 
 // Run fetches the target URL and returns its Markdown or raw content.
 func (r *WebFetchRunner) Run(ctx context.Context, command string) (string, error) {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return "", err
+		}
+	}
+
 	args, err := parseFetchArgs(command, r.defaultMaxBytes)
 	if err != nil {
 		return "", err

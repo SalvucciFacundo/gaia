@@ -77,6 +77,12 @@ func parseSearchArgs(input string) (searchArgs, error) {
 
 // Run executes a web search query with optional JSON parameters.
 func (r *WebSearchRunner) Run(ctx context.Context, command string) (string, error) {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return "", err
+		}
+	}
+
 	args, err := parseSearchArgs(command)
 	if err != nil {
 		return "", err
