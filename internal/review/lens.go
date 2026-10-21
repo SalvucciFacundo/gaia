@@ -36,6 +36,12 @@ func NewLensRisk(llm LensLLM) *LensRisk { return &LensRisk{llm: llm} }
 func (l *LensRisk) Name() string        { return "review-risk" }
 
 func (l *LensRisk) Analyze(ctx context.Context, files []FileSnapshot) ([]domain.ReviewFinding, error) {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+	}
+
 	prompt := l.buildSystemPrompt()
 	userMsg := l.buildUserMessage(files)
 
@@ -73,6 +79,12 @@ func NewLensResilience(llm LensLLM) *LensResilience { return &LensResilience{llm
 func (l *LensResilience) Name() string              { return "review-resilience" }
 
 func (l *LensResilience) Analyze(ctx context.Context, files []FileSnapshot) ([]domain.ReviewFinding, error) {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+	}
+
 	resp, err := l.llm.Chat(ctx, l.buildSystemPrompt(), l.buildUserMessage(files))
 	if err != nil {
 		return nil, fmt.Errorf("lens resilience: %w", err)
@@ -107,6 +119,12 @@ func NewLensReadability(llm LensLLM) *LensReadability { return &LensReadability{
 func (l *LensReadability) Name() string               { return "review-readability" }
 
 func (l *LensReadability) Analyze(ctx context.Context, files []FileSnapshot) ([]domain.ReviewFinding, error) {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+	}
+
 	resp, err := l.llm.Chat(ctx, l.buildSystemPrompt(), l.buildUserMessage(files))
 	if err != nil {
 		return nil, fmt.Errorf("lens readability: %w", err)
@@ -141,6 +159,11 @@ func NewLensReliability(llm LensLLM) *LensReliability { return &LensReliability{
 func (l *LensReliability) Name() string               { return "review-reliability" }
 
 func (l *LensReliability) Analyze(ctx context.Context, files []FileSnapshot) ([]domain.ReviewFinding, error) {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+	}
 	resp, err := l.llm.Chat(ctx, l.buildSystemPrompt(), l.buildUserMessage(files))
 	if err != nil {
 		return nil, fmt.Errorf("lens reliability: %w", err)
