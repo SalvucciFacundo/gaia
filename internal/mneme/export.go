@@ -14,6 +14,12 @@ import (
 // ExportKnowledgeGraph exports knowledge graph facts from a KnowledgeGraphStore
 // to Obsidian-compatible markdown files in exportDir (default: ./gaia-memory-export).
 func ExportKnowledgeGraph(ctx context.Context, kgStore ports.KnowledgeGraphStore, exportPath ...string) (int, string, error) {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return 0, "", err
+		}
+	}
+
 	if kgStore == nil {
 		return 0, "", fmt.Errorf("no knowledge graph store configured")
 	}
@@ -33,6 +39,12 @@ func ExportKnowledgeGraph(ctx context.Context, kgStore ports.KnowledgeGraphStore
 
 	count := 0
 	for _, topic := range topics {
+		if ctx != nil {
+			if err := ctx.Err(); err != nil {
+				return count, exportDir, err
+			}
+		}
+
 		facts, err := kgStore.GetFactsByTopic(ctx, topic)
 		if err != nil {
 			continue
