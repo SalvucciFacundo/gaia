@@ -33,7 +33,13 @@ func NewEphemeralRepository(parent mneme.Store) mneme.Store {
 	}
 }
 
-func (r *ephemeralRepository) CreateConversation(_ context.Context, title string) (*mneme.Conversation, error) {
+func (r *ephemeralRepository) CreateConversation(ctx context.Context, title string) (*mneme.Conversation, error) {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+	}
+
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -50,7 +56,13 @@ func (r *ephemeralRepository) CreateConversation(_ context.Context, title string
 	return conv, nil
 }
 
-func (r *ephemeralRepository) LatestConversation(_ context.Context) (*mneme.Conversation, error) {
+func (r *ephemeralRepository) LatestConversation(ctx context.Context) (*mneme.Conversation, error) {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+	}
+
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -61,7 +73,13 @@ func (r *ephemeralRepository) LatestConversation(_ context.Context) (*mneme.Conv
 	return &c, nil
 }
 
-func (r *ephemeralRepository) AppendMessage(_ context.Context, convID string, msg mneme.Message) error {
+func (r *ephemeralRepository) AppendMessage(ctx context.Context, convID string, msg mneme.Message) error {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+	}
+
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -73,7 +91,13 @@ func (r *ephemeralRepository) AppendMessage(_ context.Context, convID string, ms
 	return nil
 }
 
-func (r *ephemeralRepository) Messages(_ context.Context, convID string, limit int) ([]mneme.Message, error) {
+func (r *ephemeralRepository) Messages(ctx context.Context, convID string, limit int) ([]mneme.Message, error) {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+	}
+
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -121,7 +145,13 @@ func (r *ephemeralRepository) ObservationsByProject(ctx context.Context, project
 	return r.parent.ObservationsByProject(ctx, project, limit)
 }
 
-func (r *ephemeralRepository) UpdateConversationSummary(_ context.Context, convID, summary string) error {
+func (r *ephemeralRepository) UpdateConversationSummary(ctx context.Context, convID, summary string) error {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+	}
+
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -203,7 +233,13 @@ func (r *ephemeralRepository) DeleteSkill(ctx context.Context, name string) erro
 	return r.parent.DeleteSkill(ctx, name)
 }
 
-func (r *ephemeralRepository) ListConversations(_ context.Context, limit, offset int) ([]mneme.Conversation, error) {
+func (r *ephemeralRepository) ListConversations(ctx context.Context, limit, offset int) ([]mneme.Conversation, error) {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+	}
+
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -225,7 +261,13 @@ func (r *ephemeralRepository) ListConversations(_ context.Context, limit, offset
 	return result, nil
 }
 
-func (r *ephemeralRepository) GetConversation(_ context.Context, id string) (*mneme.Conversation, error) {
+func (r *ephemeralRepository) GetConversation(ctx context.Context, id string) (*mneme.Conversation, error) {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+	}
+
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -237,7 +279,13 @@ func (r *ephemeralRepository) GetConversation(_ context.Context, id string) (*mn
 	return &copyVal, nil
 }
 
-func (r *ephemeralRepository) RenameConversation(_ context.Context, id, title string) error {
+func (r *ephemeralRepository) RenameConversation(ctx context.Context, id, title string) error {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+	}
+
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -249,7 +297,13 @@ func (r *ephemeralRepository) RenameConversation(_ context.Context, id, title st
 	return nil
 }
 
-func (r *ephemeralRepository) DeleteConversation(_ context.Context, id string) error {
+func (r *ephemeralRepository) DeleteConversation(ctx context.Context, id string) error {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+	}
+
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -265,7 +319,13 @@ func (r *ephemeralRepository) DeleteConversation(_ context.Context, id string) e
 	return nil
 }
 
-func (r *ephemeralRepository) CreateSnapshot(_ context.Context, convID string) (*mneme.Snapshot, error) {
+func (r *ephemeralRepository) CreateSnapshot(ctx context.Context, convID string) (*mneme.Snapshot, error) {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+	}
+
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -285,7 +345,13 @@ func (r *ephemeralRepository) CreateSnapshot(_ context.Context, convID string) (
 	return &snap, nil
 }
 
-func (r *ephemeralRepository) ListSnapshots(_ context.Context, convID string) ([]mneme.Snapshot, error) {
+func (r *ephemeralRepository) ListSnapshots(ctx context.Context, convID string) ([]mneme.Snapshot, error) {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+	}
+
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
