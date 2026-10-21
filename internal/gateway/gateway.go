@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"sort"
 	"sync"
 
 	"gaia/internal/core/ports"
@@ -57,6 +58,12 @@ func (g *Gateway) Remove(name string) error {
 
 // Start launches all registered adapters with the given message handler.
 func (g *Gateway) Start(ctx context.Context, handler ports.MessageHandler) error {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+	}
+
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
@@ -65,6 +72,12 @@ func (g *Gateway) Start(ctx context.Context, handler ports.MessageHandler) error
 	}
 
 	for name, a := range g.adapters {
+		if ctx != nil {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+		}
+
 		if err := a.Start(ctx, handler); err != nil {
 			return fmt.Errorf("gateway: start adapter %q: %w", name, err)
 		}
@@ -108,7 +121,7 @@ func (g *Gateway) IsRunning() bool {
 	return g.started
 }
 
-// ListAdapters returns the names of all registered adapters.
+// ListAdapters returns the names of all registered adapters sorted alphabetically.
 func (g *Gateway) ListAdapters() []string {
 	g.mu.RLock()
 	defer g.mu.RUnlock()
@@ -117,11 +130,18 @@ func (g *Gateway) ListAdapters() []string {
 	for name := range g.adapters {
 		names = append(names, name)
 	}
+	sort.Strings(names)
 	return names
 }
 
 // Send routes an outgoing message to the specified platform adapter by name.
 func (g *Gateway) Send(ctx context.Context, platform, target, content string) error {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+	}
+
 	g.mu.RLock()
 	defer g.mu.RUnlock()
 
