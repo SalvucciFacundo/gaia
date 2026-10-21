@@ -46,7 +46,13 @@ type LoadToolOutput struct {
 }
 
 // Run looks up the requested tool and returns full schema and parameters confirmation.
-func (l *LoadToolRunner) Run(_ context.Context, input string) (string, error) {
+func (l *LoadToolRunner) Run(ctx context.Context, input string) (string, error) {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return "", err
+		}
+	}
+
 	if l.catalog == nil {
 		return "", errors.New("tool catalog not available")
 	}
