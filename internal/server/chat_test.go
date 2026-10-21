@@ -14,7 +14,7 @@ import (
 
 	"go.uber.org/goleak"
 
-	"gaia/internal/core"
+	"gaia/internal/core/domain"
 	"gaia/internal/server"
 )
 
@@ -25,13 +25,13 @@ type mockBrain struct {
 	delay       time.Duration
 	lastSession string
 	lastPrompt  string
-	lastAtts    []core.Attachment
-	messages    map[string][]core.Message
+	lastAtts    []domain.Attachment
+	messages    map[string][]domain.Message
 }
 
 func newMockBrain() *mockBrain {
 	return &mockBrain{
-		messages: make(map[string][]core.Message),
+		messages: make(map[string][]domain.Message),
 	}
 }
 
@@ -39,7 +39,7 @@ func (m *mockBrain) Step(ctx context.Context, input string) error {
 	return m.StepWithSessionAndAttachments(ctx, "", input, nil, nil)
 }
 
-func (m *mockBrain) StepWithSessionAndAttachments(ctx context.Context, sessionID string, input string, attachments []core.Attachment, sink func(string)) error {
+func (m *mockBrain) StepWithSessionAndAttachments(ctx context.Context, sessionID string, input string, attachments []domain.Attachment, sink func(string)) error {
 	m.mu.Lock()
 	err := m.err
 	events := m.events
@@ -53,8 +53,8 @@ func (m *mockBrain) StepWithSessionAndAttachments(ctx context.Context, sessionID
 		convKey = "conv-default"
 	}
 
-	m.messages[convKey] = append(m.messages[convKey], core.Message{
-		Role:        core.RoleUser,
+	m.messages[convKey] = append(m.messages[convKey], domain.Message{
+		Role:        domain.RoleUser,
 		Content:     input,
 		Attachments: attachments,
 	})
@@ -83,8 +83,8 @@ func (m *mockBrain) StepWithSessionAndAttachments(ctx context.Context, sessionID
 	}
 
 	m.mu.Lock()
-	m.messages[convKey] = append(m.messages[convKey], core.Message{
-		Role:    core.RoleAssistant,
+	m.messages[convKey] = append(m.messages[convKey], domain.Message{
+		Role:    domain.RoleAssistant,
 		Content: replyAccum.String(),
 	})
 	m.mu.Unlock()

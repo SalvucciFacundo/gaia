@@ -11,7 +11,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"gaia/internal/core"
+	"gaia/internal/core/domain"
 )
 
 func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
@@ -177,7 +177,7 @@ func (s *Server) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(resp)
 }
 
-func (s *Server) runBrain(ctx context.Context, sessionID, prompt string, attachments []core.Attachment, sink func(string)) error {
+func (s *Server) runBrain(ctx context.Context, sessionID, prompt string, attachments []domain.Attachment, sink func(string)) error {
 	if s.opts.Brain == nil {
 		return errors.New("no brain engine configured")
 	}
@@ -187,7 +187,7 @@ func (s *Server) runBrain(ctx context.Context, sessionID, prompt string, attachm
 	}
 
 	if br, ok := s.opts.Brain.(interface {
-		StepWithSessionAndAttachments(ctx context.Context, sessionID string, input string, attachments []core.Attachment, sink func(string)) error
+		StepWithSessionAndAttachments(ctx context.Context, sessionID string, input string, attachments []domain.Attachment, sink func(string)) error
 	}); ok {
 		return br.StepWithSessionAndAttachments(ctx, sessionID, prompt, attachments, sink)
 	}
@@ -195,7 +195,7 @@ func (s *Server) runBrain(ctx context.Context, sessionID, prompt string, attachm
 	return s.opts.Brain.Step(ctx, prompt)
 }
 
-func extractPromptAndAttachments(msgs []ChatCompletionMessage) (string, []core.Attachment, error) {
+func extractPromptAndAttachments(msgs []ChatCompletionMessage) (string, []domain.Attachment, error) {
 	for i := len(msgs) - 1; i >= 0; i-- {
 		msg := msgs[i]
 		if strings.EqualFold(msg.Role, "user") || i == len(msgs)-1 {
@@ -204,7 +204,7 @@ func extractPromptAndAttachments(msgs []ChatCompletionMessage) (string, []core.A
 				return c, nil, nil
 			case []any:
 				var textParts []string
-				var attachments []core.Attachment
+				var attachments []domain.Attachment
 				for _, part := range c {
 					if m, ok := part.(map[string]any); ok {
 						if typ, ok := m["type"].(string); ok {
@@ -216,7 +216,7 @@ func extractPromptAndAttachments(msgs []ChatCompletionMessage) (string, []core.A
 							case "image_url":
 								if imgObj, ok := m["image_url"].(map[string]any); ok {
 									if urlStr, ok := imgObj["url"].(string); ok {
-										attachments = append(attachments, core.Attachment{
+										attachments = append(attachments, domain.Attachment{
 											Name:     "image",
 											URL:      urlStr,
 											MimeType: "image/jpeg",

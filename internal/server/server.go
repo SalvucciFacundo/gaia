@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"gaia/internal/core"
+	"gaia/internal/core/domain"
 )
 
 // BrainRunner abstracts the execution engine for OpenAI chat completions.
@@ -20,7 +20,7 @@ type BrainRunner interface {
 
 // BrainSessionRunner extends BrainRunner with session ID, media attachments, and streaming token callback.
 type BrainSessionRunner interface {
-	StepWithSessionAndAttachments(ctx context.Context, sessionID string, input string, attachments []core.Attachment, sink func(string)) error
+	StepWithSessionAndAttachments(ctx context.Context, sessionID string, input string, attachments []domain.Attachment, sink func(string)) error
 }
 
 // Options configures the API server instance.

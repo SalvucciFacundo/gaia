@@ -106,10 +106,16 @@ Cada archivo se evalúa bajo estos 7 vectores clave:
 * [x] `cmd/gaia/gateway.go` (Daemon de gateways y control de ciclo de vida / PID)
 * [x] `cmd/gaia/exec.go`, `review.go`, `policy.go`, etc. (Subcomandos CLI puros sin stubs ni mocks)
 
+### Módulo 9: Servicios Satélite, Perfiles y APIs (`internal/server/`, `internal/session/`, `internal/delivery/`, `internal/profiles/`, `internal/persona/`)
+* [x] `internal/server/*` (API REST OpenAI compatible desacoplada hacia `core/domain`)
+* [x] `internal/session/*` (Manager multicanal thread-safe desacoplado del engine)
+* [x] `internal/delivery/*` (Delivery engine y verificación de recibos CAS sin mocks en prod)
+* [x] `internal/profiles/*` & `internal/persona/*` (Gestión de perfiles, SOUL.md y evolución de prompt)
+
 ---
 
 ## Estado Actual de la Revisión
 
-* **Total de Módulos**: 8 de 8 (100% Completados)
-* **Archivos Clave Auditados**: ~75 archivos principales (100% libres de mocks y acoplamientos indebidos en código productivo)
+* **Total de Módulos**: 9 de 9 (100% Completados)
+* **Archivos Clave Auditados**: ~90 archivos principales (100% libres de mocks y acoplamientos indebidos en código productivo)
 * **Suite de Tests Global**: `go test ./...` pasando al 100% en verde.
