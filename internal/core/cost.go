@@ -5,6 +5,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"gaia/internal/core/domain"
 )
@@ -49,6 +50,9 @@ func NewCostTracker() *CostTracker {
 
 // Record adds a cost entry from a chat call.
 func (c *CostTracker) Record(model string, messages []domain.Message, response *domain.Message) {
+	if c == nil || response == nil {
+		return
+	}
 	inputTok := estimateTokenCount(messages)
 	outputTok := estimateSingleToken(response.Content)
 
@@ -132,7 +136,8 @@ func estimateTokenCount(msgs []domain.Message) int {
 
 // estimateSingleToken estimates tokens in text (char/4 heuristic).
 func estimateSingleToken(text string) int {
-	n := len([]rune(text)) / 4
+	runeCount := utf8.RuneCountInString(text)
+	n := runeCount / 4
 	if n < 1 && len(text) > 0 {
 		return 1
 	}
