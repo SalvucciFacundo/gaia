@@ -3,6 +3,7 @@ package agent
 import (
 	"fmt"
 	"strings"
+	"sync"
 )
 
 // ODDRouteType represents the execution topology selected by Organic Driven Development.
@@ -188,6 +189,7 @@ const (
 
 // MidTurnBudgetTracker monitors in-flight tool calls and resource usage during an inline turn.
 type MidTurnBudgetTracker struct {
+	mu             sync.RWMutex
 	EvidenceCalls  int
 	EvidenceTokens int
 	SequentialRead int
@@ -205,6 +207,8 @@ func NewMidTurnBudgetTracker() *MidTurnBudgetTracker {
 
 // Reset clears in-flight counters (used when a mid-turn delegation fails, preventing busy loops).
 func (t *MidTurnBudgetTracker) Reset() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
 	t.EvidenceCalls = 0
 	t.EvidenceTokens = 0
 	t.SequentialRead = 0
@@ -214,6 +218,9 @@ func (t *MidTurnBudgetTracker) Reset() {
 
 // RecordToolCall updates tracker state based on tool execution.
 func (t *MidTurnBudgetTracker) RecordToolCall(name string, args map[string]interface{}, output string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
 	lowerName := strings.ToLower(name)
 
 	// Approximate token count: chars / 4
@@ -251,6 +258,9 @@ func (t *MidTurnBudgetTracker) RecordToolCall(name string, args map[string]inter
 // CheckDelegationTrigger checks if in-flight thresholds were exceeded.
 // Returns targetRole ("explorer" or "writer"), reason, and true if delegation is required.
 func (t *MidTurnBudgetTracker) CheckDelegationTrigger() (string, string, bool) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+
 	if t.SequentialRead > MaxInlineSequentialRead {
 		return "explorer", fmt.Sprintf("sequential lookups (%d) exceeded budget (> %d)", t.SequentialRead, MaxInlineSequentialRead), true
 	}

@@ -71,3 +71,47 @@ func TestDetectODDRoute_ArchitecturalFeature(t *testing.T) {
 		t.Errorf("expected RouteFeatureTracking for breaking change, got %+v", res)
 	}
 }
+
+func TestMidTurnBudgetTracker_ConcurrencyAndLimits(t *testing.T) {
+	tracker := NewMidTurnBudgetTracker()
+
+	done := make(chan bool)
+
+	// Goroutine 1: Record calls
+	go func() {
+		for i := 0; i < 20; i++ {
+			tracker.RecordToolCall("file_read", map[string]interface{}{"path": "main.go"}, "sample output")
+			tracker.RecordToolCall("file_write", map[string]interface{}{"path": "file1.go"}, "written")
+		}
+		done <- true
+	}()
+
+	// Goroutine 2: Check triggers and reset
+	go func() {
+		for i := 0; i < 20; i++ {
+			_, _, _ = tracker.CheckDelegationTrigger()
+		}
+		done <- true
+	}()
+
+	<-done
+	<-done
+
+	// Verify delegation triggers
+	tracker.Reset()
+	for i := 0; i < MaxInlineSequentialRead+1; i++ {
+		tracker.RecordToolCall("file_read", map[string]interface{}{"path": "test.go"}, "data")
+	}
+	role, _, triggered := tracker.CheckDelegationTrigger()
+	if !triggered || role != "explorer" {
+		t.Fatalf("expected explorer trigger on sequential reads, got role=%s triggered=%v", role, triggered)
+	}
+
+	tracker.Reset()
+	tracker.RecordToolCall("file_write", map[string]interface{}{"path": "a.go"}, "data")
+	tracker.RecordToolCall("file_write", map[string]interface{}{"path": "b.go"}, "data")
+	role, _, triggered = tracker.CheckDelegationTrigger()
+	if !triggered || role != "writer" {
+		t.Fatalf("expected writer trigger on multi-file writes, got role=%s triggered=%v", role, triggered)
+	}
+}
