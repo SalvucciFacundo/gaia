@@ -1,6 +1,7 @@
 package core
 
 import (
+	"sort"
 	"strings"
 )
 
@@ -25,11 +26,11 @@ const (
 
 // CategoryMeta describes a high-level permission category and its blast radius.
 type CategoryMeta struct {
-	ID          PolicyCategoryID `json:"id"`
-	Name        string           `json:"name"`
-	Description string           `json:"description"`
-	BlastRadius string           `json:"blast_radius"`
-	DefaultTools []string        `json:"default_tools"`
+	ID           PolicyCategoryID `json:"id"`
+	Name         string           `json:"name"`
+	Description  string           `json:"description"`
+	BlastRadius  string           `json:"blast_radius"`
+	DefaultTools []string         `json:"default_tools"`
 }
 
 // CategorySummary provides the computed status and tool list of a category for UI rendering.
@@ -113,7 +114,7 @@ func GetCategorySummaries(guard *PolicyGuard, registeredTools []string) []Catego
 
 	for i, cat := range StandardCategories {
 		// Collect tools belonging to this category
-		toolMap := make(map[string]bool)
+		toolMap := make(map[string]bool, len(cat.DefaultTools)+len(registeredTools))
 		for _, t := range cat.DefaultTools {
 			toolMap[t] = true
 		}
@@ -123,12 +124,18 @@ func GetCategorySummaries(guard *PolicyGuard, registeredTools []string) []Catego
 			}
 		}
 
-		var toolStates []ToolState
+		toolNames := make([]string, 0, len(toolMap))
+		for t := range toolMap {
+			toolNames = append(toolNames, t)
+		}
+		sort.Strings(toolNames)
+
+		toolStates := make([]ToolState, 0, len(toolNames))
 		blockCount := 0
 		askCount := 0
 		allowCount := 0
 
-		for t := range toolMap {
+		for _, t := range toolNames {
 			state := evaluateToolSimplifiedState(guard, t)
 			toolStates = append(toolStates, ToolState{
 				Name:  t,
@@ -187,6 +194,8 @@ func SetCategoryState(guard *PolicyGuard, catID PolicyCategoryID, state Simplifi
 		targetOverride = OverrideAskSession
 	case StateBlock:
 		targetOverride = OverrideDeny
+	default:
+		targetOverride = OverrideAskSession
 	}
 
 	for _, tool := range tools {
@@ -208,6 +217,8 @@ func evaluateToolSimplifiedState(guard *PolicyGuard, toolName string) Simplified
 			return StateAsk
 		case OverrideAllow:
 			return StateAllow
+		default:
+			return StateAsk
 		}
 	}
 

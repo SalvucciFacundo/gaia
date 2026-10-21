@@ -74,4 +74,20 @@ func TestPolicyCategories_SetAndGetState(t *testing.T) {
 	if !resAllow.Allowed {
 		t.Errorf("expected shell_exec to be allowed, got %+v", resAllow)
 	}
+
+	// 5. Test with nil guard (defensive safety check)
+	SetCategoryState(nil, CategoryExecution, StateBlock)
+	nilSummaries := GetCategorySummaries(nil, []string{"shell_exec"})
+	if len(nilSummaries) != len(StandardCategories) {
+		t.Fatalf("expected %d summaries with nil guard, got %d", len(StandardCategories), len(nilSummaries))
+	}
+
+	// 6. Test deterministic tool order
+	for _, sum := range nilSummaries {
+		for i := 1; i < len(sum.Tools); i++ {
+			if sum.Tools[i-1].Name > sum.Tools[i].Name {
+				t.Errorf("tools in category %s not sorted: %s > %s", sum.ID, sum.Tools[i-1].Name, sum.Tools[i].Name)
+			}
+		}
+	}
 }
