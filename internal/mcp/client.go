@@ -38,6 +38,12 @@ func NewClient(config domain.MCPServerConfig) *Client {
 
 // Connect starts the MCP server process and performs the initialize handshake.
 func (c *Client) Connect(ctx context.Context) error {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+	}
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -117,6 +123,12 @@ func (c *Client) Connect(ctx context.Context) error {
 
 // DiscoverTools calls tools/list and returns available MCP tools.
 func (c *Client) DiscoverTools(ctx context.Context) ([]MCPTool, error) {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+	}
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -151,6 +163,12 @@ func (c *Client) DiscoverTools(ctx context.Context) ([]MCPTool, error) {
 
 // CallTool invokes a tool on the MCP server.
 func (c *Client) CallTool(ctx context.Context, name string, args map[string]interface{}) (*MCPCallResult, error) {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+	}
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
