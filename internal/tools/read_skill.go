@@ -57,6 +57,12 @@ type ReadSkillOutput struct {
 
 // Run executes the read_skill tool.
 func (r *ReadSkillRunner) Run(ctx context.Context, input string) (string, error) {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return "", err
+		}
+	}
+
 	trimmed := strings.TrimSpace(input)
 	if trimmed == "" {
 		return "", errors.New("skill name is required")
