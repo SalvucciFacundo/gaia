@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 
@@ -215,6 +216,12 @@ func (tm *TaskManager) CancelTask(taskID string) error {
 // WaitTask blocks until the task reaches a terminal state or the context is done.
 // Returns the final TaskState, or an error if the context is cancelled first.
 func (tm *TaskManager) WaitTask(ctx context.Context, taskID string) (*TaskState, error) {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+	}
+
 	// Fast path: check if already terminal under read lock
 	tm.mu.RLock()
 	entry, ok := tm.tasks[taskID]
@@ -289,6 +296,12 @@ func (tm *TaskManager) ListTasks() []TaskState {
 	for _, entry := range tm.tasks {
 		states = append(states, entry.state)
 	}
+	sort.Slice(states, func(i, j int) bool {
+		if states[i].CreatedAt.Equal(states[j].CreatedAt) {
+			return states[i].TaskID < states[j].TaskID
+		}
+		return states[i].CreatedAt.Before(states[j].CreatedAt)
+	})
 	return states
 }
 
