@@ -3,6 +3,7 @@ package core
 import (
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	"gaia/internal/core/domain"
 )
@@ -16,9 +17,6 @@ var modelContextWindows = map[string]int{
 	"claude-opus-4":     200000,
 	"claude-3-5-sonnet": 200000,
 	"claude-3-haiku":    200000,
-	"gemini-2.5-pro":    1000000,
-	"gemini-2.0-flash":  1000000,
-	"gemini-1.5-pro":    2000000,
 	"llama3":            8192,
 	"llama3.1":          128000,
 	"mistral":           8192,
@@ -28,6 +26,12 @@ var modelContextWindows = map[string]int{
 	"deepseek-coder":    16384,
 	"o1":                200000,
 	"o3-mini":           200000,
+}
+
+// ModelContextLimitProvider is an optional interface that LLMProviders can implement
+// to report their model's context window dynamically.
+type ModelContextLimitProvider interface {
+	ContextLimit() int
 }
 
 type UsageCategory struct {
@@ -45,15 +49,24 @@ type UsageStats struct {
 }
 
 func estimateTokens(text string) int {
-	return len([]rune(text)) / 4
+	return utf8.RuneCountInString(text) / 4
 }
 
 func (b *Brain) GetUsageStats(toolNames []string, skills []string, kgFacts []string, history []domain.Message) UsageStats {
+	limit := 0
+	if dynamicProvider, ok := b.provider.(ModelContextLimitProvider); ok {
+		limit = dynamicProvider.ContextLimit()
+	}
+	if limit <= 0 {
+		limit = resolveContextLimit(b.modelName)
+	}
+
 	stats := UsageStats{
 		Provider:     b.providerName,
 		Model:        b.modelName,
-		ContextLimit: resolveContextLimit(b.modelName),
+		ContextLimit: limit,
 		BudgetLimit:  b.budget.MaxIterations,
+		Categories:   make([]UsageCategory, 0, 5),
 	}
 
 	systemTokens := estimateTokens("GAIA programming agent with subagents, tools, and memory")
@@ -79,7 +92,8 @@ func (b *Brain) GetUsageStats(toolNames []string, skills []string, kgFacts []str
 
 	var convTok int
 	for _, msg := range history {
-		convTok += estimateTokens(fmt.Sprintf("%s: %s", msg.Role, msg.Content))
+		// Calculate role and content length directly without fmt.Sprintf string heap allocation
+		convTok += (utf8.RuneCountInString(string(msg.Role)) + 2 + utf8.RuneCountInString(msg.Content)) / 4
 	}
 	stats.Categories = append(stats.Categories, UsageCategory{Label: "Conversation", Tokens: convTok})
 
