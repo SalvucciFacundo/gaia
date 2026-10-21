@@ -29,6 +29,17 @@ func (l *learner) Description() string {
 }
 
 func (l *learner) Execute(ctx context.Context, task domain.SubagentTask) *domain.SubagentResult {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return &domain.SubagentResult{
+				Status:          domain.SubagentBlocked,
+				Summary:         "Learner cancelled before execution: " + err.Error(),
+				NextRecommended: "none",
+				SkillResolution: "none",
+			}
+		}
+	}
+
 	task.AllowedTools = []string{
 		"file_read",
 		"file_list",
