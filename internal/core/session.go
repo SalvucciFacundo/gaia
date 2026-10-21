@@ -97,10 +97,11 @@ func (sm *SessionManager) SetMode(mode SessionMode) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 	sm.mode = mode
-	if mode == SessionUnify {
+	switch mode {
+	case SessionUnify:
 		// In unify mode, clear platform sessions — everything goes to unifiedID
 		sm.platforms = make(map[string]*platformSession)
-	} else if mode == SessionIsolate {
+	case SessionIsolate:
 		// In isolate mode, clear unified — each platform will get its own
 		sm.unifiedID = ""
 	}
@@ -416,13 +417,11 @@ var _ interface{} = (*SessionManager)(nil)
 
 // applyPlatformTier sets the policy tier based on the active platform.
 func (sm *SessionManager) applyPlatformTier(platform string) {
-	if sm.brain == nil || sm.brain.policy == nil {
+	if sm.brain == nil || sm.brain.policy == nil || sm.platformTiers == nil {
 		return
 	}
-	if sm.platformTiers != nil {
-		if tier, ok := sm.platformTiers[platform]; ok {
-			sm.brain.policy.SetTier(tier)
-		}
+	if tier, ok := sm.platformTiers[platform]; ok {
+		sm.brain.policy.SetTier(tier)
 	}
 }
 
