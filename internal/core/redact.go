@@ -2,6 +2,7 @@ package core
 
 import (
 	"regexp"
+	"strings"
 )
 
 // redactPatterns matches sensitive credentials and tokens in tool outputs.
@@ -19,16 +20,37 @@ var redactPatterns = []struct {
 	{regexp.MustCompile(`(?i)(password|passwd|pwd|secret|token|api[_-]?key)\s*[:=]\s*\S+`), "${1}=[REDACTED:SECRET]"},
 }
 
+// base64Pattern identifies potential encoded high-entropy secrets.
+var base64Pattern = regexp.MustCompile(`[A-Za-z0-9+/=]{50,}`)
+
 func redactToolOutput(output string) (string, int) {
+	if output == "" {
+		return "", 0
+	}
+
 	result := output
 	count := 0
 	for _, rp := range redactPatterns {
-		matches := rp.pat.FindAllString(result, -1)
+		matches := rp.pat.FindAllStringIndex(result, -1)
 		if len(matches) > 0 {
 			result = rp.pat.ReplaceAllString(result, rp.replace)
 			count += len(matches)
 		}
 	}
+
+	// Heuristic: catches encoded credentials with mixed character classes
+	matches := base64Pattern.FindAllString(result, -1)
+	for _, match := range matches {
+		hasUpper := strings.ContainsAny(match, "ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+		hasLower := strings.ContainsAny(match, "abcdefghijklmnopqrstuvwxyz")
+		hasDigit := strings.ContainsAny(match, "0123456789")
+		hasSpecial := strings.ContainsAny(match, "+/=")
+		if hasUpper && hasLower && hasDigit && hasSpecial {
+			result = strings.Replace(result, match, "[REDACTED:BASE64]", 1)
+			count++
+		}
+	}
+
 	return result, count
 }
 
