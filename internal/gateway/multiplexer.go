@@ -176,6 +176,12 @@ func (m *Multiplexer) Stop() error {
 
 // Send routes an outbound message to the specified adapter.
 func (m *Multiplexer) Send(ctx context.Context, adapterName string, target string, msg string) error {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+	}
+
 	m.mu.RLock()
 	adapter, ok := m.adapters[adapterName]
 	m.mu.RUnlock()
@@ -208,6 +214,12 @@ func (m *Multiplexer) getSessionLock(sessionKey string) *sync.Mutex {
 
 // HandleEvent processes an inbound message event from any adapter.
 func (m *Multiplexer) HandleEvent(ctx context.Context, ev MessageEvent) error {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+	}
+
 	sessionKey := fmt.Sprintf("gateway:%s:%s", ev.Adapter, ev.ChatID)
 
 	// Serialize turns for the same session to avoid message interleaving
