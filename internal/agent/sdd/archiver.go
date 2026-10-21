@@ -50,6 +50,17 @@ func (a *archiver) Description() string {
 }
 
 func (a *archiver) Execute(ctx context.Context, task domain.SubagentTask) *domain.SubagentResult {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return &domain.SubagentResult{
+				Status:          domain.SubagentBlocked,
+				Summary:         "Archiver cancelled before execution: " + err.Error(),
+				NextRecommended: "none",
+				SkillResolution: "none",
+			}
+		}
+	}
+
 	task.AllowedTools = []string{
 		"file_read",
 		"file_write",
@@ -198,6 +209,11 @@ func extractDeliveryMode(task domain.SubagentTask) delivery.DeliveryMode {
 	return delivery.DeliveryModeInteractive
 }
 
+var (
+	reArchiverAfter  = regexp.MustCompile(`(?i)\b(?:change|changes/)\s+([a-zA-Z0-9_\-]+)`)
+	reArchiverBefore = regexp.MustCompile(`(?i)\b([a-zA-Z0-9_\-]+)\s+change\b`)
+)
+
 func extractChangeName(task domain.SubagentTask) string {
 	for _, text := range append([]string{task.Description}, task.KGContext...) {
 		lines := strings.Split(text, "\n")
@@ -211,16 +227,14 @@ func extractChangeName(task domain.SubagentTask) string {
 				}
 			}
 			// check change <name> (e.g. "archive change auth-models")
-			reAfter := regexp.MustCompile(`(?i)\b(?:change|changes/)\s+([a-zA-Z0-9_\-]+)`)
-			if m := reAfter.FindStringSubmatch(line); len(m) > 1 {
+			if m := reArchiverAfter.FindStringSubmatch(line); len(m) > 1 {
 				candidate := m[1]
 				if !strings.EqualFold(candidate, "directory") && !strings.EqualFold(candidate, "specs") && !strings.EqualFold(candidate, "for") {
 					return candidate
 				}
 			}
 			// check <name> change (e.g. "auth-models change")
-			reBefore := regexp.MustCompile(`(?i)\b([a-zA-Z0-9_\-]+)\s+change\b`)
-			if m := reBefore.FindStringSubmatch(line); len(m) > 1 {
+			if m := reArchiverBefore.FindStringSubmatch(line); len(m) > 1 {
 				candidate := m[1]
 				if !strings.EqualFold(candidate, "completed") && !strings.EqualFold(candidate, "the") && !strings.EqualFold(candidate, "this") && !strings.EqualFold(candidate, "active") && !strings.EqualFold(candidate, "an") {
 					return candidate
