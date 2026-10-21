@@ -53,6 +53,12 @@ func (jd *JudgmentDay) SetMaxRounds(n int) {
 // Run executes the full Judgment Day protocol: judge-a → judge-b → compare → fix → re-judge.
 // It advances through the review state machine and returns merged findings with approval status.
 func (jd *JudgmentDay) Run(ctx context.Context, tx *review.Transaction) (*JudgmentResult, error) {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+	}
+
 	startedAt := time.Now()
 	result := &JudgmentResult{StartedAt: startedAt}
 
@@ -72,6 +78,12 @@ func (jd *JudgmentDay) Run(ctx context.Context, tx *review.Transaction) (*Judgme
 	}
 
 	for round := 1; round <= jd.maxRounds; round++ {
+		if ctx != nil {
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
+		}
+
 		result.Rounds = round
 
 		// Phase 1: Blind judge analysis.
