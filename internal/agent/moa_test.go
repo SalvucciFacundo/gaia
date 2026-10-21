@@ -128,3 +128,19 @@ func TestMoARunner_SynthesisFailureFallback(t *testing.T) {
 		t.Fatalf("expected fallback to first available response, got: %v", res)
 	}
 }
+
+func TestMoARunner_ContextCancelled(t *testing.T) {
+	primary := &mockLLMProvider{name: "primary", response: "ok"}
+	providers := map[string]ports.LLMProvider{
+		"modelA": &mockLLMProvider{name: "modelA", response: "ok"},
+	}
+
+	runner := NewOneShotMoARunner(primary, providers, 1*time.Second)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := runner.Run(ctx, []domain.Message{{Role: domain.RoleUser, Content: "hi"}})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected context.Canceled, got %v", err)
+	}
+}

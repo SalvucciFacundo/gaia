@@ -97,6 +97,12 @@ func NewOneShotMoARunner(primary ports.LLMProvider, moaProviders map[string]port
 // 2. Collects all responses (with timeout)
 // 3. Synthesizes them into a single response via the primary model
 func (m *MoARunner) Run(ctx context.Context, messages []domain.Message) (*domain.Message, error) {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+	}
+
 	if m == nil || len(m.moaModels) == 0 {
 		return nil, nil
 	}
@@ -134,7 +140,7 @@ func (m *MoARunner) Run(ctx context.Context, messages []domain.Message) (*domain
 	}()
 
 	// 2. Collect responses
-	var responses []moaResult
+	responses := make([]moaResult, 0, len(m.moaModels))
 	for r := range results {
 		if r.Err == nil && r.Msg != nil {
 			responses = append(responses, r)
@@ -146,8 +152,9 @@ func (m *MoARunner) Run(ctx context.Context, messages []domain.Message) (*domain
 	}
 
 	if len(responses) == 1 {
-		responses[0].Msg.Role = domain.RoleAssistant
-		return responses[0].Msg, nil
+		msgCopy := *responses[0].Msg
+		msgCopy.Role = domain.RoleAssistant
+		return &msgCopy, nil
 	}
 
 	// 3. Synthesize: build a prompt with all responses and ask the synthesizer to merge
@@ -173,8 +180,9 @@ func (m *MoARunner) Run(ctx context.Context, messages []domain.Message) (*domain
 	}, *synthMsg})
 	if err != nil {
 		// Synthesis failed — return the first MoA response as fallback
-		responses[0].Msg.Role = domain.RoleAssistant
-		return responses[0].Msg, nil
+		msgCopy := *responses[0].Msg
+		msgCopy.Role = domain.RoleAssistant
+		return &msgCopy, nil
 	}
 
 	synthResp.Role = domain.RoleAssistant
