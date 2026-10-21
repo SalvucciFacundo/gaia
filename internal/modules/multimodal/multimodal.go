@@ -72,6 +72,10 @@ func (m *Module) GetTools() []domain.ToolCall {
 
 // Execute handles the inspect_media tool invocation.
 func (m *Module) Execute(ctx context.Context, name string, args map[string]interface{}) (*domain.ToolResult, error) {
+	if err := ctx.Err(); err != nil {
+		return renderErrorJSON("", err.Error())
+	}
+
 	if name != "inspect_media" {
 		return nil, fmt.Errorf("unknown tool: %s", name)
 	}
@@ -92,7 +96,7 @@ func (m *Module) Execute(ctx context.Context, name string, args map[string]inter
 	}
 
 	// 1. Read/download media asset bytes
-	bytesData, mimeType, err := loadMediaAsset(mediaPath, mediaType)
+	bytesData, mimeType, err := loadMediaAsset(ctx, mediaPath, mediaType)
 	if err != nil {
 		return renderErrorJSON(mediaType, fmt.Sprintf("failed to load media asset: %v", err))
 	}
@@ -160,14 +164,19 @@ func (m *Module) Execute(ctx context.Context, name string, args map[string]inter
 	}, nil
 }
 
-func loadMediaAsset(pathStr, mediaType string) ([]byte, string, error) {
+func loadMediaAsset(ctx context.Context, pathStr, mediaType string) ([]byte, string, error) {
 	if strings.HasPrefix(pathStr, "http://") || strings.HasPrefix(pathStr, "https://") {
-		resp, err := http.Get(pathStr)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, pathStr, nil)
+		if err != nil {
+			return nil, "", err
+		}
+		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			return nil, "", err
 		}
 		defer resp.Body.Close()
-		data, err := io.ReadAll(resp.Body)
+		// Limit download size to 25MB to prevent memory exhaustion
+		data, err := io.ReadAll(io.LimitReader(resp.Body, 25<<20))
 		if err != nil {
 			return nil, "", err
 		}
