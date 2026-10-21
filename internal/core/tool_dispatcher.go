@@ -106,33 +106,31 @@ func (b *Brain) handleToolCalls(ctx context.Context, msg *domain.Message) error 
 						items[i].errMsg = fmt.Sprintf("Policy denied: %s (reason: %s). Try an alternative tool.", tc.Name, result.Reason)
 						i++
 						continue
-					default:
-						if result.SuggestedAction == "ask_user" {
-							b.stateMu.Lock()
-							b.pendingConfirm = tc.Name
-							b.stateMu.Unlock()
+					case "ask_user":
+						b.stateMu.Lock()
+						b.pendingConfirm = tc.Name
+						b.stateMu.Unlock()
 
-							confirmed, err := b.ui.PromptConfirmation(fmt.Sprintf(
-								"Policy blocks %s (reason: %s). Allow anyway?",
-								tc.Name, result.Reason))
+						confirmed, err := b.ui.PromptConfirmation(fmt.Sprintf(
+							"Policy blocks %s (reason: %s). Allow anyway?",
+							tc.Name, result.Reason))
 
-							b.stateMu.Lock()
-							b.pendingConfirm = ""
-							b.stateMu.Unlock()
+						b.stateMu.Lock()
+						b.pendingConfirm = ""
+						b.stateMu.Unlock()
 
-							if err != nil || !confirmed {
-								items[i].denied = true
-								items[i].errMsg = fmt.Sprintf("User denied policy-blocked tool %s.", tc.Name)
-								i++
-								continue
-							}
-							b.policy.Session().ApproveSession(tc.Name)
-						} else {
+						if err != nil || !confirmed {
 							items[i].denied = true
-							items[i].errMsg = fmt.Sprintf("Policy blocked: %s (reason: %s)", tc.Name, result.Reason)
+							items[i].errMsg = fmt.Sprintf("User denied policy-blocked tool %s.", tc.Name)
 							i++
 							continue
 						}
+						b.policy.Session().ApproveSession(tc.Name)
+					default:
+						items[i].denied = true
+						items[i].errMsg = fmt.Sprintf("Policy blocked: %s (reason: %s)", tc.Name, result.Reason)
+						i++
+						continue
 					}
 				}
 			}
@@ -241,7 +239,7 @@ func (b *Brain) handleToolCalls(ctx context.Context, msg *domain.Message) error 
 		}
 
 		if len(modifiedPaths) > 0 {
-			var paths []string
+			paths := make([]string, 0, len(modifiedPaths))
 			for path := range modifiedPaths {
 				paths = append(paths, path)
 			}
