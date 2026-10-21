@@ -38,11 +38,15 @@ func (b *Brain) SetCompactedTo(n int) {
 
 // ProviderName returns the active LLM provider name.
 func (b *Brain) ProviderName() string {
+	b.stateMu.RLock()
+	defer b.stateMu.RUnlock()
 	return b.providerName
 }
 
 // ModelName returns the active LLM model name.
 func (b *Brain) ModelName() string {
+	b.stateMu.RLock()
+	defer b.stateMu.RUnlock()
 	return b.modelName
 }
 
@@ -51,18 +55,39 @@ func (b *Brain) CostTracker() *CostTracker {
 	return b.costTracker
 }
 
-// AvailableProviders returns configured alternative providers.
+// AvailableProviders returns a copy of configured alternative providers.
 func (b *Brain) AvailableProviders() map[string]ports.LLMProvider {
-	return b.availableProviders
+	b.stateMu.RLock()
+	defer b.stateMu.RUnlock()
+	if b.availableProviders == nil {
+		return nil
+	}
+	providers := make(map[string]ports.LLMProvider, len(b.availableProviders))
+	for k, v := range b.availableProviders {
+		providers[k] = v
+	}
+	return providers
 }
 
 // SetAvailableProviders configures alternative providers for runtime switching.
 func (b *Brain) SetAvailableProviders(providers map[string]ports.LLMProvider) {
-	b.availableProviders = providers
+	b.stateMu.Lock()
+	defer b.stateMu.Unlock()
+	if providers == nil {
+		b.availableProviders = nil
+		return
+	}
+	copied := make(map[string]ports.LLMProvider, len(providers))
+	for k, v := range providers {
+		copied[k] = v
+	}
+	b.availableProviders = copied
 }
 
 // SetActiveProvider switches the primary LLM provider in runtime.
 func (b *Brain) SetActiveProvider(name string, p ports.LLMProvider) {
+	b.stateMu.Lock()
+	defer b.stateMu.Unlock()
 	b.provider = p
 	b.providerName = name
 }
@@ -260,11 +285,15 @@ func (b *Brain) SkillMatcher() func(string, []string) []string {
 
 // SetMCPManager wires an MCP connection manager into the Brain.
 func (b *Brain) SetMCPManager(mgr ports.MCPManager) {
+	b.stateMu.Lock()
+	defer b.stateMu.Unlock()
 	b.mcpMgr = mgr
 }
 
 // MCPManager returns the MCP manager, if wired.
 func (b *Brain) MCPManager() ports.MCPManager {
+	b.stateMu.RLock()
+	defer b.stateMu.RUnlock()
 	return b.mcpMgr
 }
 
