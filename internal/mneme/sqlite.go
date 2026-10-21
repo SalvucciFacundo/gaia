@@ -202,7 +202,11 @@ func (r *Repository) Messages(ctx context.Context, convID string, limit int) ([]
 	}
 	defer rows.Close()
 
-	msgs := []Message{}
+	capacity := 0
+	if limit > 0 {
+		capacity = limit
+	}
+	msgs := make([]Message, 0, capacity)
 	for rows.Next() {
 		m, err := scanMessage(rows)
 		if err != nil {
@@ -446,7 +450,11 @@ func (r *Repository) Observations(ctx context.Context, limit int) ([]Observation
 	}
 	defer rows.Close()
 
-	obs := []Observation{}
+	capacity := 0
+	if limit > 0 {
+		capacity = limit
+	}
+	obs := make([]Observation, 0, capacity)
 	for rows.Next() {
 		o, err := scanObservation(rows)
 		if err != nil {
@@ -478,7 +486,11 @@ func (r *Repository) ObservationsByProject(ctx context.Context, project string, 
 	}
 	defer rows.Close()
 
-	obs := []Observation{}
+	capacity := 0
+	if limit > 0 {
+		capacity = limit
+	}
+	obs := make([]Observation, 0, capacity)
 	for rows.Next() {
 		o, err := scanObservation(rows)
 		if err != nil {
