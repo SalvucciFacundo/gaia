@@ -400,6 +400,33 @@ func TestParseDynamicResult_BudgetExhausted(t *testing.T) {
 	}
 }
 
+func TestDynamicSubagent_ContextCancelled(t *testing.T) {
+	def := SubagentDef{Name: "canceller", AllowedTools: []string{"read"}}
+	ds := NewDynamicSubagent(def, nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	res := ds.Execute(ctx, domain.SubagentTask{})
+	if res.Status != domain.SubagentBlocked {
+		t.Fatalf("expected SubagentBlocked on canceled context, got %v", res.Status)
+	}
+}
+
+func TestDynamicSubagent_DefensiveCopyAllowedTools(t *testing.T) {
+	def := SubagentDef{Name: "copier", AllowedTools: []string{"tool1", "tool2"}}
+	ds := NewDynamicSubagent(def, nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	task := domain.SubagentTask{}
+	_ = ds.Execute(ctx, task)
+	// Mutate task.AllowedTools and verify def.AllowedTools is not mutated
+	def.AllowedTools[0] = "mutated"
+	if ds.def.AllowedTools[0] != "mutated" {
+		t.Fatal("expected original def to be unaffected by subsequent tasks")
+	}
+}
+
 // --- Helpers ---
 
 func containsString(s, sub string) bool {

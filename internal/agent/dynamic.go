@@ -58,6 +58,18 @@ const MaxDelegationDepth = 10
 // from the definition and assembles a system prompt from def.SystemPrompt
 // and def.Personality. It delegates the agent loop to Spawner.RunLoop().
 func (d *DynamicSubagent) Execute(ctx context.Context, task domain.SubagentTask) *domain.SubagentResult {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return &domain.SubagentResult{
+				Status:          domain.SubagentBlocked,
+				Summary:         fmt.Sprintf("Dynamic subagent %q canceled: %v", d.def.Name, err),
+				NextRecommended: "none",
+				SkillResolution: "none",
+				Error:           err.Error(),
+			}
+		}
+	}
+
 	if task.Depth >= MaxDelegationDepth {
 		return &domain.SubagentResult{
 			Status:          domain.SubagentBlocked,
@@ -67,11 +79,19 @@ func (d *DynamicSubagent) Execute(ctx context.Context, task domain.SubagentTask)
 		}
 	}
 
-	task.AllowedTools = d.def.AllowedTools
+	if len(d.def.AllowedTools) > 0 {
+		tools := make([]string, len(d.def.AllowedTools))
+		copy(tools, d.def.AllowedTools)
+		task.AllowedTools = tools
+	} else {
+		task.AllowedTools = nil
+	}
 
 	var nsInstr string
-	if ns := d.spawner.Namespace(); ns != nil {
-		nsInstr = ns.DynamicSaveInstructions(d.def.Name)
+	if d.spawner != nil {
+		if ns := d.spawner.Namespace(); ns != nil {
+			nsInstr = ns.DynamicSaveInstructions(d.def.Name)
+		}
 	}
 
 	prompt := buildDynamicPrompt(d.def, task, nsInstr)
@@ -121,6 +141,12 @@ func (dl *DynamicLoader) SetValidator(v ToolValidator) {
 // LoadAll loads all persisted SubagentDefs and registers them in the Registry.
 // Called once at startup.
 func (dl *DynamicLoader) LoadAll(ctx context.Context) error {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+	}
+
 	defs, err := dl.repo.ListDefs(ctx)
 	if err != nil {
 		return fmt.Errorf("list dynamic subagent defs: %w", err)
@@ -138,6 +164,12 @@ func (dl *DynamicLoader) LoadAll(ctx context.Context) error {
 // CreateFromDef persists a SubagentDef and registers the subagent in the Registry.
 // It validates the AllowedTools before persisting.
 func (dl *DynamicLoader) CreateFromDef(ctx context.Context, def SubagentDef) error {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+	}
+
 	// Validate allowed tools
 	if dl.validator != nil {
 		if err := dl.validator(def.AllowedTools); err != nil {
