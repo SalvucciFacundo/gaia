@@ -35,6 +35,12 @@ func (b *Brain) populateSkillRegistry(task *domain.SubagentTask) {
 // to the shared knowledge graph for cross-pollination.
 // Returns ErrSubagentPortNotWired if no subagent port is wired.
 func (b *Brain) Delegate(ctx context.Context, name string, task domain.SubagentTask) (*domain.SubagentResult, error) {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+	}
+
 	if b.subagentPort == nil {
 		return nil, ErrSubagentPortNotWired
 	}
@@ -66,6 +72,12 @@ func (b *Brain) HandleDirectSubagent(ctx context.Context, content string) error 
 // the available subagent list. Uses SpawnAsync when available, falls back to
 // synchronous Spawn.
 func (b *Brain) handleDirectSubagent(ctx context.Context, content string) error {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+	}
+
 	// Parse: @name rests of message
 	trimmed := strings.TrimPrefix(content, "@")
 	parts := strings.SplitN(trimmed, " ", 2)
@@ -85,6 +97,9 @@ func (b *Brain) handleDirectSubagent(ctx context.Context, content string) error 
 		}
 	}
 	if !found {
+		if b.ui == nil {
+			return fmt.Errorf("unknown subagent: @%s (available: %s)", name, strings.Join(available, ", "))
+		}
 		errMsg := &domain.Message{
 			Role:    domain.RoleAssistant,
 			Content: fmt.Sprintf("Unknown subagent: @%s\nAvailable: %s", name, strings.Join(available, ", ")),
@@ -106,26 +121,42 @@ func (b *Brain) handleDirectSubagent(ctx context.Context, content string) error 
 		b.populateSkillRegistry(&task)
 		taskID, err := asyncPort.SpawnAsync(ctx, name, task)
 		if err != nil {
+			if b.ui == nil {
+				return fmt.Errorf("spawn async @%s: %w", name, err)
+			}
 			return b.ui.Display(domain.Message{
 				Role:    domain.RoleAssistant,
 				Content: fmt.Sprintf("Error spawning @%s: %v", name, err),
 			})
 		}
+		shortID := taskID
+		if len(shortID) > 8 {
+			shortID = shortID[:8]
+		}
+		if b.ui == nil {
+			return nil
+		}
 		return b.ui.Display(domain.Message{
 			Role:    domain.RoleAssistant,
-			Content: fmt.Sprintf("Dispatched to @%s (task %s)", name, taskID[:8]),
+			Content: fmt.Sprintf("Dispatched to @%s (task %s)", name, shortID),
 		})
 	}
 
 	// Fall back to synchronous spawn
 	result, err := b.Delegate(ctx, name, task)
 	if err != nil {
+		if b.ui == nil {
+			return fmt.Errorf("delegate @%s: %w", name, err)
+		}
 		return b.ui.Display(domain.Message{
 			Role:    domain.RoleAssistant,
 			Content: fmt.Sprintf("Error running @%s: %v", name, err),
 		})
 	}
 
+	if b.ui == nil {
+		return nil
+	}
 	return b.ui.Display(domain.Message{
 		Role:    domain.RoleAssistant,
 		Content: fmt.Sprintf("[@%s] %s: %s", name, result.Status, result.Summary),
