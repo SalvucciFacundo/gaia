@@ -27,6 +27,12 @@ var migrationsFS embed.FS
 // and journal_mode are set here rather than in a migration because they are
 // no-ops inside a transaction and must be active before any DML runs.
 func configureDB(ctx context.Context, db *sql.DB) error {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+	}
+
 	if _, err := db.ExecContext(ctx, "PRAGMA foreign_keys = ON"); err != nil {
 		return fmt.Errorf("enabling foreign keys: %w", err)
 	}
@@ -63,6 +69,12 @@ func applyMigrations(ctx context.Context, db *sql.DB) error {
 	}
 
 	for _, m := range migs {
+		if ctx != nil {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+		}
+
 		if m.version <= current {
 			continue
 		}
