@@ -21,9 +21,20 @@ func NewProposer(spawner *agent.Spawner) agent.Subagent {
 }
 
 func (p *proposer) Name() string        { return "proposer" }
-func (p *proposer) Description() string { return "Creates SDD change proposals (read + Engram)" }
+func (p *proposer) Description() string { return "Creates SDD change proposals (read + Mneme)" }
 
 func (p *proposer) Execute(ctx context.Context, task domain.SubagentTask) *domain.SubagentResult {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return &domain.SubagentResult{
+				Status:          domain.SubagentBlocked,
+				Summary:         "Proposer cancelled before execution: " + err.Error(),
+				NextRecommended: "none",
+				SkillResolution: "none",
+			}
+		}
+	}
+
 	task.AllowedTools = []string{
 		"file_read",
 		"file_list",
