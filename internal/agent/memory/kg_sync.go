@@ -32,6 +32,12 @@ func NewKnowledgeSync(store ports.KnowledgeGraphStore, repo ports.Repository) *K
 // RecordSubagentResult extracts cross-domain discoveries from a subagent result
 // and saves them to the shared knowledge graph.
 func (s *KnowledgeSync) RecordSubagentResult(ctx context.Context, name, description string, result *domain.SubagentResult) {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return
+		}
+	}
+
 	if s.store == nil || result == nil {
 		return
 	}
@@ -140,6 +146,12 @@ func (s *KnowledgeSync) RecordSubagentResult(ctx context.Context, name, descript
 // RecordToolExecution records direct inline tool mutations (file writes, git commits, configuration changes)
 // into the knowledge graph so direct parent decisions and actions are not lost during compactions or session restarts.
 func (s *KnowledgeSync) RecordToolExecution(ctx context.Context, toolName string, args map[string]interface{}, result *domain.ToolResult) {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return
+		}
+	}
+
 	if s.store == nil || result == nil || !result.Success {
 		return
 	}
@@ -200,6 +212,12 @@ func (s *KnowledgeSync) RecordToolExecution(ctx context.Context, toolName string
 
 // RecordResponseFacts analyzes a response and extracts key facts to store in the knowledge graph.
 func (s *KnowledgeSync) RecordResponseFacts(ctx context.Context, response string) {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return
+		}
+	}
+
 	if s.store == nil {
 		return
 	}
