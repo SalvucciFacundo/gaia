@@ -95,6 +95,12 @@ func (s *Spawner) Blackboard() *blackboard.Blackboard {
 //
 // If SpawnerConfig.TaskManager is nil, returns an error — async mode is disabled.
 func (s *Spawner) SpawnAsync(ctx context.Context, name string, task domain.SubagentTask) (string, error) {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return "", err
+		}
+	}
+
 	if s.cfg.TaskManager == nil {
 		return "", fmt.Errorf("async spawning is disabled: TaskManager not configured")
 	}
@@ -149,6 +155,12 @@ func (s *Spawner) SpawnAsync(ctx context.Context, name string, task domain.Subag
 // and returns the structured result. It also records the execution in
 // the learning loop for nudge detection.
 func (s *Spawner) Spawn(ctx context.Context, name string, task domain.SubagentTask) (*domain.SubagentResult, error) {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+	}
+
 	factory, ok := s.registry.Get(name)
 	if !ok {
 		return nil, fmt.Errorf("unknown subagent: %s", name)
@@ -201,6 +213,12 @@ func (s *Spawner) Available() []string {
 // a single provider call. Subsequent iterations (tool call loops) always
 // use the single provider for consistency.
 func (s *Spawner) RunLoop(ctx context.Context, task domain.SubagentTask, systemPrompt string) (*domain.Message, error) {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+	}
+
 	filtered := s.cfg.Tools.Filtered(task.AllowedTools)
 
 	if len(task.SkillPaths) > 0 {
