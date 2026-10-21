@@ -2,13 +2,17 @@ package gates
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"os/exec"
 	"strings"
+	"time"
 
 	"gaia/internal/core/domain"
 )
+
+const gitCommandTimeout = 5 * time.Second
 
 // CASReceiptStore implements ReceiptStore by storing review receipts as immutable
 // Git objects (blobs and refs) when inside a Git repository, with an automatic
@@ -31,7 +35,10 @@ func NewCASReceiptStore(projectRoot string) *CASReceiptStore {
 
 // isGitRepo checks whether projectRoot is part of an active Git worktree.
 func (s *CASReceiptStore) isGitRepo() bool {
-	cmd := exec.Command("git", "rev-parse", "--is-inside-work-tree")
+	ctx, cancel := context.WithTimeout(context.Background(), gitCommandTimeout)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "git", "rev-parse", "--is-inside-work-tree")
 	cmd.Dir = s.projectRoot
 	out, err := cmd.Output()
 	if err != nil {
@@ -72,7 +79,9 @@ func (s *CASReceiptStore) SaveReceipt(receipt *domain.ReviewReceipt, changeName 
 	}
 
 	// 2. Write blob into Git Object Database (CAS): git hash-object -w --stdin
-	hashCmd := exec.Command("git", "hash-object", "-w", "--stdin")
+	ctxHash, cancelHash := context.WithTimeout(context.Background(), gitCommandTimeout)
+	defer cancelHash()
+	hashCmd := exec.CommandContext(ctxHash, "git", "hash-object", "-w", "--stdin")
 	hashCmd.Dir = s.projectRoot
 	hashCmd.Stdin = bytes.NewReader(data)
 	var hashOut, hashErr bytes.Buffer
@@ -86,7 +95,9 @@ func (s *CASReceiptStore) SaveReceipt(receipt *domain.ReviewReceipt, changeName 
 
 	// 3. Update Git ref: refs/gaia-reviews/<changeName> -> blobSHA
 	refName := fmt.Sprintf("refs/gaia-reviews/%s", sanitizeRefName(changeName))
-	updateCmd := exec.Command("git", "update-ref", refName, blobSHA)
+	ctxUpdate, cancelUpdate := context.WithTimeout(context.Background(), gitCommandTimeout)
+	defer cancelUpdate()
+	updateCmd := exec.CommandContext(ctxUpdate, "git", "update-ref", refName, blobSHA)
 	updateCmd.Dir = s.projectRoot
 	_ = updateCmd.Run()
 
@@ -102,7 +113,9 @@ func (s *CASReceiptStore) LatestReceipt(changeName string) (*domain.ReviewReceip
 
 	// 1. Check Git ref: git rev-parse refs/gaia-reviews/<changeName>
 	refName := fmt.Sprintf("refs/gaia-reviews/%s", sanitizeRefName(changeName))
-	revCmd := exec.Command("git", "rev-parse", refName)
+	ctxRev, cancelRev := context.WithTimeout(context.Background(), gitCommandTimeout)
+	defer cancelRev()
+	revCmd := exec.CommandContext(ctxRev, "git", "rev-parse", refName)
 	revCmd.Dir = s.projectRoot
 	out, err := revCmd.Output()
 	if err != nil {
@@ -112,7 +125,9 @@ func (s *CASReceiptStore) LatestReceipt(changeName string) (*domain.ReviewReceip
 	blobSHA := strings.TrimSpace(string(out))
 
 	// 2. Read object from Git CAS: git cat-file -p <blobSHA>
-	catCmd := exec.Command("git", "cat-file", "-p", blobSHA)
+	ctxCat, cancelCat := context.WithTimeout(context.Background(), gitCommandTimeout)
+	defer cancelCat()
+	catCmd := exec.CommandContext(ctxCat, "git", "cat-file", "-p", blobSHA)
 	catCmd.Dir = s.projectRoot
 	blobData, err := catCmd.Output()
 	if err != nil {
@@ -134,7 +149,9 @@ func (s *CASReceiptStore) ListReceipts() ([]ReceiptSummary, error) {
 	}
 
 	// List refs matching refs/gaia-reviews/*
-	cmd := exec.Command("git", "for-each-ref", "--format=%(refname:short)|%(objectname)", "refs/gaia-reviews")
+	ctxList, cancelList := context.WithTimeout(context.Background(), gitCommandTimeout)
+	defer cancelList()
+	cmd := exec.CommandContext(ctxList, "git", "for-each-ref", "--format=%(refname:short)|%(objectname)", "refs/gaia-reviews")
 	cmd.Dir = s.projectRoot
 	out, err := cmd.Output()
 	if err != nil || len(out) == 0 {
@@ -155,9 +172,11 @@ func (s *CASReceiptStore) ListReceipts() ([]ReceiptSummary, error) {
 		changeName := strings.TrimPrefix(refShort, "refs/gaia-reviews/")
 		changeName = strings.TrimPrefix(changeName, "gaia-reviews/")
 
-		catCmd := exec.Command("git", "cat-file", "-p", blobSHA)
+		ctxCat, cancelCat := context.WithTimeout(context.Background(), gitCommandTimeout)
+		catCmd := exec.CommandContext(ctxCat, "git", "cat-file", "-p", blobSHA)
 		catCmd.Dir = s.projectRoot
 		blobData, catErr := catCmd.Output()
+		cancelCat()
 		if catErr != nil {
 			continue
 		}
