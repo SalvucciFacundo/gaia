@@ -27,6 +27,17 @@ func (e *explorer) Description() string {
 }
 
 func (e *explorer) Execute(ctx context.Context, task domain.SubagentTask) *domain.SubagentResult {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return &domain.SubagentResult{
+				Status:          domain.SubagentBlocked,
+				Summary:         "Explorer cancelled before execution: " + err.Error(),
+				NextRecommended: "none",
+				SkillResolution: "none",
+			}
+		}
+	}
+
 	// Enforce read-only tool filter at the task level so the Spawner's
 	// ToolRegistry.Filtered() has an authoritative list.
 	task.AllowedTools = []string{
