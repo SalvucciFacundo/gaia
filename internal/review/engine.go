@@ -68,6 +68,12 @@ func (e *Engine) Start(files []string) (*Transaction, error) {
 // StartWithChangeName initiates a review for the given files under an explicit change name.
 // It snapshots the files, creates a transaction, and sets the state to "reviewing".
 func (e *Engine) StartWithChangeName(ctx context.Context, changeName string, files []string) (*Transaction, error) {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+	}
+
 	snapshots, err := SnapshotFiles(e.projectRoot, files)
 	if err != nil {
 		return nil, fmt.Errorf("start review: %w", err)
@@ -120,6 +126,12 @@ func (e *Engine) listReviewFiles() []string {
 // Each lens returns classified findings which are accumulated. The
 // transaction state is advanced to findings_frozen after all lenses complete.
 func (e *Engine) RunLenses(ctx context.Context, tx *Transaction, lensNames []string) ([]domain.ReviewFinding, error) {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+	}
+
 	if err := Transition(tx.State, StateFindingsFrozen); err != nil {
 		return nil, fmt.Errorf("run lenses: %w", err)
 	}
@@ -132,6 +144,12 @@ func (e *Engine) RunLenses(ctx context.Context, tx *Transaction, lensNames []str
 
 	var allFindings []domain.ReviewFinding
 	for _, name := range lensNames {
+		if ctx != nil {
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
+		}
+
 		lens := e.createLens(name)
 		if lens == nil {
 			return nil, fmt.Errorf("unknown lens: %s", name)
