@@ -1,4 +1,4 @@
-// Package memory provides the Engram namespace wrapper for subagent memory isolation.
+// Package memory provides the Mneme namespace wrapper for subagent memory isolation.
 // Each subagent gets its own namespace: gaia/{subagent}/{project}
 // Shared cross-domain concepts use: gaia/shared/{project}
 package memory
@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-// NamespaceManager generates Engram topic_key prefixes for subagent memory isolation.
+// NamespaceManager generates Mneme topic_key prefixes for subagent memory isolation.
 // The wrapper enforces the namespace format, prepending the prefix automatically
 // so subagents cannot self-report into another subagent's namespace.
 type NamespaceManager struct {
@@ -66,7 +66,7 @@ func (n *NamespaceManager) TopicKey(subagent, topic string) string {
 }
 
 // SaveInstructions returns prompt text for subagents explaining how to use
-// their scoped Engram namespace. Injected into subagent system prompts.
+// their scoped Mneme namespace. Injected into subagent system prompts.
 func (n *NamespaceManager) SaveInstructions(name string) string {
 	prefix := n.SubagentPrefix(name)
 	shared := n.SharedPrefix()
@@ -74,9 +74,9 @@ func (n *NamespaceManager) SaveInstructions(name string) string {
 	if n.sessionID != "" {
 		sessionLine = fmt.Sprintf("\n- Active session_id: \"%s\" (include when calling mem_save)", n.sessionID)
 	}
-	return fmt.Sprintf(`MEMORY (ENGRAM) INSTRUCTIONS:
+	return fmt.Sprintf(`MEMORY (MNEME) INSTRUCTIONS:
 - Your namespace: "%s"
-- When saving to Engram memory (mem_save), use topic_key prefix: "%s/{topic}"%s
+- When saving to Mneme memory (mem_save), use topic_key prefix: "%s/{topic}"%s
 - Automated or system artifacts: set capture_prompt: false to prevent polluting user prompts
 - Lifecycle states: "active" is verified knowledge; "needs_review" is stale context requiring verification
 - If mem_save returns judgment_required, resolve candidates using mem_judge
@@ -113,9 +113,9 @@ func (n *NamespaceManager) DynamicSaveInstructions(name string) string {
 	if n.sessionID != "" {
 		sessionLine = fmt.Sprintf("\n- Active session_id: \"%s\" (include when calling mem_save)", n.sessionID)
 	}
-	return fmt.Sprintf(`MEMORY (ENGRAM) INSTRUCTIONS:
+	return fmt.Sprintf(`MEMORY (MNEME) INSTRUCTIONS:
 - Your namespace: "%s"
-- When saving to Engram memory (mem_save), use topic_key prefix: "%s/{topic}"%s
+- When saving to Mneme memory (mem_save), use topic_key prefix: "%s/{topic}"%s
 - Automated or system artifacts: set capture_prompt: false to prevent polluting user prompts
 - Lifecycle states: "active" is verified knowledge; "needs_review" is stale context requiring verification
 - If mem_save returns judgment_required, resolve candidates using mem_judge
@@ -228,7 +228,7 @@ func (n *NamespaceManager) ValidateMemoryAccess(callerProfile, targetTopicKey st
 }
 
 // ProfileSaveInstructions returns prompt text for a persona profile explaining its scoped
-// Engram namespace and cross-profile permissions.
+// Mneme namespace and cross-profile permissions.
 func (n *NamespaceManager) ProfileSaveInstructions(profile string) string {
 	prefix := n.ProfilePrefix(profile)
 	shared := n.SharedPrefix()
@@ -236,7 +236,7 @@ func (n *NamespaceManager) ProfileSaveInstructions(profile string) string {
 	if n.sessionID != "" {
 		sessionLine = fmt.Sprintf("\n- Active session_id: \"%s\" (include when calling mem_save)", n.sessionID)
 	}
-	return fmt.Sprintf(`PROFILE MEMORY (ENGRAM) INSTRUCTIONS:
+	return fmt.Sprintf(`PROFILE MEMORY (MNEME) INSTRUCTIONS:
 - Your profile: "%s"
 - Your dedicated namespace prefix: "%s"
 - When saving profile memory (mem_save), use topic_key prefix: "%s/{topic}"%s

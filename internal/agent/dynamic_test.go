@@ -318,8 +318,8 @@ func TestBuildDynamicPrompt(t *testing.T) {
 
 		prompt := buildDynamicPrompt(def, task, nsInstr)
 
-		if !containsString(prompt, "ENGRAM") {
-			t.Error("prompt should contain ENGRAM instructions when namespaceInstr is provided")
+		if !containsString(prompt, "MNEME") {
+			t.Error("prompt should contain MNEME instructions when namespaceInstr is provided")
 		}
 		if !containsString(prompt, "my-dynamic-agent") {
 			t.Error("prompt should contain the subagent's name in namespace instructions")
