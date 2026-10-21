@@ -33,6 +33,12 @@ type FixChange struct {
 // The correction budget limits the total number of token changes (default 85).
 // Fixes are applied directly to the filesystem — the fix agent has write access.
 func ApplyFixes(ctx context.Context, tx *review.Transaction, findings []domain.ReviewFinding, budget int) (*FixResult, error) {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+	}
+
 	if len(findings) == 0 {
 		return &FixResult{}, nil
 	}
@@ -53,6 +59,12 @@ func ApplyFixes(ctx context.Context, tx *review.Transaction, findings []domain.R
 	budgetRemaining := budget
 
 	for _, finding := range findings {
+		if ctx != nil {
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
+		}
+
 		// Skip SUGGESTION findings — only fix BLOCKER and WARNING.
 		if finding.Severity == "SUGGESTION" {
 			result.SkippedCount++
