@@ -7,15 +7,14 @@ import (
 )
 
 var languageDetectors = []struct {
-	Name     string
-	Detect   func(root string) bool
-	Projects []string
+	Name   string
+	Detect func(root string) bool
 }{
 	{
 		Name: "go",
 		Detect: func(root string) bool {
 			return fileExists(filepath.Join(root, "go.mod")) ||
-				fileExists(filepath.Join(root, "Makefile")) && dirContains(root, ".go")
+				(fileExists(filepath.Join(root, "Makefile")) && dirContains(root, ".go"))
 		},
 	},
 	{
@@ -62,7 +61,7 @@ var languageDetectors = []struct {
 	{
 		Name: "csharp",
 		Detect: func(root string) bool {
-			return fileExists(filepath.Join(root, "*.csproj"))
+			return dirContains(root, ".csproj")
 		},
 	},
 }
@@ -83,8 +82,11 @@ func DetectProjectName(projectRoot string) string {
 }
 
 func fileExists(path string) bool {
-	_, err := os.Stat(path)
-	return err == nil
+	info, err := os.Stat(path)
+	if err != nil {
+		return false
+	}
+	return !info.IsDir()
 }
 
 func dirContains(root, ext string) bool {
@@ -99,6 +101,3 @@ func dirContains(root, ext string) bool {
 	}
 	return false
 }
-
-// Ensure filepath is used
-var _ = filepath.Join
