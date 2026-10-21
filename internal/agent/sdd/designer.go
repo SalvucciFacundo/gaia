@@ -22,10 +22,21 @@ func NewDesigner(spawner *agent.Spawner) agent.Subagent {
 
 func (d *designer) Name() string { return "designer" }
 func (d *designer) Description() string {
-	return "Creates architecture decisions and design documents (read + Engram)"
+	return "Creates architecture decisions and design documents (read + Mneme)"
 }
 
 func (d *designer) Execute(ctx context.Context, task domain.SubagentTask) *domain.SubagentResult {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return &domain.SubagentResult{
+				Status:          domain.SubagentBlocked,
+				Summary:         "Designer cancelled before execution: " + err.Error(),
+				NextRecommended: "none",
+				SkillResolution: "none",
+			}
+		}
+	}
+
 	task.AllowedTools = []string{
 		"file_read",
 		"file_list",
