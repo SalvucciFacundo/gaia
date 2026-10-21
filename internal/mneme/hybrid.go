@@ -109,6 +109,12 @@ func (r *Repository) processEmbeddingBatch(batch []embeddingJob) {
 
 // FlushEmbeddings waits for currently queued background embedding jobs to complete.
 func (r *Repository) FlushEmbeddings(ctx context.Context) {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return
+		}
+	}
+
 	if r.embedder == nil {
 		return
 	}
@@ -138,6 +144,12 @@ type scoredDoc struct {
 }
 
 func (r *Repository) searchVectors(ctx context.Context, queryVec []float32, limit int) ([]SearchResult, error) {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+	}
+
 	rows, err := r.db.QueryContext(ctx, `SELECT doc_type, doc_id, dimension, vector FROM embeddings`)
 	if err != nil {
 		return nil, fmt.Errorf("querying embeddings: %w", err)
