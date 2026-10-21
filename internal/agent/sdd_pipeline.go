@@ -12,6 +12,12 @@ import (
 // handleSDDTrigger routes a detected SDD-triggering message through the
 // SDD pipeline asynchronously via PipelineRunner or synchronously as fallback.
 func (r *WorkflowRouter) handleSDDTrigger(ctx context.Context, content string, trigger TriggerResult) error {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+	}
+
 	// If /direct was used, bypass SDD pipeline and run inline via ProcessMessage
 	if trigger.ForceDirect {
 		clean := strings.TrimSpace(strings.TrimPrefix(strings.TrimPrefix(content, DirectCommandPrefix), InlineCommandPrefix))
