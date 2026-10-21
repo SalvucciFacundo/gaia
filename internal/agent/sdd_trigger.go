@@ -51,6 +51,16 @@ type TriggerResult struct {
 // DetectSDDTrigger checks whether a user message should trigger the SDD/ODD feature pipeline.
 // Maintained for full backward compatibility with existing tests and callers.
 func DetectSDDTrigger(content string) TriggerResult {
+	if content == "" {
+		return TriggerResult{
+			ShouldSDD:   false,
+			SuggestSDD:  false,
+			ForceDirect: false,
+			ForceSDD:    false,
+			Reason:      "empty input",
+		}
+	}
+
 	odd := DetectODDRoute(content)
 	trimmed := strings.TrimSpace(content)
 
