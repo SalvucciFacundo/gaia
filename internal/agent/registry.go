@@ -2,6 +2,7 @@ package agent
 
 import (
 	"fmt"
+	"sort"
 	"sync"
 )
 
@@ -53,6 +54,7 @@ func (r *Registry) Available() []string {
 	for name := range r.agents {
 		names = append(names, name)
 	}
+	sort.Strings(names)
 	return names
 }
 
