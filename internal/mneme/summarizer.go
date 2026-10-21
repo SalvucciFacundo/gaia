@@ -43,6 +43,12 @@ func NewSummarizer(provider Provider, repo Store, logger *slog.Logger) *Summariz
 // (returning nil); infrastructure errors are returned for the caller to treat
 // as non-fatal.
 func (s *Summarizer) Close(ctx context.Context, convID string, msgs []Message) error {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+	}
+
 	resp, err := s.provider.Chat(ctx, ChatRequest{Messages: summarizeMessages(msgs)})
 	if err != nil {
 		return fmt.Errorf("summarizer chat: %w", err)
