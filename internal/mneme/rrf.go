@@ -33,7 +33,7 @@ func ReciprocalRankFusion(rankedLists [][]SearchResult, k float64) []SearchResul
 	scores := make(map[docKey]*rrfCandidate)
 
 	for _, list := range rankedLists {
-		seenInList := make(map[docKey]bool)
+		seenInList := make(map[docKey]bool, len(list))
 		for rankIdx, item := range list {
 			key := docKey{
 				docType: item.DocType,
