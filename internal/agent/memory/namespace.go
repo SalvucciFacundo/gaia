@@ -6,12 +6,15 @@ package memory
 import (
 	"fmt"
 	"strings"
+	"sync"
 )
 
 // NamespaceManager generates Mneme topic_key prefixes for subagent memory isolation.
 // The wrapper enforces the namespace format, prepending the prefix automatically
 // so subagents cannot self-report into another subagent's namespace.
+// It is safe for concurrent use.
 type NamespaceManager struct {
+	mu        sync.RWMutex
 	project   string
 	sessionID string
 }
@@ -27,11 +30,15 @@ func NewNamespaceManager(project string) *NamespaceManager {
 
 // SetSessionID sets the authoritative active runtime session identity.
 func (n *NamespaceManager) SetSessionID(sessionID string) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
 	n.sessionID = sessionID
 }
 
 // SessionID returns the authoritative active runtime session identity.
 func (n *NamespaceManager) SessionID() string {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
 	return n.sessionID
 }
 
@@ -71,8 +78,9 @@ func (n *NamespaceManager) SaveInstructions(name string) string {
 	prefix := n.SubagentPrefix(name)
 	shared := n.SharedPrefix()
 	sessionLine := ""
-	if n.sessionID != "" {
-		sessionLine = fmt.Sprintf("\n- Active session_id: \"%s\" (include when calling mem_save)", n.sessionID)
+	sessID := n.SessionID()
+	if sessID != "" {
+		sessionLine = fmt.Sprintf("\n- Active session_id: \"%s\" (include when calling mem_save)", sessID)
 	}
 	return fmt.Sprintf(`MEMORY (MNEME) INSTRUCTIONS:
 - Your namespace: "%s"
@@ -110,8 +118,9 @@ func (n *NamespaceManager) DynamicSaveInstructions(name string) string {
 	prefix := n.DynamicPrefix(name)
 	shared := n.SharedPrefix()
 	sessionLine := ""
-	if n.sessionID != "" {
-		sessionLine = fmt.Sprintf("\n- Active session_id: \"%s\" (include when calling mem_save)", n.sessionID)
+	sessID := n.SessionID()
+	if sessID != "" {
+		sessionLine = fmt.Sprintf("\n- Active session_id: \"%s\" (include when calling mem_save)", sessID)
 	}
 	return fmt.Sprintf(`MEMORY (MNEME) INSTRUCTIONS:
 - Your namespace: "%s"
@@ -233,8 +242,9 @@ func (n *NamespaceManager) ProfileSaveInstructions(profile string) string {
 	prefix := n.ProfilePrefix(profile)
 	shared := n.SharedPrefix()
 	sessionLine := ""
-	if n.sessionID != "" {
-		sessionLine = fmt.Sprintf("\n- Active session_id: \"%s\" (include when calling mem_save)", n.sessionID)
+	sessID := n.SessionID()
+	if sessID != "" {
+		sessionLine = fmt.Sprintf("\n- Active session_id: \"%s\" (include when calling mem_save)", sessID)
 	}
 	return fmt.Sprintf(`PROFILE MEMORY (MNEME) INSTRUCTIONS:
 - Your profile: "%s"

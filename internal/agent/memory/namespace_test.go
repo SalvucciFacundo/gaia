@@ -1,6 +1,7 @@
 package memory
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -230,6 +231,28 @@ func TestNamespaceManager_ProfileInstructions(t *testing.T) {
 	searchInstr := mgr.ProfileSearchInstructions("dev")
 	if !strings.Contains(searchInstr, "gaia/profile/dev/myproj") {
 		t.Error("ProfileSearchInstructions should contain profile scope")
+	}
+}
+
+func TestNamespaceManager_ConcurrentSafe(t *testing.T) {
+	mgr := NewNamespaceManager("concurrent-proj")
+
+	done := make(chan bool)
+	for i := 0; i < 10; i++ {
+		go func(id int) {
+			for j := 0; j < 100; j++ {
+				mgr.SetSessionID(fmt.Sprintf("sess-%d-%d", id, j))
+				_ = mgr.SessionID()
+				_ = mgr.SaveInstructions("explorer")
+				_ = mgr.DynamicSaveInstructions("dyn")
+				_ = mgr.ProfileSaveInstructions("dev")
+			}
+			done <- true
+		}(i)
+	}
+
+	for i := 0; i < 10; i++ {
+		<-done
 	}
 }
 
