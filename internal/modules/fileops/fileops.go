@@ -6,7 +6,6 @@ package fileops
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -68,6 +67,10 @@ func (m *Module) GetTools() []domain.ToolCall {
 
 // Execute dispatches a tool call by name.
 func (m *Module) Execute(ctx context.Context, toolName string, args map[string]interface{}) (*domain.ToolResult, error) {
+	if err := ctx.Err(); err != nil {
+		return &domain.ToolResult{Success: false, Error: err.Error()}, nil
+	}
+
 	switch toolName {
 	case "file_read":
 		return m.readFile(args)
@@ -94,7 +97,7 @@ func (m *Module) readFile(args map[string]interface{}) (*domain.ToolResult, erro
 		return &domain.ToolResult{Success: false, Error: err.Error()}, nil
 	}
 
-	data, err := ioutil.ReadFile(safePath)
+	data, err := os.ReadFile(safePath)
 	if err != nil {
 		return &domain.ToolResult{Success: false, Error: fmt.Sprintf("read failed: %v", err)}, nil
 	}
@@ -127,7 +130,7 @@ func (m *Module) writeFile(args map[string]interface{}) (*domain.ToolResult, err
 		return &domain.ToolResult{Success: false, Error: fmt.Sprintf("create parent dir: %v", err)}, nil
 	}
 
-	if err := ioutil.WriteFile(safePath, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(safePath, []byte(content), 0644); err != nil {
 		return &domain.ToolResult{Success: false, Error: fmt.Sprintf("write failed: %v", err)}, nil
 	}
 
@@ -192,7 +195,7 @@ func (m *Module) listFiles(args map[string]interface{}) (*domain.ToolResult, err
 		return &domain.ToolResult{Success: false, Error: err.Error()}, nil
 	}
 
-	entries, err := ioutil.ReadDir(safePath)
+	entries, err := os.ReadDir(safePath)
 	if err != nil {
 		return &domain.ToolResult{Success: false, Error: fmt.Sprintf("list failed: %v", err)}, nil
 	}
