@@ -44,6 +44,12 @@ func (wm *WorktreeManager) IsGitRepo(ctx context.Context, dir string) bool {
 
 // Create provisions an isolated git worktree and branch for the given task.
 func (wm *WorktreeManager) Create(ctx context.Context, baseRepoPath, taskID string) (*WorktreeContext, error) {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+	}
+
 	wm.mu.Lock()
 	defer wm.mu.Unlock()
 
@@ -90,6 +96,12 @@ func (wm *WorktreeManager) Create(ctx context.Context, baseRepoPath, taskID stri
 
 // GetDiff returns a unified diff of all changes made in the isolated worktree relative to HEAD.
 func (wm *WorktreeManager) GetDiff(ctx context.Context, wt *WorktreeContext) (string, error) {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return "", err
+		}
+	}
+
 	if wt == nil || wt.WorktreeDir == "" {
 		return "", fmt.Errorf("invalid worktree context")
 	}
@@ -157,6 +169,12 @@ func (wm *WorktreeManager) Remove(ctx context.Context, wt *WorktreeContext) erro
 
 // Prune cleans stale worktree references from Git's administrative files.
 func (wm *WorktreeManager) Prune(ctx context.Context, baseRepoPath string) error {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+	}
+
 	wm.mu.Lock()
 	defer wm.mu.Unlock()
 
