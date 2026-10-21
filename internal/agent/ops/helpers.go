@@ -32,10 +32,10 @@ func parseOpsResult(resp *domain.Message) *domain.SubagentResult {
 	lines := strings.Split(content, "\n")
 
 	var currentSection string
-	var summaryLines []string
-	var artifactLines []string
-	var riskLines []string
-	var observationLines []string
+	summaryLines := make([]string, 0, 8)
+	artifactLines := make([]string, 0, 8)
+	riskLines := make([]string, 0, 4)
+	observationLines := make([]string, 0, 4)
 
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
@@ -121,7 +121,7 @@ func parseOpsResult(resp *domain.Message) *domain.SubagentResult {
 		result.Summary = firstNLinesOps(content, 3)
 	}
 
-	seen := make(map[string]bool)
+	seen := make(map[string]bool, len(artifactLines))
 	for _, a := range artifactLines {
 		a = strings.TrimPrefix(a, "-")
 		a = strings.TrimPrefix(a, "*")
@@ -160,9 +160,21 @@ func trimAfterOps(line string, prefixes ...string) string {
 
 // firstNLinesOps truncates text to the first n lines, joined by spaces.
 func firstNLinesOps(s string, n int) string {
-	lines := strings.Split(s, "\n")
-	if len(lines) > n {
-		lines = lines[:n]
+	if n <= 0 || s == "" {
+		return ""
 	}
+
+	lines := make([]string, 0, n)
+	remaining := s
+	for len(lines) < n && remaining != "" {
+		idx := strings.IndexByte(remaining, '\n')
+		if idx == -1 {
+			lines = append(lines, remaining)
+			break
+		}
+		lines = append(lines, remaining[:idx])
+		remaining = remaining[idx+1:]
+	}
+
 	return strings.TrimSpace(strings.Join(lines, " "))
 }
