@@ -62,6 +62,13 @@ func (m *Module) Tools() []domain.ToolDef {
 
 // Execute handles tool dispatch for execute_code.
 func (m *Module) Execute(ctx context.Context, toolName string, args map[string]interface{}) (*domain.ToolResult, error) {
+	if err := ctx.Err(); err != nil {
+		return &domain.ToolResult{
+			Success: false,
+			Error:   err.Error(),
+		}, nil
+	}
+
 	if toolName != "execute_code" {
 		return &domain.ToolResult{
 			Success: false,
