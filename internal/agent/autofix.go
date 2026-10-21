@@ -147,8 +147,16 @@ func (v *AutofixVerifier) Check(ctx context.Context, targetPath string) (*CheckR
 	out, err := cmd.CombinedOutput()
 	duration := time.Since(start)
 
+	// If the parent context was cancelled, propagate context error
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
+
 	outputStr := strings.TrimSpace(string(out))
 	if err != nil {
+		if outputStr == "" {
+			outputStr = err.Error()
+		}
 		return &CheckResult{
 			Language: lang,
 			Clean:    false,
@@ -167,8 +175,14 @@ func (v *AutofixVerifier) Check(ctx context.Context, targetPath string) (*CheckR
 
 // VerifyMutations checks modified paths across all unique roots and returns a repair prompt if any check fails.
 func (v *AutofixVerifier) VerifyMutations(ctx context.Context, modifiedPaths []string) (string, error) {
-	checkedRoots := make(map[string]bool)
-	var prompts []string
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return "", err
+		}
+	}
+
+	checkedRoots := make(map[string]bool, len(modifiedPaths))
+	prompts := make([]string, 0, len(modifiedPaths))
 
 	for _, path := range modifiedPaths {
 		_, root := DetectProjectLanguage(path)
@@ -178,7 +192,13 @@ func (v *AutofixVerifier) VerifyMutations(ctx context.Context, modifiedPaths []s
 		checkedRoots[root] = true
 
 		res, err := v.Check(ctx, path)
-		if err == nil && res != nil && !res.Clean {
+		if err != nil {
+			if ctx.Err() != nil {
+				return "", ctx.Err()
+			}
+			continue
+		}
+		if res != nil && !res.Clean {
 			if prompt := FormatAutoRepairPrompt(res); prompt != "" {
 				prompts = append(prompts, prompt)
 			}
