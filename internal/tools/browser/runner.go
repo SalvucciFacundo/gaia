@@ -76,6 +76,12 @@ type navigateArgs struct {
 }
 
 func (r *NavigateRunner) Run(ctx context.Context, command string) (string, error) {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return "", err
+		}
+	}
+
 	if r.driver == nil {
 		return "", fmt.Errorf("browser driver is not available")
 	}
@@ -124,6 +130,12 @@ func (r *ActionRunner) Description() string {
 }
 
 func (r *ActionRunner) Run(ctx context.Context, command string) (string, error) {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return "", err
+		}
+	}
+
 	if r.driver == nil {
 		return "", fmt.Errorf("browser driver is not available")
 	}
@@ -173,6 +185,12 @@ type screenshotArgs struct {
 }
 
 func (r *ScreenshotRunner) Run(ctx context.Context, command string) (string, error) {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return "", err
+		}
+	}
+
 	if r.driver == nil {
 		return "", fmt.Errorf("browser driver is not available")
 	}
