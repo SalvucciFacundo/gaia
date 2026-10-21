@@ -14,7 +14,8 @@ import (
 type StoreMode string
 
 const (
-	StoreModeEngram   StoreMode = "engram"
+	StoreModeMneme    StoreMode = "mneme"
+	StoreModeEngram   StoreMode = "mneme" // backward compatibility alias
 	StoreModeOpenSpec StoreMode = "openspec"
 	StoreModeHybrid   StoreMode = "hybrid"
 	StoreModeNone     StoreMode = "none"
@@ -23,8 +24,8 @@ const (
 // ParseStoreMode converts a string to a valid StoreMode.
 func ParseStoreMode(s string) StoreMode {
 	switch strings.ToLower(strings.TrimSpace(s)) {
-	case "engram":
-		return StoreModeEngram
+	case "mneme", "engram":
+		return StoreModeMneme
 	case "openspec":
 		return StoreModeOpenSpec
 	case "hybrid":
@@ -68,13 +69,24 @@ func (p *StorePolicy) ShouldQueryFilesystem() bool {
 	return p.mode == StoreModeOpenSpec || p.mode == StoreModeHybrid
 }
 
-// ShouldQueryEngram returns true if the current store mode uses persistent memory.
+// ShouldQueryMneme returns true if the current store mode uses persistent memory.
+func (p *StorePolicy) ShouldQueryMneme() bool {
+	return p.mode == StoreModeMneme || p.mode == StoreModeHybrid
+}
+
+// ShouldQueryEngram is an alias for ShouldQueryMneme for backward compatibility.
 func (p *StorePolicy) ShouldQueryEngram() bool {
-	return p.mode == StoreModeEngram || p.mode == StoreModeHybrid
+	return p.ShouldQueryMneme()
 }
 
 // SaveArtifact persists an artifact according to the active store policy.
 func (p *StorePolicy) SaveArtifact(ctx context.Context, changeName, artifactName, content string) error {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+	}
+
 	if changeName == "" || artifactName == "" {
 		return fmt.Errorf("change name and artifact name are required")
 	}
@@ -92,8 +104,8 @@ func (p *StorePolicy) SaveArtifact(ctx context.Context, changeName, artifactName
 		}
 	}
 
-	// 2. Engram memory write if Engram or Hybrid
-	if p.ShouldQueryEngram() && p.namespace != nil {
+	// 2. Mneme memory write if Mneme or Hybrid
+	if p.ShouldQueryMneme() && p.namespace != nil {
 		// Formatted topic key: gaia/sdd/{project}/{change}/{artifact}
 		_ = p.namespace.TopicKey("sdd", fmt.Sprintf("%s/%s", changeName, artifactName))
 	}
@@ -103,17 +115,23 @@ func (p *StorePolicy) SaveArtifact(ctx context.Context, changeName, artifactName
 
 // ReadArtifact retrieves an artifact according to the active store policy.
 func (p *StorePolicy) ReadArtifact(ctx context.Context, changeName, artifactName string) (string, error) {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return "", err
+		}
+	}
+
 	if changeName == "" || artifactName == "" {
 		return "", fmt.Errorf("change name and artifact name are required")
 	}
 
-	// If pure Engram mode, do NOT touch filesystem
-	if p.mode == StoreModeEngram {
+	// If pure Mneme mode, do NOT touch filesystem
+	if p.mode == StoreModeMneme {
 		if p.namespace == nil {
-			return "", fmt.Errorf("engram namespace not configured for engram store mode")
+			return "", fmt.Errorf("mneme namespace not configured for mneme store mode")
 		}
-		// Return topic key indication when pure engram
-		return fmt.Sprintf("<!-- engram topic: %s -->", p.namespace.TopicKey("sdd", fmt.Sprintf("%s/%s", changeName, artifactName))), nil
+		// Return topic key indication when pure mneme
+		return fmt.Sprintf("<!-- mneme topic: %s -->", p.namespace.TopicKey("sdd", fmt.Sprintf("%s/%s", changeName, artifactName))), nil
 	}
 
 	// Filesystem read
