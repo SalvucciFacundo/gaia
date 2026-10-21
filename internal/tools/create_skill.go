@@ -81,6 +81,12 @@ type skillFileFrontMatter struct {
 
 // Run executes the create_skill tool.
 func (c *CreateSkillRunner) Run(ctx context.Context, input string) (string, error) {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return "", err
+		}
+	}
+
 	var in CreateSkillInput
 	if err := json.Unmarshal([]byte(input), &in); err != nil {
 		return "", fmt.Errorf("invalid json input: %w", err)
