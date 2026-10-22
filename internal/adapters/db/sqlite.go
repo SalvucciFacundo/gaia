@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"gaia/internal/core/domain"
@@ -14,17 +15,21 @@ import (
 
 type SQLiteRepo struct {
 	db        *sql.DB
+	mu        sync.RWMutex
 	sessionID string // active session ID for message operations
 }
 
 // SetSessionID changes the active session for subsequent message operations.
-// Thread-safe: only called from the main Brain goroutine.
 func (r *SQLiteRepo) SetSessionID(id string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.sessionID = id
 }
 
 // activeSessionID returns the effective session ID, defaulting to "default".
 func (r *SQLiteRepo) activeSessionID() string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	id := r.sessionID
 	if id == "" {
 		return "default"
@@ -200,21 +205,14 @@ func (r *SQLiteRepo) SaveMessage(ctx context.Context, msg domain.Message) error 
 		id = fmt.Sprintf("msg-%d", time.Now().UnixNano())
 	}
 
-	sessID := r.sessionID
-	if sessID == "" {
-		sessID = "default"
-	}
+	sessID := r.activeSessionID()
 	query := `INSERT INTO messages (id, session_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)`
 	_, err := r.db.ExecContext(ctx, query, id, sessID, string(msg.Role), msg.Content, time.Now())
 	return err
 }
 
 func (r *SQLiteRepo) GetHistory(ctx context.Context, limit int) ([]domain.Message, error) {
-	sessID := r.sessionID
-	if sessID == "" {
-		sessID = "default"
-	}
-	return r.GetMessages(ctx, sessID, limit)
+	return r.GetMessages(ctx, r.activeSessionID(), limit)
 }
 
 func (r *SQLiteRepo) GetMessageCount(ctx context.Context) (int, error) {

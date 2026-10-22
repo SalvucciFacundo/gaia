@@ -50,3 +50,32 @@ func TestSQLiteRepo_SQLInjectionSafety(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, countAfter, "Legitimate session message should not have been wiped")
 }
+
+func TestSQLiteRepo_Concurrency(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "concurrency.db")
+	repo, err := NewSQLiteRepoWithPath(dbPath)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	done := make(chan struct{})
+
+	go func() {
+		for i := 0; i < 50; i++ {
+			repo.SetSessionID("session-a")
+			repo.SetSessionID("session-b")
+		}
+		close(done)
+	}()
+
+	for {
+		select {
+		case <-done:
+			return
+		default:
+			_ = repo.activeSessionID()
+			_ = repo.SaveMessage(ctx, domain.Message{Role: domain.RoleUser, Content: "ping"})
+			_, _ = repo.GetHistory(ctx, 5)
+			_, _ = repo.GetMessageCount(ctx)
+		}
+	}
+}
