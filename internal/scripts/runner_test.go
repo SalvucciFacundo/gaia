@@ -101,6 +101,17 @@ echo "Normal output"
 	}
 }
 
+func TestRunner_ContextCancelled(t *testing.T) {
+	r := NewRunner(Config{PreRun: []string{"test.sh"}}, t.TempDir())
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := r.Run(ctx)
+	if err == nil {
+		t.Error("expected error for cancelled context in Run")
+	}
+}
+
 func TestFormatContext_SilentPattern(t *testing.T) {
 	r := NewRunner(Config{}, t.TempDir())
 

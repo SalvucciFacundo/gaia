@@ -49,6 +49,9 @@ type ContextResult struct {
 // context. Scripts that fail are logged as warnings, not errors — pre-run
 // scripts are advisory.
 func (r *Runner) Run(ctx context.Context) (*ContextResult, error) {
+	if ctx != nil && ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
 	if len(r.cfg.PreRun) == 0 {
 		return &ContextResult{}, nil
 	}
@@ -57,6 +60,10 @@ func (r *Runner) Run(ctx context.Context) (*ContextResult, error) {
 	var messages []string
 
 	for _, scriptPath := range r.cfg.PreRun {
+		if ctx != nil && ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+
 		// Resolve and validate the script path.
 		resolved, err := r.validatePath(scriptPath)
 		if err != nil {
@@ -72,11 +79,10 @@ func (r *Runner) Run(ctx context.Context) (*ContextResult, error) {
 		// Run with timeout.
 		timeout := time.Duration(r.cfg.Timeout) * time.Second
 		runCtx, cancel := context.WithTimeout(ctx, timeout)
-		defer cancel()
-
 		cmd := exec.CommandContext(runCtx, resolved)
 		cmd.Dir = r.workDir
 		output, err := cmd.CombinedOutput()
+		cancel()
 
 		if err != nil {
 			result.Warnings = append(result.Warnings, fmt.Sprintf("script %s: %v", scriptPath, err))
