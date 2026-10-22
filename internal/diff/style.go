@@ -76,8 +76,11 @@ func RenderLine(line DiffLine, width int) string {
 
 	content := line.Content
 	maxContentWidth := width - 12
-	if maxContentWidth > 10 && len(content) > maxContentWidth {
-		content = content[:maxContentWidth]
+	if maxContentWidth > 10 {
+		runes := []rune(content)
+		if len(runes) > maxContentWidth {
+			content = string(runes[:maxContentWidth])
+		}
 	}
 
 	styledSymbol := contentStyle.Render(symbol)
