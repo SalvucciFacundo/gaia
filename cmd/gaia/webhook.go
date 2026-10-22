@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"syscall"
 
 	"gaia/internal/webhook"
 )
@@ -40,16 +41,8 @@ func handleWebhookStart() {
 
 	listener := webhook.NewListener(addr)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, os.Interrupt)
-	go func() {
-		<-sigCh
-		fmt.Println("\nShutting down webhook listener...")
-		cancel()
-	}()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
 	fmt.Printf("Starting webhook listener on %s...\n", addr)
 	if err := listener.Start(ctx); err != nil {
