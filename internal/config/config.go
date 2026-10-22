@@ -2,7 +2,6 @@ package config
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -87,14 +86,14 @@ func Load() (*domain.Config, error) {
 			return nil, fmt.Errorf("could not marshal default config: %w", err)
 		}
 
-		if err := ioutil.WriteFile(fullPath, data, 0600); err != nil {
+		if err := os.WriteFile(fullPath, data, 0600); err != nil {
 			return nil, fmt.Errorf("could not write default config: %w", err)
 		}
 		return defaultCfg, nil
 	}
 
 	// Read existing config
-	data, err := ioutil.ReadFile(fullPath)
+	data, err := os.ReadFile(fullPath)
 	if err != nil {
 		return nil, fmt.Errorf("could not read config file: %w", err)
 	}
@@ -179,7 +178,7 @@ func Save(cfg *domain.Config) error {
 		return fmt.Errorf("could not marshal config: %w", err)
 	}
 
-	return ioutil.WriteFile(fullPath, data, 0600)
+	return os.WriteFile(fullPath, data, 0600)
 }
 
 // Config type aliases for audio and gateway subsystems.
