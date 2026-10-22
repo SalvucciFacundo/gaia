@@ -100,7 +100,7 @@ func (w *Whisper) Transcribe(ctx context.Context, audio []byte, mimeType string)
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		respBody, _ := io.ReadAll(resp.Body)
+		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20)) // 1MB limit for error message
 		var errEnv struct {
 			Error struct {
 				Message string `json:"message"`
@@ -118,7 +118,7 @@ func (w *Whisper) Transcribe(ctx context.Context, audio []byte, mimeType string)
 			Message string `json:"message"`
 		} `json:"error"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 10<<20)).Decode(&result); err != nil { // 10MB limit for JSON
 		return "", fmt.Errorf("decoding transcription response: %w", err)
 	}
 	if result.Error != nil && result.Error.Message != "" {
@@ -255,11 +255,12 @@ func (o *OpenAITTS) Synthesize(ctx context.Context, text string) ([]byte, string
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		respBody, _ := io.ReadAll(resp.Body)
+		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20)) // 1MB limit for error message
 		return nil, "", fmt.Errorf("audio: openai tts failed (status %d): %s", resp.StatusCode, string(respBody))
 	}
 
-	audioData, err := io.ReadAll(resp.Body)
+	// Limit synthesized audio payload to 50MB
+	audioData, err := io.ReadAll(io.LimitReader(resp.Body, 50<<20))
 	if err != nil {
 		return nil, "", fmt.Errorf("audio: reading openai tts response body: %w", err)
 	}

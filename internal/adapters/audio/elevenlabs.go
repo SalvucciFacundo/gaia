@@ -108,11 +108,12 @@ func (e *ElevenLabsTTS) Synthesize(ctx context.Context, text string) ([]byte, st
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		respBody, _ := io.ReadAll(resp.Body)
+		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20)) // 1MB limit for error message
 		return nil, "", fmt.Errorf("audio: elevenlabs tts failed (status %d): %s", resp.StatusCode, string(respBody))
 	}
 
-	audioData, err := io.ReadAll(resp.Body)
+	// Limit synthesized audio payload to 50MB
+	audioData, err := io.ReadAll(io.LimitReader(resp.Body, 50<<20))
 	if err != nil {
 		return nil, "", fmt.Errorf("audio: reading elevenlabs response body: %w", err)
 	}
