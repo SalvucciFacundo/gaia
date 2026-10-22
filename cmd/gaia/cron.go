@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"gaia/internal/adapters/db"
@@ -38,7 +40,8 @@ func handleCronCLI(args []string) {
 	}
 
 	scheduler := cron.NewScheduler(repo)
-	ctx := context.Background()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
 	switch cmd {
 	case "create":
