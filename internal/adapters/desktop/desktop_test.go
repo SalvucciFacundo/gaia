@@ -195,6 +195,39 @@ func TestBindingAPIConfirmResponse(t *testing.T) {
 	}
 }
 
+func TestBindingAPIChoiceResponse(t *testing.T) {
+	ui := NewDesktopUI()
+	mock := &mockBrain{}
+	bindings := NewBindingAPI(ui, mock)
+
+	// Safe when no prompt is pending
+	bindings.ChoiceResponse("opt-1")
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	var choice string
+
+	envelope := domain.ChoiceEnvelope{
+		WhyRequired: "Choose approach",
+		Questions: []domain.ChoiceQuestion{
+			{Question: "Which method?", Options: []domain.ChoiceOption{{Token: "opt-1", Label: "Method A"}}},
+		},
+	}
+
+	go func() {
+		defer wg.Done()
+		choice, _ = ui.PromptChoice(envelope)
+	}()
+
+	time.Sleep(time.Millisecond)
+	bindings.ChoiceResponse("opt-1")
+
+	wg.Wait()
+	if choice != "opt-1" {
+		t.Errorf("expected choice 'opt-1', got %q", choice)
+	}
+}
+
 func TestDesktopUIGetMessageCount(t *testing.T) {
 	ui := NewDesktopUI()
 

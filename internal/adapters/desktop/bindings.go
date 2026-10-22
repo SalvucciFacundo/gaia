@@ -74,6 +74,12 @@ func (b *BindingAPI) ConfirmResponse(approved bool) {
 	b.ui.RespondConfirmation(approved)
 }
 
+// ChoiceResponse sends a selected choice token response.
+// Called from JavaScript: bindingAPI.ChoiceResponse("token")
+func (b *BindingAPI) ChoiceResponse(token string) {
+	b.ui.RespondChoice(token)
+}
+
 // ClearHistory clears the message history.
 func (b *BindingAPI) ClearHistory() {
 	b.ui.Clear()
