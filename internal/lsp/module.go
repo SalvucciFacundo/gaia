@@ -78,6 +78,13 @@ func (m *Module) GetTools() []domain.ToolCall {
 
 // Execute dispatches an LSP tool call by name.
 func (m *Module) Execute(ctx context.Context, toolName string, args map[string]interface{}) (*domain.ToolResult, error) {
+	if err := ctx.Err(); err != nil {
+		return &domain.ToolResult{
+			Success: false,
+			Error:   err.Error(),
+		}, nil
+	}
+
 	switch toolName {
 	case fmt.Sprintf("lsp_%s_diagnostics", m.serverName):
 		diags, err := m.client.Diagnostics(ctx)

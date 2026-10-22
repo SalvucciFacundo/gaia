@@ -64,6 +64,10 @@ func NewClientWithIO(stdin io.WriteCloser, stdout io.ReadCloser, cfg ServerConfi
 
 // Connect starts the LSP server process and performs the initialize handshake.
 func (c *Client) Connect(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -115,6 +119,10 @@ func (c *Client) Connect(ctx context.Context) error {
 
 // Diagnostics requests diagnostics for the workspace and returns them parsed.
 func (c *Client) Diagnostics(ctx context.Context) ([]Diagnostic, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -141,6 +149,10 @@ func (c *Client) Diagnostics(ctx context.Context) ([]Diagnostic, error) {
 
 // RenameSymbol sends a textDocument/rename request to rename the symbol at pos.
 func (c *Client) RenameSymbol(ctx context.Context, uri string, pos Position, newName string) (*WorkspaceEdit, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -184,6 +196,10 @@ func (c *Client) RenameSymbol(ctx context.Context, uri string, pos Position, new
 
 // FindReferences sends a textDocument/references request to find all references to the symbol at pos.
 func (c *Client) FindReferences(ctx context.Context, uri string, pos Position, includeDecl bool) ([]Location, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -227,6 +243,10 @@ func (c *Client) FindReferences(ctx context.Context, uri string, pos Position, i
 
 // CodeActions sends a textDocument/codeAction request to retrieve code actions for range and context.
 func (c *Client) CodeActions(ctx context.Context, uri string, rng Range, actionCtx CodeActionContext) ([]CodeAction, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
