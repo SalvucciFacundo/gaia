@@ -295,3 +295,31 @@ func TestEvolution_ResetErrorWrapped(t *testing.T) {
 		t.Errorf("Reset() error = %v, want wrapped clear failure", err)
 	}
 }
+
+func TestEvolution_Concurrency(t *testing.T) {
+	repo := &fakeEvolutionRepo{rows: []mneme.UserModel{
+		{Key: "user/theme", Value: "dark", Confidence: 0.8},
+	}}
+	evo := NewEvolution(repo, discard())
+
+	ctx := context.Background()
+	done := make(chan struct{})
+
+	go func() {
+		for i := 0; i < 100; i++ {
+			evo.Freeze()
+		}
+		close(done)
+	}()
+
+	for {
+		select {
+		case <-done:
+			return
+		default:
+			_ = evo.Frozen()
+			_ = evo.Layer(ctx)
+			_, _ = evo.Status(ctx)
+		}
+	}
+}

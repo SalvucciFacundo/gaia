@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
 
 	"gaia/internal/mneme"
 )
@@ -20,6 +21,7 @@ const userKeyPrefix = "user/"
 // freezing hides the layer, resetting clears the underlying rows, and neither
 // ever touches SOUL.md.
 type Evolution struct {
+	mu     sync.RWMutex
 	repo   mneme.Store
 	logger *slog.Logger
 	frozen bool
@@ -34,16 +36,27 @@ func NewEvolution(repo mneme.Store, logger *slog.Logger) *Evolution {
 }
 
 // Freeze excludes the layer from prompts for the rest of the session.
-func (e *Evolution) Freeze() { e.frozen = true }
+func (e *Evolution) Freeze() {
+	e.mu.Lock()
+	e.frozen = true
+	e.mu.Unlock()
+}
 
 // Frozen reports whether the layer is currently excluded.
-func (e *Evolution) Frozen() bool { return e.frozen }
+func (e *Evolution) Frozen() bool {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return e.frozen
+}
 
 // Layer assembles the guidance block from up to five user-model rows ordered
 // by confidence. It returns empty text when frozen or when nothing has been
 // learned yet.
 func (e *Evolution) Layer(ctx context.Context) string {
-	if e.frozen || e.repo == nil {
+	if ctx != nil && ctx.Err() != nil {
+		return ""
+	}
+	if e.Frozen() || e.repo == nil {
 		return ""
 	}
 
@@ -69,6 +82,9 @@ func (e *Evolution) Layer(ctx context.Context) string {
 // from observations via AggregateUserModel — so this returns the evolution
 // layer to its seed state without touching long-term memory.
 func (e *Evolution) Reset(ctx context.Context) error {
+	if ctx != nil && ctx.Err() != nil {
+		return ctx.Err()
+	}
 	if e.repo == nil {
 		return nil
 	}
@@ -87,13 +103,17 @@ type Status struct {
 
 // Status reports the current evolution mode and how many rows it draws on.
 func (e *Evolution) Status(ctx context.Context) (Status, error) {
+	if ctx != nil && ctx.Err() != nil {
+		return Status{}, ctx.Err()
+	}
+	frozen := e.Frozen()
 	rows := 0
-	if !e.frozen && e.repo != nil {
+	if !frozen && e.repo != nil {
 		all, err := e.repo.UserModelRows(ctx, 0)
 		if err != nil {
 			return Status{}, fmt.Errorf("reading user model status: %w", err)
 		}
 		rows = len(all)
 	}
-	return Status{Frozen: e.frozen, Rows: rows, Active: !e.frozen && rows > 0}, nil
+	return Status{Frozen: frozen, Rows: rows, Active: !frozen && rows > 0}, nil
 }
