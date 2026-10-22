@@ -47,7 +47,7 @@ func (s *Scheduler) CreateJob(ctx context.Context, job domain.CronJob) (string, 
 	job.ID = id
 
 	if job.Enabled {
-		s.startJob(job)
+		s.startJob(ctx, job)
 	}
 
 	return id, nil
@@ -91,7 +91,7 @@ func (s *Scheduler) ResumeJob(ctx context.Context, id string) error {
 			if err := s.repo.UpdateJob(ctx, j); err != nil {
 				return err
 			}
-			s.startJob(j)
+			s.startJob(ctx, j)
 			return nil
 		}
 	}
@@ -125,25 +125,39 @@ func (s *Scheduler) Start(ctx context.Context) error {
 
 	for _, j := range jobs {
 		if j.Enabled {
-			s.startJob(j)
+			s.startJob(ctx, j)
 		}
 	}
 
 	s.logger.Println("Cron scheduler started")
 	<-ctx.Done()
+
+	// Stop all running jobs upon scheduler context termination
+	s.mu.Lock()
+	for id, rj := range s.jobs {
+		if rj.cancel != nil {
+			rj.cancel()
+		}
+		delete(s.jobs, id)
+	}
+	s.mu.Unlock()
+
 	s.logger.Println("Cron scheduler stopped")
 	return nil
 }
 
 // startJob launches a goroutine that evaluates the cron schedule and executes the job.
-func (s *Scheduler) startJob(job domain.CronJob) {
+func (s *Scheduler) startJob(parentCtx context.Context, job domain.CronJob) {
 	s.mu.Lock()
 	if _, exists := s.jobs[job.ID]; exists {
 		s.mu.Unlock()
 		return // already running
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	if parentCtx == nil {
+		parentCtx = context.Background()
+	}
+	ctx, cancel := context.WithCancel(parentCtx)
 	s.jobs[job.ID] = &runningJob{job: job, cancel: cancel}
 	s.mu.Unlock()
 
@@ -163,16 +177,23 @@ func (s *Scheduler) runJob(ctx context.Context, job domain.CronJob) {
 		next := schedule.Next(now)
 		waitDuration := next.Sub(now)
 
+		timer := time.NewTimer(waitDuration)
 		select {
 		case <-ctx.Done():
+			if !timer.Stop() {
+				select {
+				case <-timer.C:
+				default:
+				}
+			}
 			return
-		case <-time.After(waitDuration):
+		case <-timer.C:
 			s.executeJob(ctx, job)
 		}
 
 		// Update next_run in store
 		nextNext := schedule.Next(time.Now())
-		s.repo.MarkRun(ctx, job.ID, time.Now(), nextNext)
+		_ = s.repo.MarkRun(ctx, job.ID, time.Now(), nextNext)
 	}
 }
 
