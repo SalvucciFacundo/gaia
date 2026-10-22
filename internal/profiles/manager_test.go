@@ -450,6 +450,17 @@ func TestManager_ToolConfigurationWorkflow(t *testing.T) {
 	}
 
 	// 6. ExecuteTool executes tool via catalog
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		html := `<html><body><div class="result web-result"><h2 class="result__title"><a class="result__a" href="https://golang.org">Go</a></h2><a class="result__snippet">Go language</a></div></body></html>`
+		w.Header().Set("Content-Type", "text/html")
+		_, _ = w.Write([]byte(html))
+	}))
+	defer server.Close()
+
+	ddg := search.NewDuckDuckGoSearcher(search.WithDuckDuckGoEndpoint(server.URL))
+	asst := NewAssistantProfile().WithSearchRunner(tools.NewWebSearchRunner(ddg, "duckduckgo", search.WebProviders{}))
+	mgr.Register(asst)
+
 	res, err := mgr.ExecuteTool(ctx, "web_search", map[string]interface{}{"query": "test query"})
 	if err != nil || !res.Success {
 		t.Fatalf("ExecuteTool web_search failed: %v, res=%v", err, res)
