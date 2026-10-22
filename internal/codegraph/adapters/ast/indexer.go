@@ -38,6 +38,9 @@ func (idx *Indexer) IndexWorkspace(ctx context.Context, workspacePath string) er
 	discoveredFiles := make(map[string]string) // filePath -> hash
 
 	err = filepath.WalkDir(workspacePath, func(path string, d fs.DirEntry, walkErr error) error {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
 		if walkErr != nil {
 			return nil
 		}
@@ -63,6 +66,9 @@ func (idx *Indexer) IndexWorkspace(ctx context.Context, workspacePath string) er
 
 	// 1. Identify deleted files
 	for storedPath := range storedHashes {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		if _, exists := discoveredFiles[storedPath]; !exists {
 			if delErr := idx.store.DeleteStaleFile(ctx, storedPath); delErr != nil {
 				return fmt.Errorf("failed to delete stale file %s: %w", storedPath, delErr)
@@ -84,6 +90,9 @@ func (idx *Indexer) IndexWorkspace(ctx context.Context, workspacePath string) er
 
 	// 3. For modified files, purge old records first
 	for path := range filesToParse {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		if _, exists := storedHashes[path]; exists {
 			if delErr := idx.store.DeleteStaleFile(ctx, path); delErr != nil {
 				return fmt.Errorf("failed to clear modified file %s: %w", path, delErr)
@@ -97,6 +106,9 @@ func (idx *Indexer) IndexWorkspace(ctx context.Context, workspacePath string) er
 	validFiles := make(map[string]string)
 
 	for path, hash := range filesToParse {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		// Calculate package path relative to workspace if possible
 		relDir, rErr := filepath.Rel(workspacePath, filepath.Dir(path))
 		var pkgOverride string

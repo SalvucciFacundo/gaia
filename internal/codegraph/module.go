@@ -119,6 +119,13 @@ func (m *Module) GetTools() []coredomain.ToolCall {
 
 // Execute handles tool dispatch for CodeGraph operations.
 func (m *Module) Execute(ctx context.Context, toolName string, args map[string]interface{}) (*coredomain.ToolResult, error) {
+	if err := ctx.Err(); err != nil {
+		return &coredomain.ToolResult{
+			Success: false,
+			Error:   err.Error(),
+		}, nil
+	}
+
 	switch toolName {
 	case "codegraph_index_workspace":
 		path, _ := args["path"].(string)
