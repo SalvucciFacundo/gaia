@@ -50,6 +50,10 @@ func NewEngine(queue Queue, transport Transport, casStore gates.ReceiptStore, re
 
 // Release validates the review receipt for a specific item and executes remote transport if valid.
 func (e *Engine) Release(ctx context.Context, itemID string) (*ReleaseResult, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	item, err := e.queue.Get(itemID)
 	if err != nil {
 		return nil, err
@@ -109,7 +113,7 @@ func (e *Engine) Release(ctx context.Context, itemID string) (*ReleaseResult, er
 				}, driftErr
 			}
 
-			if err := e.verifyContentDrift(item, receipt); err != nil {
+			if err := e.verifyContentDrift(ctx, item, receipt); err != nil {
 				_ = e.queue.MarkFailed(itemID, err.Error())
 				return &ReleaseResult{
 					ItemID:  item.ID,
@@ -272,14 +276,14 @@ func sortTopological(items []DeliveryItem) []DeliveryItem {
 
 // verifyContentDrift checks git commits and snapshots to detect content drift
 // between current local state and the approved review receipt snapshot.
-func (e *Engine) verifyContentDrift(item *DeliveryItem, receipt *domain.ReviewReceipt) error {
+func (e *Engine) verifyContentDrift(ctx context.Context, item *DeliveryItem, receipt *domain.ReviewReceipt) error {
 	if receipt == nil || e.repoRoot == "" {
 		return nil
 	}
 
 	// 1. If git is available, verify git commit/branch snapshot
 	if item.CommitSHA != "" && item.Branch != "" {
-		cmdRev := exec.Command("git", "rev-parse", item.Branch)
+		cmdRev := exec.CommandContext(ctx, "git", "rev-parse", item.Branch)
 		cmdRev.Dir = e.repoRoot
 		if revOut, err := cmdRev.Output(); err == nil {
 			branchSHA := strings.TrimSpace(string(revOut))
@@ -292,7 +296,7 @@ func (e *Engine) verifyContentDrift(item *DeliveryItem, receipt *domain.ReviewRe
 	// 2. Discover changed files via git diff/diff-tree if available
 	var files []string
 	if item.BaseBranch != "" && item.Branch != "" {
-		cmd := exec.Command("git", "diff", "--name-only", item.BaseBranch+".."+item.Branch)
+		cmd := exec.CommandContext(ctx, "git", "diff", "--name-only", item.BaseBranch+".."+item.Branch)
 		cmd.Dir = e.repoRoot
 		if out, err := cmd.Output(); err == nil {
 			for _, line := range strings.Split(string(out), "\n") {
@@ -304,7 +308,7 @@ func (e *Engine) verifyContentDrift(item *DeliveryItem, receipt *domain.ReviewRe
 		}
 	}
 	if len(files) == 0 && item.CommitSHA != "" {
-		cmdTree := exec.Command("git", "diff-tree", "-r", "--no-commit-id", "--name-only", item.CommitSHA)
+		cmdTree := exec.CommandContext(ctx, "git", "diff-tree", "-r", "--no-commit-id", "--name-only", item.CommitSHA)
 		cmdTree.Dir = e.repoRoot
 		if treeOut, err := cmdTree.Output(); err == nil {
 			for _, line := range strings.Split(string(treeOut), "\n") {
