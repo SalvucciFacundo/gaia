@@ -119,12 +119,12 @@ func (c *Client) fetchRelease(ctx context.Context, endpoint string) (*Release, e
 		return nil, fmt.Errorf("release not found (HTTP 404) at %s", endpoint)
 	}
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20)) // 1MB limit for error message
 		return nil, fmt.Errorf("GitHub API error (HTTP %d): %s", resp.StatusCode, string(body))
 	}
 
 	var rel Release
-	if err := json.NewDecoder(resp.Body).Decode(&rel); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 10<<20)).Decode(&rel); err != nil { // 10MB limit for JSON
 		return nil, fmt.Errorf("decoding release JSON: %w", err)
 	}
 
@@ -154,7 +154,8 @@ func (c *Client) DownloadAsset(ctx context.Context, asset *Asset) ([]byte, error
 		return nil, fmt.Errorf("downloading asset %s failed with HTTP %d", asset.Name, resp.StatusCode)
 	}
 
-	data, err := io.ReadAll(resp.Body)
+	// Limit asset download to 500MB to prevent unbounded memory exhaustion
+	data, err := io.ReadAll(io.LimitReader(resp.Body, 500<<20))
 	if err != nil {
 		return nil, fmt.Errorf("reading asset body for %s: %w", asset.Name, err)
 	}
@@ -227,7 +228,7 @@ func ExtractBinaryFromAsset(assetName string, data []byte) ([]byte, error) {
 
 			base := filepath.Base(hdr.Name)
 			if base == "gaia" || base == "gaia.exe" {
-				extracted, err := io.ReadAll(tr)
+				extracted, err := io.ReadAll(io.LimitReader(tr, 500<<20)) // 500MB extraction limit
 				if err != nil {
 					return nil, fmt.Errorf("extracting binary %s: %w", hdr.Name, err)
 				}
@@ -250,7 +251,7 @@ func ExtractBinaryFromAsset(assetName string, data []byte) ([]byte, error) {
 					return nil, fmt.Errorf("opening zip entry %s: %w", file.Name, err)
 				}
 				defer rc.Close()
-				return io.ReadAll(rc)
+				return io.ReadAll(io.LimitReader(rc, 500<<20)) // 500MB extraction limit
 			}
 		}
 		return nil, fmt.Errorf("binary 'gaia' not found in zip archive %s", assetName)
