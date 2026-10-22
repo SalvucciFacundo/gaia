@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"time"
@@ -96,7 +97,8 @@ func (m *GitHubReleaseMonitor) CheckLatest(ctx context.Context) (*Release, bool,
 	}
 
 	var release Release
-	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
+	// Limit read size to 10MB to prevent memory exhaustion
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 10<<20)).Decode(&release); err != nil {
 		return nil, false, fmt.Errorf("decode response: %w", err)
 	}
 
@@ -113,6 +115,10 @@ func (m *GitHubReleaseMonitor) CheckLatest(ctx context.Context) (*Release, bool,
 // ListReleases fetches all releases since the given tag. If since is empty,
 // returns all releases.
 func (m *GitHubReleaseMonitor) ListReleases(ctx context.Context, since string) ([]Release, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	url := fmt.Sprintf("%s/repos/%s/%s/releases?per_page=100", m.baseURL, m.owner, m.repo)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -133,7 +139,8 @@ func (m *GitHubReleaseMonitor) ListReleases(ctx context.Context, since string) (
 	}
 
 	var releases []Release
-	if err := json.NewDecoder(resp.Body).Decode(&releases); err != nil {
+	// Limit read size to 25MB to prevent memory exhaustion
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 25<<20)).Decode(&releases); err != nil {
 		return nil, fmt.Errorf("decode response: %w", err)
 	}
 
