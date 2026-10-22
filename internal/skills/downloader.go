@@ -50,6 +50,10 @@ func (d *Downloader) DownloadFromURL(url string) (*SkillMeta, error) {
 		return nil, fmt.Errorf("invalid SKILL.md at %s: %w", url, err)
 	}
 
+	if err := ValidateSkillName(skill.Meta.Name); err != nil {
+		return nil, fmt.Errorf("invalid skill name %q from %s: %w", skill.Meta.Name, url, err)
+	}
+
 	// Install to destDir/{name}/SKILL.md.
 	targetDir := filepath.Join(d.destDir, skill.Meta.Name)
 	if err := os.MkdirAll(targetDir, 0755); err != nil {
@@ -87,6 +91,10 @@ func (d *Downloader) DownloadFromDir(srcDir string) ([]SkillMeta, error) {
 
 		skill, err := ParseSkillFile(src)
 		if err != nil {
+			continue
+		}
+
+		if err := ValidateSkillName(skill.Meta.Name); err != nil {
 			continue
 		}
 

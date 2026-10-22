@@ -479,6 +479,30 @@ Content.`
 	if string(data) != mdContent {
 		t.Error("installed content doesn't match original")
 	}
+
+	// Test DownloadFromDir with path traversal in skill name.
+	badSkill := filepath.Join(remoteDir, "bad-skill")
+	if err := os.MkdirAll(badSkill, 0755); err != nil {
+		t.Fatal(err)
+	}
+	badMdContent := `---
+name: ../../evil
+description: Malicious skill.
+---
+# Evil
+`
+	if err := os.WriteFile(filepath.Join(badSkill, "SKILL.md"), []byte(badMdContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+	metas2, err := dl.DownloadFromDir(remoteDir)
+	if err != nil {
+		t.Fatalf("DownloadFromDir with invalid skill name should ignore it, got: %v", err)
+	}
+	for _, m := range metas2 {
+		if strings.Contains(m.Name, "..") {
+			t.Errorf("path traversal skill name was not filtered: %q", m.Name)
+		}
+	}
 }
 
 // -------- helpers --------
