@@ -276,9 +276,17 @@ func countMessages(ctx context.Context, db *sql.DB) (int, error) {
 // RunAll executes all checks sequentially and returns results.
 func RunAll(ctx context.Context) []CheckResult {
 	checks := AllChecks()
-	results := make([]CheckResult, len(checks))
-	for i, check := range checks {
-		results[i] = check(ctx)
+	results := make([]CheckResult, 0, len(checks))
+	for _, check := range checks {
+		if err := ctx.Err(); err != nil {
+			results = append(results, CheckResult{
+				Name:    "Diagnostics",
+				Status:  StatusFail,
+				Message: fmt.Sprintf("diagnostics cancelled: %v", err),
+			})
+			break
+		}
+		results = append(results, check(ctx))
 	}
 	return results
 }
