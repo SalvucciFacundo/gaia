@@ -112,6 +112,12 @@ func (b *Blackboard) Get(key string) (MemoryEntry, error) {
 	if !ok {
 		return MemoryEntry{}, fmt.Errorf("%w: %s", ErrKeyNotFound, key)
 	}
+
+	if entry.Data != nil {
+		dataCopy := make([]byte, len(entry.Data))
+		copy(dataCopy, entry.Data)
+		entry.Data = dataCopy
+	}
 	return entry, nil
 }
 
@@ -151,6 +157,11 @@ func (b *Blackboard) Snapshot() map[string]MemoryEntry {
 
 	res := make(map[string]MemoryEntry, len(b.entries))
 	for k, v := range b.entries {
+		if v.Data != nil {
+			dataCopy := make([]byte, len(v.Data))
+			copy(dataCopy, v.Data)
+			v.Data = dataCopy
+		}
 		res[k] = v
 	}
 	return res
@@ -163,6 +174,11 @@ func (b *Blackboard) Restore(entries map[string]MemoryEntry) {
 
 	b.entries = make(map[string]MemoryEntry, len(entries))
 	for k, v := range entries {
+		if v.Data != nil {
+			dataCopy := make([]byte, len(v.Data))
+			copy(dataCopy, v.Data)
+			v.Data = dataCopy
+		}
 		b.entries[k] = v
 	}
 }
