@@ -1,6 +1,7 @@
 package browser
 
 import (
+	"context"
 	"testing"
 
 	"gaia/internal/core/domain"
@@ -42,5 +43,27 @@ func TestModuleName(t *testing.T) {
 	}
 	if mod.Description() == "" {
 		t.Error("expected non-empty description")
+	}
+}
+
+func TestModule_ContextCancelled(t *testing.T) {
+	cfg := domain.BrowserToolsConfig{
+		Enabled: true,
+		Command: "npx playwright-mcp",
+	}
+	mod, err := NewModule(cfg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	if err := mod.Discover(ctx); err == nil {
+		t.Error("expected error for cancelled context in Discover")
+	}
+
+	if _, err := mod.Execute(ctx, "navigate", nil); err == nil {
+		t.Error("expected error for cancelled context in Execute")
 	}
 }

@@ -54,6 +54,9 @@ func (m *Module) Description() string {
 
 // Discover connects to the browser MCP server and loads its tools.
 func (m *Module) Discover(ctx context.Context) error {
+	if ctx != nil && ctx.Err() != nil {
+		return ctx.Err()
+	}
 	return m.mcpModule.Discover(ctx)
 }
 
@@ -64,6 +67,9 @@ func (m *Module) GetTools() []domain.ToolCall {
 
 // Execute dispatches a browser tool call.
 func (m *Module) Execute(ctx context.Context, toolName string, args map[string]interface{}) (*domain.ToolResult, error) {
+	if ctx != nil && ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
 	return m.mcpModule.Execute(ctx, toolName, args)
 }
 
