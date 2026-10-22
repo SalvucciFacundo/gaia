@@ -2,6 +2,9 @@ package webhook
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -75,4 +78,35 @@ func (m *mockHandler) HandleEvent(ctx context.Context, event Event) error {
 
 func (m *mockHandler) EventTypes() []string {
 	return m.types
+}
+
+func TestHandleWebhook_Endpoints(t *testing.T) {
+	l := NewListener(":0")
+
+	// Test health endpoint
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/health", nil)
+	l.handleHealth(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Errorf("health endpoint returned %d, want 200", rec.Code)
+	}
+
+	// Test invalid method on webhook
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest("GET", "/webhook", nil)
+	l.handleWebhook(rec, req)
+	if rec.Code != http.StatusMethodNotAllowed {
+		t.Errorf("webhook GET returned %d, want 405", rec.Code)
+	}
+
+	// Test valid unsigned webhook (no secret configured)
+	rec = httptest.NewRecorder()
+	payload := `{"repository":{"full_name":"owner/repo"}}`
+	req = httptest.NewRequest("POST", "/webhook", strings.NewReader(payload))
+	req.Header.Set("X-GitHub-Event", "push")
+	req.Header.Set("X-GitHub-Delivery", "123")
+	l.handleWebhook(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Errorf("webhook POST returned %d, want 200", rec.Code)
+	}
 }

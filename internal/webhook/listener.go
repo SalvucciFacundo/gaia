@@ -174,13 +174,14 @@ func (l *Listener) handleWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	body, err := io.ReadAll(r.Body)
+	defer r.Body.Close()
+	// Limit request body to 10MB to prevent denial-of-service / memory exhaustion attacks
+	body, err := io.ReadAll(io.LimitReader(r.Body, 10<<20))
 	if err != nil {
 		l.logger.Printf("webhook: read body: %v", err)
 		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
-	defer r.Body.Close()
 
 	eventType := r.Header.Get("X-GitHub-Event")
 	deliveryID := r.Header.Get("X-GitHub-Delivery")
