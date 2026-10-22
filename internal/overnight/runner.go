@@ -41,6 +41,9 @@ func NewRunner(wtMgr *agent.WorktreeManager, queue *DeferredQueue, storageDir st
 
 // ProvisionSandbox creates an isolated git worktree or filesystem staging directory.
 func (r *Runner) ProvisionSandbox(ctx context.Context, plan *ActionPlan, baseDir string) error {
+	if ctx != nil && ctx.Err() != nil {
+		return ctx.Err()
+	}
 	if baseDir == "" {
 		baseDir = "."
 	}
@@ -72,6 +75,9 @@ func (r *Runner) ProvisionSandbox(ctx context.Context, plan *ActionPlan, baseDir
 
 // BuildReviewPack captures diffs, test results, and deferred actions into a consolidated pack.
 func (r *Runner) BuildReviewPack(ctx context.Context, plan *ActionPlan) (*ReviewPack, error) {
+	if ctx != nil && ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
 	pack := &ReviewPack{
 		PlanID:          plan.ID,
 		Status:          plan.Status,
@@ -127,6 +133,9 @@ func (r *Runner) BuildReviewPack(ctx context.Context, plan *ActionPlan) (*Review
 
 // Merge merges worktree branch into base HEAD and removes the worktree.
 func (r *Runner) Merge(ctx context.Context, plan *ActionPlan, baseRepoPath string) error {
+	if ctx != nil && ctx.Err() != nil {
+		return ctx.Err()
+	}
 	if plan.SandboxMode != SandboxGitWorktree {
 		return fmt.Errorf("plan %q is not using a git worktree", plan.ID)
 	}
@@ -162,6 +171,9 @@ func (r *Runner) Merge(ctx context.Context, plan *ActionPlan, baseRepoPath strin
 
 // Discard cleans up the worktree or staging directory and marks plan discarded.
 func (r *Runner) Discard(ctx context.Context, plan *ActionPlan, baseRepoPath string) error {
+	if ctx != nil && ctx.Err() != nil {
+		return ctx.Err()
+	}
 	if plan.SandboxMode == SandboxGitWorktree {
 		if baseRepoPath == "" {
 			baseRepoPath = "."

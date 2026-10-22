@@ -124,3 +124,34 @@ func TestRunner_StagingSandboxAndReviewPack(t *testing.T) {
 		t.Errorf("expected staging path to be removed")
 	}
 }
+
+func TestOvernight_ContextCancelled(t *testing.T) {
+	tempDir := t.TempDir()
+	runner := NewRunner(nil, nil, tempDir)
+	interviewer := NewPreflightInterviewer(nil, tempDir)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	plan := &ActionPlan{ID: "test-cancel"}
+
+	if _, err := interviewer.AnalyzeGoal(ctx, "Goal", "dev"); err == nil {
+		t.Error("expected error for cancelled context in AnalyzeGoal")
+	}
+
+	if err := runner.ProvisionSandbox(ctx, plan, tempDir); err == nil {
+		t.Error("expected error for cancelled context in ProvisionSandbox")
+	}
+
+	if _, err := runner.BuildReviewPack(ctx, plan); err == nil {
+		t.Error("expected error for cancelled context in BuildReviewPack")
+	}
+
+	if err := runner.Merge(ctx, plan, tempDir); err == nil {
+		t.Error("expected error for cancelled context in Merge")
+	}
+
+	if err := runner.Discard(ctx, plan, tempDir); err == nil {
+		t.Error("expected error for cancelled context in Discard")
+	}
+}

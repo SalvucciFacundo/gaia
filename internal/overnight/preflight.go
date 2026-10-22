@@ -33,6 +33,9 @@ func NewPreflightInterviewer(provider ports.LLMProvider, baseDir string) *Prefli
 
 // AnalyzeGoal generates a targeted pre-flight questionnaire for the user.
 func (p *PreflightInterviewer) AnalyzeGoal(ctx context.Context, goal, profile string) ([]PreflightQuestion, error) {
+	if ctx != nil && ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
 	if p.provider != nil {
 		questions, err := p.generateQuestionsWithLLM(ctx, goal, profile)
 		if err == nil && len(questions) > 0 {
