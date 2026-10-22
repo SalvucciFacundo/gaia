@@ -208,7 +208,8 @@ func Inspect(r io.Reader) (*Manifest, error) {
 		}
 
 		if hdr.Name == ManifestFileName {
-			data, err := io.ReadAll(tr)
+			// Limit manifest read size to 10MB to prevent memory exhaustion
+			data, err := io.ReadAll(io.LimitReader(tr, 10<<20))
 			if err != nil {
 				return nil, fmt.Errorf("reading %s: %w", ManifestFileName, err)
 			}

@@ -100,7 +100,8 @@ func Restore(r io.Reader, targetProfile string, opts RestoreOptions) (*RestoreRe
 			if err != nil {
 				return nil, fmt.Errorf("creating staged file %s: %w", cleanName, err)
 			}
-			if _, err := io.Copy(outFile, tr); err != nil {
+			// Limit file extraction to 500MB per file to prevent decompression bomb attacks
+			if _, err := io.Copy(outFile, io.LimitReader(tr, 500<<20)); err != nil {
 				_ = outFile.Close()
 				return nil, fmt.Errorf("extracting staged file %s: %w", cleanName, err)
 			}
@@ -109,7 +110,7 @@ func Restore(r io.Reader, targetProfile string, opts RestoreOptions) (*RestoreRe
 	}
 
 	// Drain remaining bytes from gzip reader to ensure full stream validation (e.g. gzip CRC32/checksum verification)
-	if _, err := io.Copy(io.Discard, gr); err != nil {
+	if _, err := io.Copy(io.Discard, io.LimitReader(gr, 1<<30)); err != nil {
 		return nil, fmt.Errorf("corrupt archive: %w", err)
 	}
 
