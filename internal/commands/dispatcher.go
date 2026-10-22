@@ -26,6 +26,9 @@ func New(brain *core.Brain) *Dispatcher {
 // Dispatch inspects content for slash commands and executes them.
 // Returns (handled, error) where handled is true if content was recognized and processed.
 func (d *Dispatcher) Dispatch(ctx context.Context, content string) (bool, error) {
+	if ctx != nil && ctx.Err() != nil {
+		return false, ctx.Err()
+	}
 	if d.brain == nil {
 		return false, nil
 	}

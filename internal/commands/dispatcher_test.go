@@ -30,3 +30,17 @@ func TestDispatcher_NilBrain(t *testing.T) {
 		t.Errorf("unexpected error: %v", err)
 	}
 }
+
+func TestDispatcher_ContextCancelled(t *testing.T) {
+	d := New(nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	handled, err := d.Dispatch(ctx, "/help")
+	if handled {
+		t.Errorf("expected handled=false for cancelled context, got true")
+	}
+	if err == nil {
+		t.Errorf("expected error for cancelled context, got nil")
+	}
+}
