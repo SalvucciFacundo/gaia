@@ -162,6 +162,11 @@ func (m *Manager) Disable(name string) error {
 // Install creates a new plugin from a source directory by copying
 // the plugin files into the plugins directory.
 func (m *Manager) Install(name string, srcDir string) error {
+	trimmed := filepath.Clean(name)
+	if trimmed == "" || trimmed == "." || trimmed == ".." || filepath.IsAbs(name) || filepath.Base(name) != name {
+		return fmt.Errorf("plugins: invalid plugin name %q: path traversal not allowed", name)
+	}
+
 	if err := os.MkdirAll(m.pluginsDir, 0755); err != nil {
 		return fmt.Errorf("plugins: create dir: %w", err)
 	}

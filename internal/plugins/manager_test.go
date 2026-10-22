@@ -131,3 +131,15 @@ func TestManagerToolsForPlugin(t *testing.T) {
 		}
 	}
 }
+
+func TestManagerInstall_PathTraversal(t *testing.T) {
+	mgr := NewManager(t.TempDir())
+	srcDir := t.TempDir()
+
+	for _, badName := range []string{"../evil", "/root/plugin", "foo/bar", "..", "."} {
+		err := mgr.Install(badName, srcDir)
+		if err == nil {
+			t.Errorf("expected error for path traversal plugin name %q", badName)
+		}
+	}
+}
