@@ -2,6 +2,7 @@ package profiles
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -458,8 +459,21 @@ func TestManager_ToolConfigurationWorkflow(t *testing.T) {
 	defer server.Close()
 
 	ddg := search.NewDuckDuckGoSearcher(search.WithDuckDuckGoEndpoint(server.URL))
-	asst := NewAssistantProfile().WithSearchRunner(tools.NewWebSearchRunner(ddg, "duckduckgo", search.WebProviders{}))
-	mgr.Register(asst)
+	mockSearchRunner := tools.NewWebSearchRunner(ddg, "duckduckgo", search.WebProviders{})
+	if entry, exists := mgr.Catalog().Get("web_search"); exists {
+		entry.Executor = func(ctx context.Context, args map[string]interface{}) (*domain.ToolResult, error) {
+			inBytes, err := json.Marshal(args)
+			if err != nil {
+				return &domain.ToolResult{Success: false, Error: err.Error()}, err
+			}
+			out, err := mockSearchRunner.Run(ctx, string(inBytes))
+			if err != nil {
+				return &domain.ToolResult{Success: false, Error: err.Error()}, err
+			}
+			return &domain.ToolResult{Success: true, Output: out}, nil
+		}
+		mgr.Catalog().Register(entry)
+	}
 
 	res, err := mgr.ExecuteTool(ctx, "web_search", map[string]interface{}{"query": "test query"})
 	if err != nil || !res.Success {
